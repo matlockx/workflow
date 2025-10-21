@@ -8,13 +8,13 @@ When unsure about implementation details, ALWAYS ask the developer.
 
 ## Non-negotiable golden rules
 
-| #: | AI *may* do                                                            | AI *must NOT* do                                                                    |
-|---|------------------------------------------------------------------------|-------------------------------------------------------------------------------------|
-| G-0 | Whenever unsure about something that's related to the project, ask the developer for clarification before making changes.    |  ❌ Write changes or use tools when you are not sure about something project specific, or if you don't have context for a particular feature/decision. |
-| G-1 | Add/update **`AIDEV-NOTE:` anchor comments** near non-trivial edited code. | ❌ Delete or mangle existing `AIDEV-` comments.                                     |
-| G-2 | Follow lint/style configs (`pyproject.toml`, `.prettierrc`, `.pre-commit-config.yaml`). Use the project's configured linter, if available, instead of manually re-formatting code. | ❌ Re-format code to any other style.                                               |
-| G-3 | For changes >300 LOC or >3 files, **ask for confirmation**.            | ❌ Refactor large modules without human guidance.                                     |
-| G-4 | Stay within the current task context. Inform the dev if it'd be better to start afresh.                                  | ❌ Continue work from a prior prompt after "new task" – start a fresh session.      |
+| #:  | AI _may_ do                                                                                                                                                                        | AI _must NOT_ do                                                                                                                                      |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| G-0 | Whenever unsure about something that's related to the project, ask the developer for clarification before making changes.                                                          | ❌ Write changes or use tools when you are not sure about something project specific, or if you don't have context for a particular feature/decision. |
+| G-1 | Add/update **`AIDEV-NOTE:` anchor comments** near non-trivial edited code.                                                                                                         | ❌ Delete or mangle existing `AIDEV-` comments.                                                                                                       |
+| G-2 | Follow lint/style configs (`pyproject.toml`, `.prettierrc`, `.pre-commit-config.yaml`). Use the project's configured linter, if available, instead of manually re-formatting code. | ❌ Re-format code to any other style.                                                                                                                 |
+| G-3 | For changes >300 LOC or >3 files, **ask for confirmation**.                                                                                                                        | ❌ Refactor large modules without human guidance.                                                                                                     |
+| G-4 | Stay within the current task context. Inform the dev if it'd be better to start afresh.                                                                                            | ❌ Continue work from a prior prompt after "new task" – start a fresh session.                                                                        |
 
 ---
 
@@ -57,13 +57,18 @@ Add specially formatted comments throughout the codebase, where appropriate, for
 - **Error Handling:** Use the custom `utils/error.js` for throwing errors (e.g., `error.throwError()`).
 - **General:** Follow existing patterns in the code. Do not introduce new libraries without discussion.
 
+When something is not handled by this bullet points refer to the following styleguide:
+
+- Commonjs: <https://google.github.io/styleguide/jsguide.html>
+- Typescript: <https://google.github.io/styleguide/tsguide.html>
+
 ---
 
 ## Commit discipline
 
 - **Granular commits**: One logical change per commit.
 - **Tag AI-generated commits**: e.g., `feat: optimise feed query [AI]`.
-- **Clear commit messages**: Explain the *why*; link to issues/ADRs if architectural.
+- **Clear commit messages**: Explain the _why_; link to issues/ADRs if architectural.
 - **Use `git worktree`** for parallel/long-running AI branches (e.g., `git worktree add ../wip-foo -b wip-foo`).
 - **Review AI-generated code**: Never merge code you don't understand.
 
