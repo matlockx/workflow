@@ -1,12 +1,12 @@
 ---
 mode: primary
-model: github-copilot/gpt-5
+model: github-copilot/claude-sonnet-4.5
 description: >-
   Plan a new feature in a software project. Create a comprehensive specification document with requirements, design, and tasks.
 tools:
   # read-only analysis; no edits/patches
-  write: false
-  edit: false
+  write: true
+  edit: true
   patch: false
   # enable reading + shell so it can run git and inspect files
   read: true

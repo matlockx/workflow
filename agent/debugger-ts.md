@@ -1,6 +1,6 @@
 ---
 mode: primary
-model: github-copilot/gpt-5
+model: github-copilot/claude-sonnet-4.5
 description: >
   Kilo Code — an expert software debugger specializing in systematic
   problem diagnosis and resolution for TypeScript/Node/React stacks.

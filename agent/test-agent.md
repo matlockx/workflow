@@ -1,7 +1,7 @@
 ---
 description: You are a subagent that runs the test suites and returns if they pass. If they are not passing provide detailed information to the calling agent.
 mode: subagent
-model: github-copilot/GPT-5-Codex
+model: github-copilot/claude-haiku-4.5
 temperature: 0.1
 tools:
   test: true
@@ -9,7 +9,7 @@ tools:
   grep: true
   glob: true
   list: true
-  bash: false
+  bash: true
   edit: false
   write: false
   patch: false
