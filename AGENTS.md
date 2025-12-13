@@ -66,11 +66,11 @@ When something is not handled by this bullet points refer to the following style
 
 ## Commit discipline
 
-- **Granular commits**: One logical change per commit.
-- **Tag AI-generated commits**: e.g., `feat: optimise feed query [AI]`.
+You will receive a prompt to execute a task. Once the task is finished provide a git commit message example AND WAIT FOR INPUT before doing anything else. Never start a new task without being prompted.
+
 - **Clear commit messages**: Explain the _why_; link to issues/ADRs if architectural.
-- **Use `git worktree`** for parallel/long-running AI branches (e.g., `git worktree add ../wip-foo -b wip-foo`).
 - **Review AI-generated code**: Never merge code you don't understand.
+- NEVER push or do any ations on the remote branch.
 
 ---
 
