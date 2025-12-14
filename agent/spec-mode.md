@@ -33,11 +33,11 @@ The user may ask for the actions below.
 
 > Create a comprehensive planning document step by step.
 >
-> 1. Start with “Requirements” only. Keep “Design” and “Tasks” as placeholders.
-> 2. After Requirements, write the plan file, then pause and explicitly ask: “Please review the requirements above. Are they accurate and complete? Should I proceed to the Design section?”
-> 3. After approval, complete “Design”. Keep “Tasks” as a placeholder.
-> 4. After Design, write the plan file, then pause and explicitly ask: “Please review the design above. Are they accurate and complete? Should I proceed to the Tasks section?”
-> 5. After approval, complete “Tasks”.
+> 1. Start with "Requirements" only. Keep "Design" as a placeholder.
+> 2. After Requirements, write the plan file, then pause and explicitly ask: "Please review the requirements above. Are they accurate and complete? Should I proceed to the Design section?"
+> 3. After approval, complete "Design".
+> 4. After Design, write the plan file, then pause and explicitly ask: "Please review the design above. Is it accurate and complete? Should I mark the spec as approved?"
+> 5. After approval, mark spec as approved.
 
 ## Guiding principles
 
@@ -53,9 +53,10 @@ You are a senior software engineer assisting a user in defining and planning a n
 
 Single markdown document with:
 
-* Requirements (the “what”)
-* Design (the “how”)
-* Tasks (the “plan”)
+* Requirements (the "what")
+* Design (the "how")
+
+Implementation tasks are managed separately in Taskwarrior using the `createtasks` command.
 
 In step-by-step mode, leave later sections as placeholders until prior sections are approved.
 
@@ -190,43 +191,29 @@ graph TD
   classDef removed fill:#ffeef0,stroke:#d73a49,color:#000;
 ```
 
-### Tasks
+### Implementation tasks
 
-Create a detailed implementation plan:
+Implementation tasks are not included in the spec document. After the spec is approved, use the `createtasks` command to generate Taskwarrior tasks by analyzing the Requirements and Design sections.
 
-* Numbered checklist grouped by component/feature
-* TDD-first ordering (write test, then implement)
-* Reference specific requirements being satisfied
-* Keep steps actionable and incremental
-* Place tests immediately after their related code tasks
+**Example:** `createtasks IN-1373`
 
-If parallelizable, split into two phases:
+The command will:
+- Analyze the spec (Requirements and Design sections)
+- Generate an implementation plan based on what needs to be built
+- Create granular Taskwarrior tasks with proper dependencies
+- Link tasks to the spec file via annotations
+- Tag tasks with `+impl` and set project to repo name
 
-1. **Parallel phase** — tasks that can be done concurrently by up to 4 independent subagents (no shared state/files).
-2. **Final phase** — follow-ups and integration tasks that must occur after the parallel phase.
+**How it works:**
 
-**Example tasks format:**
+The AI agent reads your spec and intelligently generates tasks by:
+- Identifying components from the Design section's "Files" and "Component graph"
+- Creating test tasks based on the "Testing strategy"
+- Determining dependencies from component relationships
+- Following TDD approach (tests before implementation)
+- Estimating effort based on task complexity
 
-```markdown
-### 1. Token storage
-
-- [ ] 1.1. **Create interface:** Add `src/token/TokenStore.ts` (fulfills Req 1.1)
-  - Define `TokenPair`, `TokenStore` interfaces
-- [ ] 1.2. **Write tests:** Add `test/TokenStore.test.ts` (fulfills Req 1.1)
-  - Null when empty, set/get, clear
-
-### 2. Token refresh logic
-
-- [ ] 2.1. **Create refresher:** Add `src/token/TokenRefresher.ts` (fulfills Req 1.1, 1.2)
-  - `ensureFreshToken(store, auth, now)`
-- [ ] 2.2. **Write tests:** Add `test/TokenRefresher.test.ts` (fulfills Req 1.1, 1.2)
-  - Refresh on expiry, return valid, error propagation
-
-### 3. Integration
-
-- [ ] 3.1. **Wire-up usage example:** Add `src/examples/refreshExample.ts` (non-prod demo)
-- [ ] 3.2. **Write tests:** Add `test/refreshExample.test.ts`
-```
+**No manual task writing required** - just write a clear Requirements and Design section, and the AI will figure out the implementation tasks.
 
 ---
 

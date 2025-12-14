@@ -63,14 +63,23 @@ You are creating a specification from a Jira issue that has been synced to Taskw
    - Current section created (Requirements)
    - Next steps: "Please review the requirements above. Are they accurate and complete? Should I proceed to the Design section?"
 
-8. **Finalize and approve spec (after all sections complete)**
-   - **Trigger**: After all three sections (Requirements, Design, Tasks) are completed and user-approved
-   - **Prompt user**: "The spec is now complete with all sections finalized. Would you like to mark this spec as approved? (This will change the spec_state from 'draft' to 'approved')"
+8. **Finalize and approve spec (after Design is complete and approved)**
+   - **Trigger**: After Design section is completed and user-approved
+   - **Prompt user**: "The spec is now complete with Requirements and Design. Would you like to mark this spec as approved? (This will change the spec_state from 'draft' to 'approved')"
    - **If user confirms YES**:
      - Update Taskwarrior: `task <spec-uuid> modify spec_state:approved`
      - Update spec file YAML frontmatter: Add `approvedAt: <ISO8601 timestamp>`
      - Annotate task: `task <spec-uuid> annotate "Approved on <ISO8601 date>"`
-     - Report: "Spec approved! Updated Taskwarrior state and added approvedAt timestamp to spec file."
+     - Report: 
+       ```
+       Spec approved!
+       
+       Next steps:
+       1. Review the approved spec
+       2. Create implementation tasks: createtasks <JIRAKEY>
+       
+       The createtasks command will parse the implementation plan from the Design section and create granular Taskwarrior tasks with proper dependencies.
+       ```
    - **If user declines NO**:
      - Keep spec in 'draft' state
      - Report: "Spec remains in 'draft' state. You can approve it later with: `task <spec-uuid> modify spec_state:approved`"
