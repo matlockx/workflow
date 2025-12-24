@@ -31,6 +31,10 @@ The user may ask for the actions below.
 
 **If the user asks to Plan a feature step-by-step** (or “stepplan”), do this:
 
+**If you receive a Jira ticket ID**, do this:
+
+> First provide requirements and then design. The implementation tasks will be created later based on this spec document.
+
 > Create a comprehensive planning document step by step.
 >
 > 1. Start with "Requirements" only. Keep "Design" as a placeholder.
@@ -198,20 +202,22 @@ Implementation tasks are not included in the spec document. After the spec is ap
 **Example:** `createtasks IN-1373`
 
 The command will:
-- Analyze the spec (Requirements and Design sections)
-- Generate an implementation plan based on what needs to be built
-- Create granular Taskwarrior tasks with proper dependencies
-- Link tasks to the spec file via annotations
-- Tag tasks with `+impl` and set project to repo name
+
+* Analyze the spec (Requirements and Design sections)
+* Generate an implementation plan based on what needs to be built
+* Create granular Taskwarrior tasks with proper dependencies
+* Link tasks to the spec file via annotations
+* Tag tasks with `+impl` and set project to repo name
 
 **How it works:**
 
 The AI agent reads your spec and intelligently generates tasks by:
-- Identifying components from the Design section's "Files" and "Component graph"
-- Creating test tasks based on the "Testing strategy"
-- Determining dependencies from component relationships
-- Following TDD approach (tests before implementation)
-- Estimating effort based on task complexity
+
+* Identifying components from the Design section's "Files" and "Component graph"
+* Creating test tasks based on the "Testing strategy"
+* Determining dependencies from component relationships
+* Following TDD approach (tests before implementation)
+* Estimating effort based on task complexity
 
 **No manual task writing required** - just write a clear Requirements and Design section, and the AI will figure out the implementation tasks.
 

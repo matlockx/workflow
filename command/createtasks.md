@@ -107,10 +107,14 @@ Analyze an approved specification and create granular Taskwarrior implementation
       ]
       ```
 
-6. **Get repository name**
+6. **Define project hierarchy and get repository name**
    - Run: `git remote get-url origin`
-   - Extract repo name from URL (last segment before .git)
-   - Use as Taskwarrior project name
+   - Extract repo name from URL (last segment before .git, e.g., "account-api")
+   - Store as `<repo>` for the `repository` UDA
+   - Use the Jira ID as the base project name:
+     - Phase tasks will use: `project:<JIRAKEY>`
+     - Implementation tasks will use: `project:<JIRAKEY>.<phase-slug>`
+     - Phase slug is derived from phase name (lowercase, spaces to hyphens, e.g., "Data models" → "data-models")
 
 7. **Check for existing implementation tasks**
    - Run: `task jiraid:$ARGUMENTS +impl export`
@@ -128,20 +132,20 @@ Analyze an approved specification and create granular Taskwarrior implementation
      ```
      Generated implementation plan from spec analysis:
      
-     Phase: Data models & types (2 tasks)
+     1. Phase: Data models & types (2 tasks)
        - 1.1. Create TokenStore interface
        - 1.2. Create TokenPair type definition
      
-     Phase: Testing (TDD approach) (3 tasks)
+     2. Phase: Testing (TDD approach) (3 tasks)
        - 2.1. Set up Jest test infrastructure (depends: none)
        - 2.2. Write TokenStore tests (depends: 1.1, 2.1)
        - 2.3. Write TokenRefresher tests (depends: 1.1, 2.1)
      
-     Phase: Core implementation (2 tasks)
+     3. Phase: Core implementation (2 tasks)
        - 3.1. Implement TokenStore (depends: 2.2)
        - 3.2. Implement TokenRefresher (depends: 2.3)
      
-     Phase: Integration (2 tasks)
+     4. Phase: Integration (2 tasks)
        - 4.1. Create usage example (depends: 3.1, 3.2)
        - 4.2. Integration tests (depends: 4.1)
      
@@ -160,18 +164,20 @@ Analyze an approved specification and create granular Taskwarrior implementation
    - If yes: Proceed to task creation
 
 9. **Create phase tasks**
-   - For each phase:
+   - For each phase (numbered sequentially starting from 1):
+     - Generate phase slug from name (lowercase, spaces/special chars to hyphens)
 
      ```bash
-     task add "Phase: <phase-name>" \
-       project:<repo> \
+     task add "<phase-number>. Phase: <phase-name>" \
+       project:<JIRAKEY> \
        jiraid:<JIRAKEY> \
+       repository:<repo> \
        +impl +phase \
        depends:<spec-uuid>
      ```
 
    - Capture phase UUID from command output (parse "Created task <id>." and get UUID via `task <id> _get uuid`)
-   - Build map: phase-index → phase-uuid
+   - Build map: phase-number → { uuid: phase-uuid, slug: phase-slug }
 
 10. **Create implementation tasks**
 
@@ -206,8 +212,9 @@ Analyze an approved specification and create granular Taskwarrior implementation
 
     ```bash
     task add "<task-id>. <task-title>" \
-      project:<repo> \
+      project:<JIRAKEY>.<phase-slug> \
       jiraid:<JIRAKEY> \
+      repository:<repo> \
       +impl [+conditional] \
       depends:<phase-uuid>[,<dependency-task-uuids>]
     ```
@@ -234,23 +241,26 @@ Analyze an approved specification and create granular Taskwarrior implementation
     
     Summary:
     - Total tasks: <count> (<phase-count> phases + <impl-count> implementation tasks)
-    - Project: <repo>
+    - Project: <JIRAKEY> (with sub-projects per phase)
+    - Repository: <repo>
     - Jira ID: <JIRAKEY>
     - Spec: <spec-file-path>
     
     Tasks by phase:
-      📁 Phase: Data models & types (2 tasks)
-      📁 Phase: Testing (3 tasks)
-      📁 Phase: Core implementation (2 tasks)
-      📁 Phase: Integration (2 tasks)
+      📁 <JIRAKEY> (root)
+        📁 1. Phase: Data models & types (2 tasks) → <JIRAKEY>.data-models
+        📁 2. Phase: Testing (3 tasks) → <JIRAKEY>.testing
+        📁 3. Phase: Core implementation (2 tasks) → <JIRAKEY>.core-implementation
+        📁 4. Phase: Integration (2 tasks) → <JIRAKEY>.integration
     
     Conditional tasks: <count> (tagged with +conditional)
     
     Next steps:
-    - View all tasks: task project:<repo> +impl jiraid:<JIRAKEY> list
-    - View ready tasks: task project:<repo> +impl +READY list
-    - View dependency tree: task project:<repo> +impl jiraid:<JIRAKEY> list depends.any:
-    - Start first task: task project:<repo> +impl +READY list
+    - View hierarchy: task project:<JIRAKEY> tree
+    - View all tasks: task project:<JIRAKEY> list
+    - View ready tasks: task project:<JIRAKEY> +READY list
+    - View specific phase: task project:<JIRAKEY>.testing list
+    - View by repo: task repository:<repo> list
     ```
 
 ## Notes
@@ -260,8 +270,12 @@ Analyze an approved specification and create granular Taskwarrior implementation
 - **TDD approach**: Test tasks are created before implementation tasks where applicable
 - **Dependencies**: Logical dependency chains based on component relationships
 - **Jira linking**: The `jiraid:<JIRAKEY>` UDA links all tasks to the original Jira ticket
+- **Repository**: The `repository:<repo>` UDA stores the git repo name for filtering across projects
 - **Tags**: `+impl` for all implementation tasks, `+phase` for phase grouping tasks, `+conditional` for optional tasks
-- **Project**: Set to repository name for filtering
+- **Hierarchical project structure**: 
+  - Phase tasks use `project:<JIRAKEY>` (root level)
+  - Implementation tasks use `project:<JIRAKEY>.<phase-slug>` (nested under phase)
+  - This enables `task project:<JIRAKEY> tree` to show proper hierarchy
 - **Spec annotation**: Every task annotated with spec file location for reference
 
 ## Task Generation Guidelines
@@ -327,22 +341,25 @@ SO THAT upstream calls remain authenticated.
 Use Jest with ts-jest. Run: `npm test`
 ```
 
-**Generated tasks:**
+**Generated tasks (with hierarchical projects):**
 
 ```
-Phase: Setup (1 task)
-  - 1.1. Verify Jest and ts-jest are configured
+Project: IN-1373 (root - contains phase tasks)
+├── 1. Phase: Setup (project: IN-1373)
+│     └── 1.1. Verify Jest and ts-jest are configured (project: IN-1373.setup)
 
-Phase: Data models (1 task)
-  - 2.1. Create TokenStore and TokenPair interfaces (depends: 1.1)
+├── 2. Phase: Data models (project: IN-1373)
+│     └── 2.1. Create TokenStore and TokenPair interfaces (project: IN-1373.data-models)
 
-Phase: Testing (2 tasks)
-  - 3.1. Write TokenStore tests (depends: 2.1)
-  - 3.2. Write TokenRefresher tests (depends: 2.1)
+├── 3. Phase: Testing (project: IN-1373)
+│     ├── 3.1. Write TokenStore tests (project: IN-1373.testing)
+│     └── 3.2. Write TokenRefresher tests (project: IN-1373.testing)
 
-Phase: Implementation (2 tasks)
-  - 4.1. Implement TokenStore (depends: 3.1)
-  - 4.2. Implement TokenRefresher (depends: 3.2)
+└── 4. Phase: Implementation (project: IN-1373)
+      ├── 4.1. Implement TokenStore (project: IN-1373.implementation)
+      └── 4.2. Implement TokenRefresher (project: IN-1373.implementation)
+
+View with: task project:IN-1373 tree
 ```
 
 ## Error Handling

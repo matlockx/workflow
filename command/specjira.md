@@ -42,7 +42,7 @@ You are creating a specification from a Jira issue that has been synced to Taskw
 5. **Create the spec file**
    - Use the spec-mode structure (Requirements, Design, Tasks)
    - Use `jiradescription` as the primary context
-   - Follow step-by-step mode (Requirements → Design → Tasks)
+   - Follow step-by-step mode (Requirements → Design)
    - Include YAML frontmatter with:
      - `createdAt: <ISO8601 date>`
      - `spec_state: draft`
@@ -70,7 +70,8 @@ You are creating a specification from a Jira issue that has been synced to Taskw
      - Update Taskwarrior: `task <spec-uuid> modify spec_state:approved`
      - Update spec file YAML frontmatter: Add `approvedAt: <ISO8601 timestamp>`
      - Annotate task: `task <spec-uuid> annotate "Approved on <ISO8601 date>"`
-     - Report: 
+     - Report:
+
        ```
        Spec approved!
        
@@ -80,6 +81,7 @@ You are creating a specification from a Jira issue that has been synced to Taskw
        
        The createtasks command will parse the implementation plan from the Design section and create granular Taskwarrior tasks with proper dependencies.
        ```
+
    - **If user declines NO**:
      - Keep spec in 'draft' state
      - Report: "Spec remains in 'draft' state. You can approve it later with: `task <spec-uuid> modify spec_state:approved`"
