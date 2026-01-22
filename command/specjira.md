@@ -67,7 +67,7 @@ You are creating a specification from a Jira issue that has been synced to Taskw
     - **Trigger**: After Design section is completed and user-approved
     - **Prompt user**: "The spec is now complete with Requirements and Design. Would you like to mark this spec as approved? (This will change the work_status from 'draft' to 'approved')"
     - **If user confirms YES**:
-      - Update Taskwarrior: `task <spec-uuid> modify work_status:approved`
+      - Update Taskwarrior: `task <spec-uuid> modify work_status:approved status:completed`
       - Update spec file YAML frontmatter: Add `approvedAt: <ISO8601 timestamp>`
       - Annotate task: `task <spec-uuid> annotate "Approved on <ISO8601 date>"`
       - Report:

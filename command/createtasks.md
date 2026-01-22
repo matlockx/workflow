@@ -167,14 +167,15 @@ Analyze an approved specification and create granular Taskwarrior implementation
    - For each phase (numbered sequentially starting from 1):
      - Generate phase slug from name (lowercase, spaces/special chars to hyphens)
 
-     ```bash
-     task add "<phase-number>. Phase: <phase-name>" \
-       project:<JIRAKEY> \
-       jiraid:<JIRAKEY> \
-       repository:<repo> \
-       +impl +phase \
-       depends:<spec-uuid>
-     ```
+      ```bash
+      task add "<phase-number>. Phase: <phase-name>" \
+        project:<JIRAKEY> \
+        jiraid:<JIRAKEY> \
+        repository:<repo> \
+        work_status:todo \
+        +impl +phase \
+        depends:<spec-uuid>
+      ```
 
    - Capture phase UUID from command output (parse "Created task <id>." and get UUID via `task <id> _get uuid`)
    - Build map: phase-number → { uuid: phase-uuid, slug: phase-slug }
@@ -210,14 +211,15 @@ Analyze an approved specification and create granular Taskwarrior implementation
 
     d. **Create task**:
 
-    ```bash
-    task add "<task-id>. <task-title>" \
-      project:<JIRAKEY>.<phase-slug> \
-      jiraid:<JIRAKEY> \
-      repository:<repo> \
-      +impl [+conditional] \
-      depends:<phase-uuid>[,<dependency-task-uuids>]
-    ```
+      ```bash
+      task add "<task-id>. <task-title>" \
+        project:<JIRAKEY>.<phase-slug> \
+        jiraid:<JIRAKEY> \
+        repository:<repo> \
+        work_status:todo \
+        +impl [+conditional] \
+        depends:<phase-uuid>[,<dependency-task-uuids>]
+      ```
 
     e. **Add extended description**:
 
@@ -271,6 +273,7 @@ Analyze an approved specification and create granular Taskwarrior implementation
 - **Dependencies**: Logical dependency chains based on component relationships
 - **Jira linking**: The `jiraid:<JIRAKEY>` UDA links all tasks to the original Jira ticket
 - **Repository**: The `repository:<repo>` UDA stores the git repo name for filtering across projects
+- **Work status**: Always set to `todo` for all created tasks (both phases and implementations)
 - **Tags**: `+impl` for all implementation tasks, `+phase` for phase grouping tasks, `+conditional` for optional tasks
 - **Hierarchical project structure**: 
   - Phase tasks use `project:<JIRAKEY>` (root level)

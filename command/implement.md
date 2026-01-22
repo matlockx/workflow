@@ -26,21 +26,38 @@ Execute implementation tasks for a Jira issue using its approved specification.
     - AIDEV-NOTE: This workflow uses `work_status` (not `spec_state`).
     - If `work_status` != "approved": Exit with error "Spec is not approved (current state: <state>). Please approve the spec before implementing."
 
-3. **Fetch all phase tasks**
-   - Run: `task jiraid:$ARGUMENTS +phase status:pending export`
-   - Parse JSON to get ordered list of phases
-   - Sort phases by task ID number (lowest to highest)
-   - If no phases found: Exit with error "No implementation phases found for <JIRAKEY>. Run: createtasks <JIRAKEY>"
+3. **Find the current active phase**
+    - First, check for a phase already in progress:
+      - Run: `task jiraid:$ARGUMENTS +phase work_status:inprogress export`
+      - If a phase is found, use it as the active phase
+    - If no phase is in progress, check for completed phases awaiting review:
+      - Run: `task jiraid:$ARGUMENTS +phase work_status:review status:completed export`
+      - If a phase is found in review:
+        - Report: "⚠️  Phase '<phase-name>' is in review status. Review and approve the phase before continuing."
+        - Show: `task <phase-uuid> info`
+        - Exit gracefully
+    - If no phase is in progress or review:
+      - Run: `task jiraid:$ARGUMENTS +phase status:pending export`
+      - Parse JSON to get ordered list of phases
+      - Sort phases by task ID number (lowest to highest)
+      - If no phases found: Exit with error "No implementation phases found for <JIRAKEY>. Run: createtasks <JIRAKEY>"
+      - Select the first phase (lowest task ID) as the active phase
+      - Set the phase status: `task <phase-uuid> modify work_status:inprogress`
+      - AIDEV-NOTE: Marking phase as inprogress ensures we resume in the same phase if interrupted
 
-4. **Find the current active phase**
-   - Iterate through phases in order (sorted by task ID)
-   - For each phase, check if it has any pending implementation tasks:
-     - Run: `task jiraid:$ARGUMENTS +impl -phase status:pending depends:<phase-uuid> export`
-   - The first phase with pending tasks is the "active phase"
-   - If all phases have no pending tasks:
-     - Check if all phases are completed
-     - If yes: Report success "✅ All implementation tasks completed for <JIRAKEY>!"
-     - Exit gracefully
+4. **Verify phase has pending tasks**
+    - Run: `task jiraid:$ARGUMENTS +impl -phase status:pending depends:<phase-uuid> export`
+    - If no pending tasks found in this phase:
+      - Check if all implementation tasks are completed:
+        - Run: `task jiraid:$ARGUMENTS +impl -phase status:completed depends:<phase-uuid> export`
+      - If all completed:
+        - Set phase to review: `task <phase-uuid> modify work_status:review`
+        - Report: "✅ All tasks in phase '<phase-name>' are complete! Phase set to work_status:review for approval."
+        - Return to step 3 to find next phase
+      - If not all completed but no pending tasks:
+        - Report: "⚠️  Phase '<phase-name>' has no pending tasks. Tasks may be blocked or in unexpected state."
+        - Show: `task jiraid:<JIRAKEY> +impl depends:<phase-uuid> list`
+        - Exit gracefully
 
 5. **Fetch implementation tasks for the active phase**
    - Run: `task jiraid:$ARGUMENTS +impl -phase status:pending depends:<phase-uuid> export`
@@ -143,39 +160,40 @@ Execute implementation tasks for a Jira issue using its approved specification.
         - Suggest debugging steps
         - Exit with error status
 
-11. **Report completion**
-    - Show a detailed summary of changes:
+ 11. **Report completion**
+     - Show a detailed summary of changes:
 
-      ```
-      ═══════════════════════════════════════════════════════
-      ✅ Task Implementation Complete
-      ═══════════════════════════════════════════════════════
-      
-      Changes made:
-      <list-of-files-created>
-      <list-of-files-modified>
-      <list-of-files-deleted>
-      
-      Summary:
-      <brief-description-of-what-was-implemented>
-      
-      ═══════════════════════════════════════════════════════
-      Next Steps:
-      ═══════════════════════════════════════════════════════
-      
-      1. Review the changes above
-      2. Run tests: /test
-      3. Verify acceptance criteria are met
-      
-      Task info: task <task-uuid> info
-      ═══════════════════════════════════════════════════════
-      ```
+       ```
+       ═══════════════════════════════════════════════════════
+       ✅ Task Implementation Complete
+       ═══════════════════════════════════════════════════════
 
-    - Ask: "Mark this task as completed? (yes/no)"
+       Changes made:
+       <list-of-files-created>
+       <list-of-files-modified>
+       <list-of-files-deleted>
+
+       Summary:
+       <brief-description-of-what-was-implemented>
+
+       ═══════════════════════════════════════════════════════
+       Next Steps:
+       ═══════════════════════════════════════════════════════
+
+       1. Review the changes above
+       2. Verify acceptance criteria are met
+       3. Tests will run after all tasks in phase complete
+
+       Task info: task <task-uuid> info
+       ═══════════════════════════════════════════════════════
+       ```
+
+     - Ask: "Mark this task as completed? (yes/no)"
 
 12. **Mark task as done (if confirmed)**
     - If user confirms YES:
       - Run: `task <task-uuid> done`
+      - Run: `task <task-uuid> modify work_status:done`
       - Capture output
       - Report: "✅ Task marked as completed"
     - If user declines NO:
@@ -206,45 +224,66 @@ Execute implementation tasks for a Jira issue using its approved specification.
     - Check if all implementation tasks in current phase are completed:
       - Run: `task jiraid:$ARGUMENTS +impl -phase status:pending depends:<current-phase-uuid> export`
       - If count is 0, all tasks in this phase are done
-    
-    - If phase is complete:
-      - Report: "✅ All tasks in phase '<phase-name>' are complete!"
-      - Mark phase task as done: `task <phase-uuid> done`
-      - Report: "✅ Phase '<phase-name>' marked as completed"
-      
-      - Return to step 4 to find next active phase
-      - If next phase found:
-        - Display:
-          ```
-          ═══════════════════════════════════════════════════════
-          Moving to next phase: <next-phase-name>
-          ═══════════════════════════════════════════════════════
-          ```
-        - Ask: "Continue with next phase? (yes/no)"
-        - If YES: Continue to step 5 with new phase
-        - If NO: Exit with message "Session paused. Resume with: /implement <JIRAKEY>"
-      
-      - If no more phases (all complete):
-        - Report final success:
-          ```
-          ═══════════════════════════════════════════════════════
-          🎉 ALL IMPLEMENTATION COMPLETE! 🎉
-          ═══════════════════════════════════════════════════════
-          
-          Jira:     <JIRAKEY>
-          Status:   All phases and tasks completed
-          
-          Next steps:
-          1. Review all changes
-          2. Run full test suite: /test
-          3. Create PR (if applicable)
-          4. Update Jira ticket status
-          
-          View completed tasks:
-          task jiraid:<JIRAKEY> +impl status:completed list
-          ═══════════════════════════════════════════════════════
-          ```
-        - Exit successfully
+
+     - If phase is complete:
+       - Report: "✅ All tasks in phase '<phase-name>' are complete!"
+       - Show completion summary:
+         ```
+         ═══════════════════════════════════════════════════════
+         Phase Complete - Ready for Testing & Commit
+         ═══════════════════════════════════════════════════════
+
+         Phase: <phase-name>
+         Status: All tasks completed
+
+         Next steps:
+         1. Run tests: /test
+         2. If tests pass, commit changes: /git
+         3. Approve phase: task <phase-uuid> modify work_status:approved
+
+         Task info: task <phase-uuid> info
+         ═══════════════════════════════════════════════════════
+         ```
+       - Set phase to review: `task <phase-uuid> modify work_status:review`
+       - Report: "✅ Phase '<phase-name>' set to work_status:review for approval"
+
+        - Return to step 3 to find next active phase
+        - If next phase found:
+          - Display:
+            ```
+            ═══════════════════════════════════════════════════════
+            Moving to next phase: <next-phase-name>
+            ═══════════════════════════════════════════════════════
+            ```
+          - Ask: "Continue with next phase? (yes/no)"
+          - If YES: Continue to step 5 with new phase
+          - If NO: Exit with message "Session paused. Resume with: /implement <JIRAKEY>"
+
+        - If no more phases (all complete):
+          - Report final success:
+            ```
+            ═══════════════════════════════════════════════════════
+            🎉 ALL IMPLEMENTATION COMPLETE! 🎉
+            ═══════════════════════════════════════════════════════
+
+            Jira:     <JIRAKEY>
+            Status:   All tasks complete, all phases in review
+
+            Final steps:
+            1. Run full test suite: /test
+            2. Commit all changes: /git
+            3. Review and approve phases (work_status:review):
+               task jiraid:<JIRAKEY> +phase work_status:review list
+            4. Approve phases after review:
+               task <phase-uuid> modify work_status:approved
+            5. Create PR (if applicable)
+            6. Update Jira ticket status
+
+            View completed tasks:
+            task jiraid:<JIRAKEY> +impl status:completed list
+            ═══════════════════════════════════════════════════════
+            ```
+         - Exit successfully
     
     - If phase is not complete (has tasks waiting on dependencies):
       - Report:
@@ -288,9 +327,12 @@ Create implementation tasks:
 ```
 ⚠️  No tasks are ready to implement
 
-Some tasks may be blocked by dependencies.
+Some tasks may be blocked by dependencies or phases may be in review.
 Check dependencies:
   task jiraid:<JIRAKEY> +impl depends.any: list
+
+Check phases in review status:
+  task jiraid:<JIRAKEY> +phase work_status:review list
 ```
 
 ### Spec file missing
@@ -333,15 +375,17 @@ Context: <what-we-were-trying-to-do>
 ## Notes
 
 - **Sequential execution**: Tasks are processed in dependency order within phases, sorted by task ID number
-- **Phase-driven**: Phases group related work and enforce ordering. Phases are auto-completed when all child tasks finish.
-- **Human checkpoints**: Wait for confirmation after each task completion and before continuing to next task/phase
-- **Spec-driven**: All implementation references the approved spec. Spec is cached within a session for efficiency.
-- **Spec caching**: The spec file is read once per session and cached. Each task prompt still receives the full spec content.
-- **No automatic testing**: Human reviews implementation and runs `/test` command separately
-- **State tracking**: Uses Taskwarrior task status (`pending`, `completed`) to track progress
-- **Dependency resolution**: Only tasks with ALL dependencies completed are considered READY
-- **Error recovery**: Any implementation error stops execution immediately and reports details
-- **Resume capability**: User can exit at any time and resume later with `/implement <JIRAKEY>`
+- **Phase-driven**: Phases group related work and enforce ordering. Phases are set to review when all child tasks finish.
+ - **Phase state tracking**: Phases are marked with `work_status:inprogress` when active. When interrupted, `/implement` resumes in the same phase by checking for `work_status:inprogress` first. If none found, starts the first pending phase. When phase completes, it's set to `work_status:review` for approval.
+ - **Task completion status**: Tasks are set to `work_status:done` when completed (not review). Phases are set to `work_status:review` when all tasks complete, allowing phase-level review/approval before proceeding.
+ - **Testing at phase completion**: `/test` and `/git` are only run when all tasks in a phase are complete, not after each individual task.
+ - **Human checkpoints**: Wait for confirmation after each task completion and before continuing to next task/phase
+ - **Spec-driven**: All implementation references the approved spec. Spec is cached within a session for efficiency.
+ - **Spec caching**: The spec file is read once per session and cached. Each task prompt still receives the full spec content.
+ - **State tracking**: Uses Taskwarrior task status (`pending`, `completed`, `work_status`) to track progress
+ - **Dependency resolution**: Only tasks with ALL dependencies completed are considered READY
+ - **Error recovery**: Any implementation error stops execution immediately and reports details
+ - **Resume capability**: User can exit at any time and resume later with `/implement <JIRAKEY>`
 
 ## Example Usage
 
@@ -354,8 +398,9 @@ Context: <what-we-were-trying-to-do>
 ### Example session flow
 
 ```
-Agent: 
+Agent:
 ✓ Found spec task (approved)
+✓ Phase 39 marked as work_status:inprogress
 ✓ Active phase: Testing (TDD approach)
 ✓ Next task: Write tests for getUserByIds with flag enabled
 
@@ -405,28 +450,28 @@ Created:
 Modified:
   - None
 
-Summary:
-Added test suite for getUserByIds with 5 test cases covering:
-- Feature flag enabled query structure
-- Table selection (user_identity + employment)
-- LEFT JOIN on user_uid
-- Filtering by legacy_user_id
-- Empty array handling
+ Summary:
+ Added test suite for getUserByIds with 5 test cases covering:
+ - Feature flag enabled query structure
+ - Table selection (user_identity + employment)
+ - LEFT JOIN on user_uid
+ - Filtering by legacy_user_id
+ - Empty array handling
 
-═══════════════════════════════════════════════════════
-Next Steps:
-═══════════════════════════════════════════════════════
+ ═══════════════════════════════════════════════════════
+ Next Steps:
+ ═══════════════════════════════════════════════════════
 
-1. Review the changes above
-2. Run tests: /test
-3. Verify acceptance criteria are met
+ 1. Review the changes above
+ 2. Verify acceptance criteria are met
+ 3. Tests will run after all tasks in phase complete
 
-Task info: task d939a0c0-178b-4a0f-a540-d9325fca7d0f info
-═══════════════════════════════════════════════════════
+ Task info: task d939a0c0-178b-4a0f-a540-d9325fca7d0f info
+ ═══════════════════════════════════════════════════════
 
 Mark this task as completed? (yes/no)
 
-User: yes
+ User: yes
 
 Agent:
 ✅ Task marked as completed
@@ -453,7 +498,10 @@ Session paused. Resume with: /implement IMP-7070
 /implement IMP-7070
 ```
 
-Agent will pick up where you left off, finding the next READY task.
+Agent will pick up where you left off:
+- First looks for phase with `work_status:inprogress`
+- Resumes in that phase with next READY task
+- If no phase is in progress, starts with first pending phase
 
 ## Task Ordering Logic
 
@@ -490,13 +538,18 @@ Phase 41: Integration & validation
 
 ## AIDEV-NOTE: Command Integration
 
-This command is designed to work seamlessly with the existing workflow:
+ This command is designed to work seamlessly with the existing workflow:
 
-1. **Before**: `/specjira IMP-7070` creates the spec (Requirements + Design)
-2. **Before**: `/createtasks IMP-7070` generates implementation tasks from spec
-3. **During**: `/implement IMP-7070` executes tasks sequentially (THIS COMMAND)
-4. **During**: `/test` validates each task (human-driven)
-5. **After**: `/git` commits changes with proper commit message
-6. **After**: Create PR when all tasks complete
+ 1. **Before**: `/specjira IMP-7070` creates the spec (Requirements + Design)
+ 2. **Before**: `/createtasks IMP-7070` generates implementation tasks from spec (sets `work_status:todo` on all tasks)
+ 3. **During**: `/implement IMP-7070` executes tasks sequentially (THIS COMMAND)
+    - Sets phase `work_status:inprogress` when starting work
+    - Sets task `work_status:done` when task completes
+    - Sets phase `work_status:review` when all tasks in phase complete
+    - Runs `/test` after phase completes (not after each task)
+    - Runs `/git` after tests pass (not after each task)
+ 4. **During**: `/test` validates all tasks in a phase when phase is complete
+ 5. **After**: `/git` commits all changes for a phase after tests pass
+ 6. **After**: Create PR when all tasks complete and phases are approved
 
-The build agent has access to the full spec content and task details to implement correctly.
+ The build agent has access to the full spec content and task details to implement correctly.
