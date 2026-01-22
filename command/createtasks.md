@@ -18,21 +18,21 @@ Analyze an approved specification and create granular Taskwarrior implementation
    - Extract just the ID
 
 2. **Find the spec task in Taskwarrior**
-   - Run: `task jiraid:$ARGUMENTS +spec export`
-   - Parse JSON to extract:
-     - `uuid` - The spec task UUID
-     - `annotations` - Contains spec file location
-     - `spec_state` - Current approval state
-   - Parse spec file path from annotation matching pattern: `Spec(repo=<repo>): <path>`
-   - If no spec task found, exit with error: "No spec task found for <JIRAKEY>. Create one with: specjira <JIRAKEY>"
+    - Run: `task jiraid:$ARGUMENTS +spec export`
+    - Parse JSON to extract:
+      - `uuid` - The spec task UUID
+      - `annotations` - Contains spec file location
+      - `work_status` - Current approval state
+    - Parse spec file path from annotation matching pattern: `Spec(repo=<repo>): <path>`
+    - If no spec task found, exit with error: "No spec task found for <JIRAKEY>. Create one with: specjira <JIRAKEY>"
 
 3. **Validate spec is approved**
-   - Check `spec_state` field
-   - If not "approved":
-     - Warn user: "⚠️  This spec is not approved (current state: <state>). Creating tasks from unapproved specs may lead to incomplete implementation."
-     - Ask: "Continue anyway? (yes/no)"
-     - If no: Exit gracefully
-   - If approved: Proceed to next step
+    - Check `work_status` field
+    - If not "approved":
+      - Warn user: "⚠️  This spec is not approved (current state: <state>). Creating tasks from unapproved specs may lead to incomplete implementation."
+      - Ask: "Continue anyway? (yes/no)"
+      - If no: Exit gracefully
+    - If approved: Proceed to next step
 
 4. **Read and analyze the spec file**
    - Read the spec markdown file from the extracted path

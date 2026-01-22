@@ -69,9 +69,9 @@ Edit `~/.taskrc` and add:
 
 ```ini
 # --- Workflow UDAs ---
-uda.spec_state.type=string
-uda.spec_state.label=SpecState
-uda.spec_state.values=draft,review,approved,stale
+uda.work_status.type=string
+uda.work_status.label=WorkStatus
+uda.work_status.values=new,draft,todo,inprogress,review,approved,rejected,done,active
 
 uda.jira_assignee.type=string
 uda.jira_assignee.label=Assignee
@@ -197,7 +197,7 @@ Given a Jira task (from Taskwarrior):
 * Creates a local spec task:
 
   * `+spec`
-  * `spec_state:draft`
+  * `work_status:draft`
   * depends on Jira task UUID
 * Creates a spec file in `llm-notes`
 * Annotates the spec task with a **portable** link
@@ -209,13 +209,13 @@ Given a Jira task (from Taskwarrior):
 Example annotation:
 
 ```text
-Spec(repo=project1): project1/notes/spec/IN-1423__read-migration.md
+Spec(repo=project1): project1/notes/specs/IN-1423__read-migration.md
 ```
 
 ### Spec file location
 
 ```text
-$LLM_NOTES_ROOT/project1/notes/spec/IN-1423__read-migration.md
+$LLM_NOTES_ROOT/project1/notes/specs/IN-1423__read-migration.md
 ```
 
 ### Spec file naming
@@ -230,13 +230,13 @@ $LLM_NOTES_ROOT/project1/notes/spec/IN-1423__read-migration.md
 
 Workflow:
 
-* Spec agent sets `spec_state:draft` then `spec_state:review`
-* Human changes `spec_state:approved` and marks spec task `done`
+* Spec agent sets `work_status:draft` then `work_status:review`
+* Human changes `work_status:approved` and marks spec task `done`
 
 List specs needing review:
 
 ```bash
-task +spec spec_state:review
+task +spec work_status:review
 ```
 
 ---
@@ -306,18 +306,20 @@ task +jira
 task +jira columns:id,description,jira_assignee
 ```
 
-## Create spec (manual skeleton, until the agent automates it)
+## Create spec (agent-driven)
+
+If I want to write a spec, I query Taskwarrior for specs, check the JiraID, and start the flow.
 
 ```bash
-task add "SPEC: IN-1423 read migration" +spec spec_state:draft
-# add depends:<jira-uuid> once you have it
-task <spec-id> annotate "Spec(repo=project1): project1/notes/spec/IN-1423__read-migration.md"
+task specs
+
+/specjira IN-1423
 ```
 
 ## List spec reviews
 
 ```bash
-task +spec spec_state:review
+task +spec work_status:review
 ```
 
 ## List executable work

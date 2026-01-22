@@ -40,37 +40,37 @@ You are creating a specification from a Jira issue that has been synced to Taskw
      - Example: "Implement User Balance Write" → "implement-user-balance-write"
 
 5. **Create the spec file**
-   - Use the spec-mode structure (Requirements, Design, Tasks)
-   - Use `jiradescription` as the primary context
-   - Follow step-by-step mode (Requirements → Design)
-   - Include YAML frontmatter with:
-     - `createdAt: <ISO8601 date>`
-     - `spec_state: draft`
-     - `approvedAt: <ISO8601 date>` (only added when spec is approved in Step 8)
-   - Title: Based on `jirasummary`
+    - Use the spec-mode structure (Requirements, Design, Tasks)
+    - Use `jiradescription` as the primary context
+    - Follow step-by-step mode (Requirements → Design)
+    - Include YAML frontmatter with:
+      - `createdAt: <ISO8601 date>`
+      - `work_status: draft`
+      - `approvedAt: <ISO8601 date>` (only added when spec is approved in Step 8)
+    - Title: Based on `jirasummary`
 
 6. **Create Taskwarrior spec task**
-   - Run: `task add "SPEC: <JIRAKEY> <summary>" +spec spec_state:draft depends:<jira-task-uuid>`
-   - Capture the new spec task UUID from output
-   - Annotate with portable spec path:
-     - `task <spec-uuid> annotate "Spec(repo=<repo>): <repo>/notes/specs/<filename>"`
+    - Run: `task add "SPEC: <JIRAKEY> <summary>" +spec work_status:draft depends:<jira-task-uuid>`
+    - Capture the new spec task UUID from output
+    - Annotate with portable spec path:
+      - `task <spec-uuid> annotate "Spec(repo=<repo>): <repo>/notes/specs/<filename>"`
 
 7. **Report back to user**
-   - Spec file location (full path)
-   - Taskwarrior spec task ID and UUID
-   - Current spec_state (draft)
-   - Jira URL for reference
-   - Current section created (Requirements)
-   - Next steps: "Please review the requirements above. Are they accurate and complete? Should I proceed to the Design section?"
+    - Spec file location (full path)
+    - Taskwarrior spec task ID and UUID
+    - Current work_status (draft)
+    - Jira URL for reference
+    - Current section created (Requirements)
+    - Next steps: "Please review the requirements above. Are they accurate and complete? Should I proceed to the Design section?"
 
 8. **Finalize and approve spec (after Design is complete and approved)**
-   - **Trigger**: After Design section is completed and user-approved
-   - **Prompt user**: "The spec is now complete with Requirements and Design. Would you like to mark this spec as approved? (This will change the spec_state from 'draft' to 'approved')"
-   - **If user confirms YES**:
-     - Update Taskwarrior: `task <spec-uuid> modify spec_state:approved`
-     - Update spec file YAML frontmatter: Add `approvedAt: <ISO8601 timestamp>`
-     - Annotate task: `task <spec-uuid> annotate "Approved on <ISO8601 date>"`
-     - Report:
+    - **Trigger**: After Design section is completed and user-approved
+    - **Prompt user**: "The spec is now complete with Requirements and Design. Would you like to mark this spec as approved? (This will change the work_status from 'draft' to 'approved')"
+    - **If user confirms YES**:
+      - Update Taskwarrior: `task <spec-uuid> modify work_status:approved`
+      - Update spec file YAML frontmatter: Add `approvedAt: <ISO8601 timestamp>`
+      - Annotate task: `task <spec-uuid> annotate "Approved on <ISO8601 date>"`
+      - Report:
 
        ```
        Spec approved!
@@ -82,9 +82,9 @@ You are creating a specification from a Jira issue that has been synced to Taskw
        The createtasks command will parse the implementation plan from the Design section and create granular Taskwarrior tasks with proper dependencies.
        ```
 
-   - **If user declines NO**:
-     - Keep spec in 'draft' state
-     - Report: "Spec remains in 'draft' state. You can approve it later with: `task <spec-uuid> modify spec_state:approved`"
+    - **If user declines NO**:
+      - Keep spec in 'draft' state
+      - Report: "Spec remains in 'draft' state. You can approve it later with: `task <spec-uuid> modify work_status:approved`"
 
 ## Notes
 
@@ -108,7 +108,7 @@ You are creating a specification from a Jira issue that has been synced to Taskw
 
 ### Tracking
 
-- State is tracked both in Taskwarrior (`spec_state` UDA) and spec file YAML frontmatter
+- State is tracked in Taskwarrior (`work_status`) and in the spec file YAML frontmatter
 - Approval creates an annotation in Taskwarrior for audit trail
 
 ### YAML Frontmatter Examples
@@ -118,7 +118,7 @@ You are creating a specification from a Jira issue that has been synced to Taskw
 ```yaml
 ---
 createdAt: 2025-12-14T10:30:00Z
-spec_state: draft
+work_status: draft
 ---
 ```
 
@@ -127,7 +127,7 @@ spec_state: draft
 ```yaml
 ---
 createdAt: 2025-12-14T10:30:00Z
-spec_state: approved
+work_status: approved
 approvedAt: 2025-12-14T14:45:00Z
 ---
 ```
@@ -137,7 +137,7 @@ approvedAt: 2025-12-14T14:45:00Z
 ```yaml
 ---
 createdAt: 2025-12-14T10:30:00Z
-spec_state: draft
+work_status: draft
 # approvedAt removed
 ---
 ```
@@ -146,13 +146,13 @@ spec_state: draft
 
 When a user requests changes to an approved spec:
 
-1. Automatically detect `spec_state:approved` in YAML frontmatter
+1. Automatically detect `work_status: approved` in YAML frontmatter
 2. Ask user: "This spec is approved. Modifying it will revert to draft state. Continue?"
 3. If user confirms:
-   - Revert spec_state to `draft` in both Taskwarrior and spec file
-   - Remove `approvedAt` from YAML frontmatter
-   - Annotate task: `task <spec-uuid> annotate "Reverted to draft on <ISO8601 date> due to modifications"`
-   - Notify user: "Spec has been reverted to 'draft' state due to modifications"
+    - Revert work_status to `draft` in both Taskwarrior and spec file
+    - Remove `approvedAt` from YAML frontmatter
+    - Annotate task: `task <spec-uuid> annotate "Reverted to draft on <ISO8601 date> due to modifications"`
+    - Notify user: "Spec has been reverted to 'draft' state due to modifications"
 4. If user declines:
    - Cancel the modification
    - Keep spec in approved state
@@ -162,19 +162,19 @@ When a user requests changes to an approved spec:
 **Check current state:**
 
 ```bash
-task <uuid> _get spec_state
+task <uuid> _get work_status
 ```
 
 **Approve manually:**
 
 ```bash
-task <uuid> modify spec_state:approved
+task <uuid> modify work_status:approved
 # Don't forget to update the spec file YAML frontmatter!
 ```
 
 **Revert to draft:**
 
 ```bash
-task <uuid> modify spec_state:draft
+task <uuid> modify work_status:draft
 # Don't forget to remove approvedAt from spec file YAML frontmatter!
 ```

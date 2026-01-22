@@ -18,12 +18,13 @@ Execute implementation tasks for a Jira issue using its approved specification.
    - Extract just the ID
 
 2. **Find the SPEC task and validate approval**
-   - Run: `task jiraid:$ARGUMENTS +spec export`
-   - Parse JSON to extract:
-     - `uuid` - The spec task UUID
-     - `spec_state` - Current approval state
-   - If no spec task found: Exit with error "No spec task found for <JIRAKEY>. Create one with: specjira <JIRAKEY>"
-   - If `spec_state` != "approved": Exit with error "Spec is not approved (current state: <state>). Please approve the spec before implementing."
+    - Run: `task jiraid:$ARGUMENTS +spec export`
+    - Parse JSON to extract:
+      - `uuid` - The spec task UUID
+      - `work_status` - Current approval state
+    - If no spec task found: Exit with error "No spec task found for <JIRAKEY>. Create one with: specjira <JIRAKEY>"
+    - AIDEV-NOTE: This workflow uses `work_status` (not `spec_state`).
+    - If `work_status` != "approved": Exit with error "Spec is not approved (current state: <state>). Please approve the spec before implementing."
 
 3. **Fetch all phase tasks**
    - Run: `task jiraid:$ARGUMENTS +phase status:pending export`
@@ -62,10 +63,13 @@ Execute implementation tasks for a Jira issue using its approved specification.
      - Exit gracefully
 
 7. **Extract spec file path from task**
-   - First, check task annotations for pattern: `Spec: <path>`
-   - If not found in annotations, parse task description for line starting with "Spec: <path>"
-   - Extract the spec file path
-   - If spec path not found: Exit with error "No spec file found in task annotations or description for task <task-id>"
+    - First, check task annotations for pattern: `Spec(repo=<repo>): <path>`
+    - If not found, check for pattern: `Spec: <path>`
+    - If still not found, parse task description for a line starting with:
+      - `Spec(repo=<repo>): <path>` or
+      - `Spec: <path>`
+    - Extract the spec file path
+    - If spec path not found: Exit with error "No spec file found in task annotations or description for task <task-id>"
 
 8. **Determine full spec path and read spec**
    - If spec has already been cached in this session:
@@ -269,7 +273,7 @@ Create a spec first:
 Current state: <state>
 
 To approve:
-  task jiraid:<JIRAKEY> +spec modify spec_state:approved
+  task jiraid:<JIRAKEY> +spec modify work_status:approved
 ```
 
 ### No implementation tasks

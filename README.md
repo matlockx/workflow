@@ -1,84 +1,124 @@
+
 # Agentic Workflow V2
 
 **Opencode × Jira × Bugwarrior × Taskwarrior**
 
-This is highevel description of the workflow. The detailed [technical setup instructions](docs/setup.md) and setup can be found in the docs folder.
+This is a high-level description of the workflow. Detailed technical setup instructions live in `docs/` (for example `docs/setup.md`).
 
 ## Goal
 
 Create an **end-to-end, agent-assisted workflow** that:
 
-* Keeps **Jira clean and authoritative**
-* Uses **Taskwarrior as the local execution engine**
-* Treats **specs as first-class, reviewable artifacts**
-* Allows **agents to accelerate work** without removing human control
-* Works across **multiple repos and developer machines**
+- Keeps **Jira clean and authoritative**
+- Uses **Taskwarrior as the local execution engine**
+- Treats **specs as first-class, reviewable artifacts**
+- Lets **agents accelerate work** without removing human control
+- Works across **multiple repos and developer machines**
 
-This workflow is designed for **fintech / regulated environments** where correctness, traceability, and human sign-off matter.
+This is designed for fintech / regulated environments where correctness, traceability, and human sign-off matter.
 
 ---
 
 ## Core Principles
 
-1. **Jira = Contract**
+1) **Jira = contract**
 
-   * High-level intent
-   * Ownership, priority, status
-   * Minimal noise
+   - High-level intent
+   - Ownership, priority, status
+   - Minimal noise
 
-2. **Taskwarrior = Execution State**
+2) **Taskwarrior = execution state**
 
-   * What *you* are doing, now
-   * Specs, subtasks, reviews, local state machines
+   - What I am doing, now
+   - Specs, subtasks, reviews
+   - Local state machines (using `status` + `work_status`)
 
-3. **Bugwarrior = Sync Layer**
+3) **Bugwarrior = sync layer**
 
-   * Pulls Jira → Taskwarrior
-   * Never manages local execution tasks
+   - Pulls Jira → Taskwarrior
+   - Never manages local execution tasks
 
-4. **Agents = Accelerators, not decision-makers**
+4) **Agents = accelerators, not decision-makers**
 
-   * Agents may draft, propose, execute
-   * Humans approve specs and code
+   - Agents may draft, propose, and execute
+   - Humans approve specs and code
 
 ---
 
-## High-Level Architecture
+## State model (truth)
+
+I track state using **Taskwarrior `status`** plus a custom **`work_status`** field.
+
+- `status` is coarse: `pending` / `completed`
+- `work_status` is fine-grained: `draft`, `review`, `approved`, `rejected`, ...
+
+Recommended vocabulary (lowercase): `new`, `draft`, `todo`, `inprogress`, `review`, `approved`, `rejected`, `done`, `active`.
+
+### Spec tasks
+
+| Meaning | Taskwarrior `status` | `work_status` |
+| --- | --- | --- |
+| New spec work to do | `pending` | empty or `new` |
+| Draft exists | `pending` | `draft` |
+| Approved | `completed` | `approved` |
+| Rejected / needs rework | `pending` | `rejected` |
+
+### Execution tasks
+
+| Meaning | Taskwarrior `status` | `work_status` |
+| --- | --- | --- |
+| Ready to start | `pending` | `todo` |
+| Being implemented | `pending` | `inprogress` |
+| Done | `completed` | `done` |
+
+### Phase tasks
+
+Phase tasks are container tasks tagged `+phase`.
+
+| Meaning                | Taskwarrior `status` | `work_status` |
+| ---------------------- | -------------------- | ------------- |
+| Phase in progress      | `pending`            | `active`      |
+| Phase ready for review | `pending`            | `review`      |
+| Phase accepted         | `completed`          | `approved`    |
+| Phase rejected         | `pending`            | `rejected`    |
+
+---
+
+## High-level architecture
 
 ```mermaid
 flowchart LR
-    Human -->|draft idea| POAgent
-    POAgent -->|acli| Jira[Jira]
+  H[Human] -->|draft idea| PO[PO-Jira agent]
+  PO -->|acli| J[Jira]
 
-    Jira -->|bugwarrior pull| Bugwarrior
-    Bugwarrior --> Taskwarrior
+  J -->|bugwarrior pull| BW[Bugwarrior]
+  BW --> TW[Taskwarrior]
 
-    Taskwarrior --> SpecAgent
-    SpecAgent --> Taskwarrior
+  TW --> SA[Spec agent]
+  SA -->|writes spec + annotates link| TW
 
-    Taskwarrior --> BuildAgent
-    BuildAgent --> Code
+  TW --> TCA[Task creation agent]
+  TCA -->|creates phase + work tasks| TW
 
-    Code --> ReviewAgent
-    ReviewAgent --> Taskwarrior
+  TW --> BA[Build agent]
+  BA --> CODE[Code]
 
-    Taskwarrior --> Human
+  CODE --> H
+  TW --> H
 ```
 
 ---
 
-## Workflow Breakdown
+## Workflow breakdown
 
----
+## 1) Creating stories in Jira
 
-## 1. Creating Stories in Jira
-
-Stories are created **agent-first**, with **human confirmation**.
+Stories are created agent-first, with human confirmation.
 
 ### Tools
 
-* ❌ Atlassian MCP – evaluated, rejected
-* ✅ [ACLI](https://developer.atlassian.com/cloud/acli/guides/introduction/) – deterministic, CLI-native
+- ❌ Atlassian MCP – evaluated, rejected
+- ✅ [ACLI](https://developer.atlassian.com/cloud/acli/guides/introduction/) – deterministic, CLI-native
 
 ### Agent
 
@@ -86,258 +126,232 @@ Stories are created **agent-first**, with **human confirmation**.
 
 Responsibilities:
 
-* Turn rough input into a **high-quality Jira story**
-* Enforce:
-
-  * Proper user story format
-  * Acceptance criteria (Given / When / Then)
-  * INVEST quality gate
-* Ask for:
-
-  * Jira project (`IN`, `IMP`, `DEVOPS`)
-  * Optional Epic (never guessed)
-
-Execution:
-
-```
-Human → PO-Jira Agent → acli → Jira
-```
+- Turn rough input into a high-quality Jira story
+- Enforce:
+  - proper user story format
+  - acceptance criteria (Given / When / Then)
+  - INVEST quality gate
+- Ask for:
+  - Jira project (`IN`, `IMP`, `DEVOPS`)
+  - optional epic (never guessed)
 
 Constraints:
 
-* Agent **never** creates tickets without explicit confirmation
-* Agent **never** guesses project or epic
-* Jira description uses **Jira wiki markup**, not Markdown
+- Agent never creates tickets without explicit confirmation
+- Agent never guesses project or epic
+- Jira description uses Jira wiki markup (not Markdown)
 
 ---
 
-## 2. Retrieving Stories from Jira
+## 2) Retrieving stories from Jira (Bugwarrior)
 
-Jira is synced locally using **Bugwarrior**.
+Jira is synced locally using Bugwarrior.
 
-### Tools
+Purpose:
 
-* [Taskwarrior](https://taskwarrior.org/)
-* [Bugwarrior](https://github.com/GothenburgBitFactory/bugwarrior)
+- Pull assigned, open Jira issues
+- Represent them as local “contract tasks”
 
-### Purpose
+Result:
 
-* Pull **assigned, open Jira issues**
-* Represent them as **read-only contract tasks**
+Each Jira issue becomes one Taskwarrior task:
 
-### Result
+- Description: `KEY Summary`
+- Tags: `+jira` + Jira labels
+- UDA fields: `jira_assignee`, and optionally status/priority/epic
+- Jira description stored as annotation
 
-Each Jira issue becomes **one Taskwarrior task**:
-
-* Description: `KEY Summary`
-* Tags: `+jira` + Jira labels
-* UDA fields:
-
-  * `jira_assignee`
-  * (optionally status, priority, epic)
-* Jira description stored as **annotation**
-
-⚠️ Bugwarrior tasks are **never edited manually**.
+Important: Bugwarrior tasks are never edited manually.
 
 ---
 
-## 3. Spec Agent
+## 3) Spec drafting (Spec agent)
 
-Specs are **local design gates**, not Jira subtasks.
+Specs are local design gates, not Jira subtasks.
 
-### Spec Tasks
+### How I start a spec (actual workflow)
 
-For each Jira issue, the spec agent creates **one local spec task**:
+1. List spec tasks locally:
 
-```bash
-SPEC: IN-1423 read migration
-```
+   ```bash
+   task specs
+   ```
 
-Characteristics:
+   This shows the spec tasks and the `jiraid` I want to work on.
 
-* `+spec` tag
-* Depends on the Jira task UUID
-* Managed **only locally**
+2. Start the spec flow:
 
-### Spec Location (Portable)
+   ```bash
+   /specjira JIRA-XXX
+   ```
 
-Specs live in:
+   `/specjira` does **not** call Jira directly. It pulls the Jira summary + description from the Jira task that Bugwarrior synced into Taskwarrior.
+   If the Jira task is missing/outdated, run `bugwarrior-pull` first.
 
-```
-$LLM_NOTES_ROOT/
-  └── <repo>/notes/spec/
-```
+   The spec is written to a portable location under `$LLM_NOTES_ROOT` and linked back to the spec task via an annotation.
 
-Annotations use **portable paths**:
+### Spec tasks
 
-```
-Spec(repo=project1): project1/notes/spec/IN-1423__read-migration.md
-```
+New specs start as:
 
-Resolution rule:
+> status: pending
+> work_status: (empty)
 
-```
-$LLM_NOTES_ROOT/<relative-path>
-```
+Spec agent writes a first draft and stores it at:
 
-This works on **every developer machine**.
+`$LLM_NOTES_ROOT/<repo>/notes/specs/<JIRAKEY>__<slug>.md`
 
-### Spec State
+This path is intentionally portable:
 
-Specs have an explicit lifecycle via a UDA:
+- every dev machine can use a different absolute location for `$LLM_NOTES_ROOT`
+- the spec task only stores a relative path (via Taskwarrior annotations)
 
-* `draft`
-* `review`
-* `approved`
-* `stale`
+It annotates that location onto the Taskwarrior task.
 
-Agents may:
+Then the spec task becomes:
 
-* Create specs
-* Update to `draft` / `review`
+> status: pending
+> work_status: draft
 
-Only humans may:
-
-* Mark specs as `approved`
-
----
-
-## 4. Human Spec Review
-
-Specs are **reviewed before implementation**.
-
-### Review Flow
+#### Mermaid: spec lifecycle
 
 ```mermaid
-stateDiagram-v2
-    draft --> review
-    review --> approved
-    review --> draft
-    approved --> done
-    approved --> stale
+flowchart TD
+  A[New spec<br/>status pending<br/>work_status empty or new] -->|spec agent writes draft| B[Draft<br/>status pending<br/>work_status draft]
+  B -->|human approves| C[Approved<br/>status completed<br/>work_status approved]
+  B -->|human rejects| D[Rejected<br/>status pending<br/>work_status rejected]
+  D -->|rework| B
 ```
-
-You can list specs needing attention:
-
-```bash
-task +spec spec_state:review
-```
-
-The Taskwarrior task acts as:
-
-* Review checklist
-* Index of spec files (via annotations)
-* Audit trail
 
 ---
 
-## 5. Build Phase
+## 4) Human spec review
 
-Implementation work is **unblocked only after spec approval**.
+If approved without changes:
 
-### Build Tasks
+> status: completed
+> work_status: approved
 
-Implementation tasks:
+If the spec needs rework:
 
-* Depend on the spec task UUID
-* Live in repo-specific project namespaces
-* Are safe for agents to execute
+> status: pending
+> work_status: rejected
 
-Example:
-
-```bash
-Implement read path behind feature flag
-```
-
-### Build Agent
-
-The build agent:
-
-* Reads the approved spec
-* Executes tasks
-* Updates local task state
-* Never modifies Jira directly
+Then iterate until happy. Taskwarrior history shows whether it passed on the first try.
 
 ---
 
-## 6. Code Review (Agent)
+## 5) Task creation (from spec → execution tasks)
 
-When implementation tasks complete:
+The task creation agent pulls the spec (via the Taskwarrior annotation) and creates hierarchical tasks.
 
-* A **code review agent**:
+New execution tasks start as:
 
-  * Collects related tasks
-  * Gathers diffs / PRs
-  * Prepares review context
-
-This reduces review load without removing human responsibility.
+> status: pending
+> work_status: todo
 
 ---
 
-## 7. Human Code Review
+## 6) Implementation (phases + tasks)
 
-Human review is explicit and trackable.
+Implementation is structured in phases.
 
-### State
+### Phase tasks
 
-* Code review tasks have:
+Phase tasks:
 
-  * `+review` tag
-  * Optional `review_state` UDA
+- Tag: `+phase`
+- Act as container / sequencing points
+- Tasks inside the phase are executed sequentially and use Taskwarrior dependencies
 
-You can list pending reviews:
+While the phase is being worked on:
 
-```bash
-task +review
-```
+> status: pending
+> work_status: active
 
-Approval:
+### Work tasks
 
-* Human approves PR
-* Marks review task as done
-* Jira transitions happen manually or via a separate controlled step
+When implementation starts a task:
 
----
+> status: pending
+> work_status: inprogress
 
-## End-to-End Control Flow
+When done:
+
+> status: completed
+> work_status: done
+
+### Phase ready for review
+
+Once all tasks inside a phase are done, the phase becomes:
+
+> status: pending
+> work_status: review
+
+#### Mermaid: task + phase lifecycle
 
 ```mermaid
-sequenceDiagram
-    participant H as Human
-    participant PO as PO Agent
-    participant J as Jira
-    participant BW as Bugwarrior
-    participant TW as Taskwarrior
-    participant S as Spec Agent
-    participant B as Build Agent
-    participant R as Review Agent
+flowchart TD
+  subgraph T[Task - work item]
+    T1[Todo<br/>status pending<br/>work_status todo] -->|start| T2[In progress<br/>status pending<br/>work_status inprogress]
+    T2 -->|finish| T3[Done<br/>status completed<br/>work_status done]
+  end
 
-    H->>PO: Draft idea
-    PO->>H: Confirm story
-    PO->>J: Create ticket (acli)
-
-    J->>BW: Pull assigned issues
-    BW->>TW: Create Jira tasks
-
-    TW->>S: Create spec task
-    S->>TW: Annotate spec link
-
-    H->>TW: Review & approve spec
-
-    TW->>B: Execute build tasks
-    B->>TW: Update task state
-
-    TW->>R: Prepare code review
-    R->>H: Review context
+  subgraph P[Phase - container]
+    P1[Active<br/>status pending<br/>work_status active] -->|all tasks done| P2[Review<br/>status pending<br/>work_status review]
+    P2 -->|accept| P3[Approved<br/>status completed<br/>work_status approved]
+    P2 -->|reject| P4[Rejected<br/>status pending<br/>work_status rejected]
+    P4 -->|fix-on-the-go OR reset| P1
+  end
 ```
 
 ---
 
-## What This Gives You
+## 7) Human phase review (tests + code review)
 
-* ✅ Clean Jira
-* ✅ Local-first execution
-* ✅ Portable specs
-* ✅ Explicit design gates
-* ✅ Agent acceleration without loss of control
-* ✅ Full audit trail
+### Accepted
+
+If accepted:
+
+> status: completed
+> work_status: approved
+
+This is set for all tasks inside the phase.
+
+Then run:
+
+- `/test`
+- `/git` (commit per phase)
+
+### Rejected
+
+If rejected:
+
+> status: pending
+> work_status: rejected
+
+There are two main options:
+
+- Fix it on the go (prompt + patch)
+- Redo the specs and start over from scratch
+  - delete the tasks and start over from the spec
+  - switch the spec to `rejected` before restarting
+
+---
+
+## 8) PR creation
+
+If we accept the phase (and eventually all phases), we create a PR:
+
+`/create-pr`
+
+---
+
+## What this gives you
+
+- Clean Jira
+- Local-first execution
+- Specs as real artifacts (linked via annotations)
+- Explicit design / review gates
+- Agent acceleration without loss of control
+- Full audit trail (Taskwarrior history)
