@@ -2,16 +2,6 @@
 mode: primary
 description: >-
   Plan a new feature in a software project. Create a comprehensive specification document with requirements, design, and tasks.
-tools:
-  # read-only analysis; no edits/patches
-  write: true
-  edit: true
-  patch: false
-  # enable reading + shell so it can run git and inspect files
-  read: true
-  grep: true
-  glob: true
-  bash: true
 ---
 
 # Spec mode guidelines (CommonJS + TypeScript, `src/test/` folder)
