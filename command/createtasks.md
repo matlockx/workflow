@@ -1,6 +1,6 @@
 ---
 description: Create Taskwarrior implementation tasks from an approved spec
-agent: general
+agent: create-tasks
 ---
 
 # Create implementation tasks from spec
@@ -14,11 +14,11 @@ Analyze an approved specification and create granular Taskwarrior implementation
 ## Steps
 
 1. **Extract Jira ID from arguments**
-   - The Jira ID is provided in $ARGUMENTS (e.g., "IN-1373")
+   - The Jira ID is provided in $1 (e.g., "IN-1373")
    - Extract just the ID
 
 2. **Find the spec task in Taskwarrior**
-    - Run: `task jiraid:$ARGUMENTS +spec export`
+    - Run: `task jiraid:$1 +spec export`
     - Parse JSON to extract:
       - `uuid` - The spec task UUID
       - `annotations` - Contains spec file location
@@ -275,7 +275,7 @@ Analyze an approved specification and create granular Taskwarrior implementation
 - **Repository**: The `repository:<repo>` UDA stores the git repo name for filtering across projects
 - **Work status**: Always set to `todo` for all created tasks (both phases and implementations)
 - **Tags**: `+impl` for all implementation tasks, `+phase` for phase grouping tasks, `+conditional` for optional tasks
-- **Hierarchical project structure**: 
+- **Hierarchical project structure**:
   - Phase tasks use `project:<JIRAKEY>` (root level)
   - Implementation tasks use `project:<JIRAKEY>.<phase-slug>` (nested under phase)
   - This enables `task project:<JIRAKEY> tree` to show proper hierarchy
