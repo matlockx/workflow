@@ -22,12 +22,12 @@ Analyze an approved specification and create granular Taskwarrior implementation
     - Parse JSON to extract:
       - `uuid` - The spec task UUID
       - `annotations` - Contains spec file location
-      - `work_status` - Current approval state
+      - `work_state` - Current approval state
     - Parse spec file path from annotation matching pattern: `Spec(repo=<repo>): <path>`
     - If no spec task found, exit with error: "No spec task found for <JIRAKEY>. Create one with: specjira <JIRAKEY>"
 
 3. **Validate spec is approved**
-    - Check `work_status` field
+    - Check `work_state` field
     - If not "approved":
       - Warn user: "⚠️  This spec is not approved (current state: <state>). Creating tasks from unapproved specs may lead to incomplete implementation."
       - Ask: "Continue anyway? (yes/no)"
@@ -172,11 +172,11 @@ Analyze an approved specification and create granular Taskwarrior implementation
         project:<JIRAKEY> \
         jiraid:<JIRAKEY> \
         repository:<repo> \
-        work_status:todo \
-        +impl +phase \
-        depends:<spec-uuid>
+        work_state:todo \
+        +impl +phase
       ```
 
+   - **Note**: Phase task is linked to Jira via `jiraid` UDA, NOT via `depends:` field
    - Capture phase UUID from command output (parse "Created task <id>." and get UUID via `task <id> _get uuid`)
    - Build map: phase-number → { uuid: phase-uuid, slug: phase-slug }
 
@@ -216,7 +216,7 @@ Analyze an approved specification and create granular Taskwarrior implementation
         project:<JIRAKEY>.<phase-slug> \
         jiraid:<JIRAKEY> \
         repository:<repo> \
-        work_status:todo \
+        work_state:todo \
         +impl [+conditional] \
         depends:<phase-uuid>[,<dependency-task-uuids>]
       ```
@@ -271,15 +271,16 @@ Analyze an approved specification and create granular Taskwarrior implementation
 - **Intelligent analysis**: AI reads Requirements and Design to determine what needs to be built
 - **TDD approach**: Test tasks are created before implementation tasks where applicable
 - **Dependencies**: Logical dependency chains based on component relationships
-- **Jira linking**: The `jiraid:<JIRAKEY>` UDA links all tasks to the original Jira ticket
+- **Jira linking**: The `jiraid:<JIRAKEY>` UDA links all tasks to the original Jira ticket (NOT via `depends:`)
 - **Repository**: The `repository:<repo>` UDA stores the git repo name for filtering across projects
-- **Work status**: Always set to `todo` for all created tasks (both phases and implementations)
+- **Work state**: Always set to `todo` for all created tasks (both phases and implementations)
 - **Tags**: `+impl` for all implementation tasks, `+phase` for phase grouping tasks, `+conditional` for optional tasks
 - **Hierarchical project structure**:
   - Phase tasks use `project:<JIRAKEY>` (root level)
   - Implementation tasks use `project:<JIRAKEY>.<phase-slug>` (nested under phase)
   - This enables `task project:<JIRAKEY> tree` to show proper hierarchy
 - **Spec annotation**: Every task annotated with spec file location for reference
+- **Non-blocking hierarchy**: Phase tasks do NOT depend on spec task (linked via `jiraid` only)
 
 ## Task Generation Guidelines
 

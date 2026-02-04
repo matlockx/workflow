@@ -31,7 +31,7 @@ This is designed for fintech / regulated environments where correctness, traceab
 
    - What I am doing, now
    - Specs, subtasks, reviews
-   - Local state machines (using `status` + `work_status`)
+   - Local state machines (using `status` + `work_state`)
 
 3) **Bugwarrior = sync layer**
 
@@ -47,16 +47,32 @@ This is designed for fintech / regulated environments where correctness, traceab
 
 ## State model (truth)
 
-I track state using **Taskwarrior `status`** plus a custom **`work_status`** field.
+I track state using **Taskwarrior `status`** plus a custom **`work_state`** field.
 
 - `status` is coarse: `pending` / `completed`
-- `work_status` is fine-grained: `draft`, `review`, `approved`, `rejected`, ...
+- `work_state` is fine-grained: `draft`, `review`, `approved`, `rejected`, ...
 
 Recommended vocabulary (lowercase): `new`, `draft`, `todo`, `inprogress`, `review`, `approved`, `rejected`, `done`, `active`.
 
+### Jira tasks (synced via Bugwarrior)
+
+Jira tasks are **informational context only**. They do NOT block implementation work.
+
+| Meaning | Taskwarrior `status` | `work_state` |
+| --- | --- | --- |
+| Synced from Jira | `pending` | `new` |
+| Updated by Bugwarrior | `pending` | `new` |
+| Closed in Jira | `completed` | `new` |
+
+**Important notes:**
+- Jira tasks are linked to specs/phases/tasks via the `jiraid` UDA field
+- They do NOT use Taskwarrior dependencies (`depends:`)
+- Never edit Bugwarrior-synced tasks manually
+- Implementation work can proceed regardless of Jira task status
+
 ### Spec tasks
 
-| Meaning | Taskwarrior `status` | `work_status` |
+| Meaning | Taskwarrior `status` | `work_state` |
 | --- | --- | --- |
 | New spec work to do | `pending` | empty or `new` |
 | Draft exists | `pending` | `draft` |
@@ -65,7 +81,7 @@ Recommended vocabulary (lowercase): `new`, `draft`, `todo`, `inprogress`, `revie
 
 ### Execution tasks
 
-| Meaning | Taskwarrior `status` | `work_status` |
+| Meaning | Taskwarrior `status` | `work_state` |
 | --- | --- | --- |
 | Ready to start | `pending` | `todo` |
 | Being implemented | `pending` | `inprogress` |
@@ -75,7 +91,7 @@ Recommended vocabulary (lowercase): `new`, `draft`, `todo`, `inprogress`, `revie
 
 Phase tasks are container tasks tagged `+phase`.
 
-| Meaning                | Taskwarrior `status` | `work_status` |
+| Meaning                | Taskwarrior `status` | `work_state` |
 | ---------------------- | -------------------- | ------------- |
 | Phase in progress      | `pending`            | `active`      |
 | Phase ready for review | `pending`            | `review`      |
@@ -195,7 +211,7 @@ Specs are local design gates, not Jira subtasks.
 New specs start as:
 
 > status: pending
-> work_status: (empty)
+> work_state: (empty)
 
 Spec agent writes a first draft and stores it at:
 
@@ -211,15 +227,15 @@ It annotates that location onto the Taskwarrior task.
 Then the spec task becomes:
 
 > status: pending
-> work_status: draft
+> work_state: draft
 
 #### Mermaid: spec lifecycle
 
 ```mermaid
 flowchart TD
-  A[New spec<br/>status pending<br/>work_status empty or new] -->|spec agent writes draft| B[Draft<br/>status pending<br/>work_status draft]
-  B -->|human approves| C[Approved<br/>status completed<br/>work_status approved]
-  B -->|human rejects| D[Rejected<br/>status pending<br/>work_status rejected]
+  A[New spec<br/>status pending<br/>work_state empty or new] -->|spec agent writes draft| B[Draft<br/>status pending<br/>work_state draft]
+  B -->|human approves| C[Approved<br/>status completed<br/>work_state approved]
+  B -->|human rejects| D[Rejected<br/>status pending<br/>work_state rejected]
   D -->|rework| B
 ```
 
@@ -230,12 +246,12 @@ flowchart TD
 If approved without changes:
 
 > status: completed
-> work_status: approved
+> work_state: approved
 
 If the spec needs rework:
 
 > status: pending
-> work_status: rejected
+> work_state: rejected
 
 Then iterate until happy. Taskwarrior history shows whether it passed on the first try.
 
@@ -248,7 +264,7 @@ The task creation agent pulls the spec (via the Taskwarrior annotation) and crea
 New execution tasks start as:
 
 > status: pending
-> work_status: todo
+> work_state: todo
 
 ---
 
@@ -267,40 +283,40 @@ Phase tasks:
 While the phase is being worked on:
 
 > status: pending
-> work_status: active
+> work_state: active
 
 ### Work tasks
 
 When implementation starts a task:
 
 > status: pending
-> work_status: inprogress
+> work_state: inprogress
 
 When done:
 
 > status: completed
-> work_status: done
+> work_state: done
 
 ### Phase ready for review
 
 Once all tasks inside a phase are done, the phase becomes:
 
 > status: pending
-> work_status: review
+> work_state: review
 
 #### Mermaid: task + phase lifecycle
 
 ```mermaid
 flowchart TD
   subgraph T[Task - work item]
-    T1[Todo<br/>status pending<br/>work_status todo] -->|start| T2[In progress<br/>status pending<br/>work_status inprogress]
-    T2 -->|finish| T3[Done<br/>status completed<br/>work_status done]
+    T1[Todo<br/>status pending<br/>work_state todo] -->|start| T2[In progress<br/>status pending<br/>work_state inprogress]
+    T2 -->|finish| T3[Done<br/>status completed<br/>work_state done]
   end
 
   subgraph P[Phase - container]
-    P1[Active<br/>status pending<br/>work_status active] -->|all tasks done| P2[Review<br/>status pending<br/>work_status review]
-    P2 -->|accept| P3[Approved<br/>status completed<br/>work_status approved]
-    P2 -->|reject| P4[Rejected<br/>status pending<br/>work_status rejected]
+    P1[Active<br/>status pending<br/>work_state active] -->|all tasks done| P2[Review<br/>status pending<br/>work_state review]
+    P2 -->|accept| P3[Approved<br/>status completed<br/>work_state approved]
+    P2 -->|reject| P4[Rejected<br/>status pending<br/>work_state rejected]
     P4 -->|fix-on-the-go OR reset| P1
   end
 ```
@@ -314,7 +330,7 @@ flowchart TD
 If accepted:
 
 > status: completed
-> work_status: approved
+> work_state: approved
 
 This is set for all tasks inside the phase.
 
@@ -328,7 +344,7 @@ Then run:
 If rejected:
 
 > status: pending
-> work_status: rejected
+> work_state: rejected
 
 There are two main options:
 

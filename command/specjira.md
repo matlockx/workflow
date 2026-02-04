@@ -50,10 +50,11 @@ You are creating a specification from a Jira issue that has been synced to Taskw
     - Title: Based on `jirasummary`
 
 6. **Create Taskwarrior spec task**
-    - Run: `task add "SPEC: <JIRAKEY> <summary>" +spec work_state:draft jiraid:<JIRAKEY> depends:<jira-task-uuid>`
+    - Run: `task add "SPEC: <JIRAKEY> <summary>" +spec work_state:draft jiraid:<JIRAKEY>`
     - Capture the new spec task UUID from output
     - Annotate with portable spec path:
       - `task <spec-uuid> annotate "Spec(repo=<repo>): <repo>/notes/specs/<filename>"`
+    - **Note**: Spec task is linked to Jira task via `jiraid` UDA, NOT via `depends:` field
 
 7. **Report back to user**
     - Spec file location (full path)
@@ -90,7 +91,8 @@ You are creating a specification from a Jira issue that has been synced to Taskw
 
 - Use the `jiradescription` as-is (may contain Jira wiki markup like `&open;...&close;`)
 - Follow step-by-step mode by default (pause after each section for approval)
-- The spec task will block implementation tasks (via `depends:` in Taskwarrior)
+- The spec task is linked to the Jira task via `jiraid` UDA (NOT via `depends:` field)
+- Spec can be created and approved independently of Jira task status
 - The portable annotation format allows the spec to be found from any machine with `$LLM_NOTES_ROOT` set
 
 ## Spec State Management

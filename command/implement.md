@@ -112,6 +112,8 @@ task <phase-uuid> modify work_state:approved
 | `work_state` != `approved` | EXIT: "Spec not approved. Approve with: `task jiraid:$1 +spec modify work_state:approved`" |
 | `work_state` == `approved` | Proceed to Step 2 |
 
+**Note**: Spec validation is independent of Jira task status. Jira tasks are linked via `jiraid` UDA and are informational only.
+
 ---
 
 ### Step 2: Find Active Phase

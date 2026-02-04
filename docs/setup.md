@@ -69,9 +69,10 @@ Edit `~/.taskrc` and add:
 
 ```ini
 # --- Workflow UDAs ---
-uda.work_status.type=string
-uda.work_status.label=WorkStatus
-uda.work_status.values=new,draft,todo,inprogress,review,approved,rejected,done,active
+uda.work_state.type=string
+uda.work_state.label=WorkState
+uda.work_state.values=new,todo,draft,inprogress,approved,done,rejected
+uda.work_state.default=new
 
 uda.jira_assignee.type=string
 uda.jira_assignee.label=Assignee
@@ -197,7 +198,7 @@ Given a Jira task (from Taskwarrior):
 * Creates a local spec task:
 
   * `+spec`
-  * `work_status:draft`
+  * `work_state:draft`
   * depends on Jira task UUID
 * Creates a spec file in `llm-notes`
 * Annotates the spec task with a **portable** link
@@ -230,13 +231,13 @@ $LLM_NOTES_ROOT/project1/notes/specs/IN-1423__read-migration.md
 
 Workflow:
 
-* Spec agent sets `work_status:draft` then `work_status:review`
-* Human changes `work_status:approved` and marks spec task `done`
+* Spec agent sets `work_state:draft` then `work_state:review`
+* Human changes `work_state:approved` and marks spec task `done`
 
 List specs needing review:
 
 ```bash
-task +spec work_status:review
+task +spec work_state:review
 ```
 
 ---
@@ -319,7 +320,7 @@ task specs
 ## List spec reviews
 
 ```bash
-task +spec work_status:review
+task +spec work_state:review
 ```
 
 ## List executable work

@@ -13,8 +13,8 @@ This workflow uses two separate status tracking systems:
 - Implementation tasks are marked `status:completed` when done
 - **Purpose**: Taskwarrior lifecycle management
 
-### 2. Custom Work Status (`work_status`)
-- **Custom annotation field** added to tasks
+### 2. Custom Work State (`work_state`)
+- **Custom UDA field** added to Taskwarrior
 - Tracks workflow-specific progress
 - Values vary by entity (spec, phase, task)
 - **Purpose**: Implementation workflow tracking
@@ -26,15 +26,17 @@ Taskwarrior's `status` is too coarse-grained for our workflow. We need:
 - Track phases as "in progress" vs "in review"
 - Maintain approval states for specs and phases
 
-The custom `work_status` provides this granularity without breaking Taskwarrior's native behavior.
+The custom `work_state` provides this granularity without breaking Taskwarrior's native behavior.
 
-**Example**: A completed implementation task has `status:completed` (taskwarrior lifecycle) AND `work_status:done` (workflow tracking).
+**Example**: A completed implementation task has `status:completed` (taskwarrior lifecycle) AND `work_state:done` (workflow tracking).
 
 ## 1. Overall Implementation Workflow
 
+**Note**: Jira tasks provide context but do NOT block implementation. Tasks are linked via `jiraid` UDA.
+
 ```mermaid
 flowchart TD
-    Start[/Implement JIRA Task/] --> ValidateSpec
+    Start[/Implement JIRA Task ID/] --> ValidateSpec
     ValidateSpec{Spec Approved?}
     ValidateSpec -->|No| Error1[X Spec not approved]
     ValidateSpec -->|Yes| FindPhase
@@ -94,7 +96,7 @@ stateDiagram-v2
     Pending --> InProgress: /implement starts phase
     note right of Pending
         status: pending
-        work_status: pending
+        work_state: pending
         Phase is waiting to start
         Lowest task ID phase selected
     end note
@@ -102,7 +104,7 @@ stateDiagram-v2
     InProgress --> Review: All tasks completed
     note right of InProgress
         status: pending
-        work_status: inprogress
+        work_state: inprogress
         Active phase being worked on
         Resumable if interrupted
     end note
@@ -110,7 +112,7 @@ stateDiagram-v2
     Review --> Approved: Human approves phase
     note right of Review
         status: pending
-        work_status: review
+        work_state: review
         All tasks in phase complete
         Waiting for human review
     end note
@@ -119,7 +121,7 @@ stateDiagram-v2
 
     note right of Approved
         status: pending
-        work_status: approved
+        work_state: approved
         Phase fully completed and approved
         Can proceed to next phase
     end note
@@ -134,7 +136,7 @@ stateDiagram-v2
     Pending --> Ready: All dependencies completed
     note right of Pending
         status: pending
-        work_status: todo
+        work_state: todo
         Waiting for dependencies
         Not yet eligible for implementation
     end note
@@ -142,7 +144,7 @@ stateDiagram-v2
     Ready --> Completed: /implement completes task
     note right of Ready
         status: completed
-        work_status: todo
+        work_state: todo
         All dependencies satisfied
         Can be implemented next
     end note
@@ -150,7 +152,7 @@ stateDiagram-v2
     Completed --> Done: /implement marks done
     note right of Done
         status: completed
-        work_status: done
+        work_state: done
         Task is complete
     end note
 
@@ -180,7 +182,7 @@ flowchart TD
 flowchart TD
     Start[Task completed] --> CheckPending{Pending tasks left?}
     CheckPending -->|Yes| Continue[Continue in current phase]
-    CheckPending -->|No| SetReview[Set work_status=review]
+    CheckPending -->|No| SetReview[Set work_state=review]
 
     SetReview --> ReportPhase[Report phase complete]
     ReportPhase --> RunTest[Run /test]
@@ -231,37 +233,41 @@ Taskwarrior's built-in `status` field tracks task lifecycle. Only `pending` task
 | `completed` | Task is finished | Set by `task done` command |
 | `deleted` | Task was deleted | Set by `task delete` command |
 
-### Custom Work Status (Annotation Field)
-Custom `work_status` annotation tracks workflow-specific progress.
+### Custom Work State (UDA Field)
+Custom `work_state` UDA tracks workflow-specific progress.
 
 | Entity | Field | Values | Purpose |
 |--------|-------|--------|---------|
-| Spec | `work_status` | `approved` | Must be approved before implementation |
-| Phase | `work_status` | `pending`, `inprogress`, `review`, `approved` | Tracks phase lifecycle through implementation workflow |
+| Jira Task | `work_state` | `new` | Synced from Jira via Bugwarrior (informational only, never blocks) |
+| Spec | `work_state` | `approved` | Must be approved before implementation |
+| Phase | `work_state` | `pending`, `inprogress`, `review`, `approved` | Tracks phase lifecycle through implementation workflow |
 | Phase | `status` (taskwarrior) | `pending` | Phases remain pending throughout lifecycle |
-| Task | `work_status` | `todo`, `done` | Implementation progress tracking |
+| Task | `work_state` | `todo`, `done` | Implementation progress tracking |
 
 ### Key Differences
 
-| Aspect | taskwarrior `status` | `work_status` |
+| Aspect | taskwarrior `status` | `work_state` |
 |--------|---------------------|---------------|
-| **Type** | Native field | Custom annotation |
+| **Type** | Native field | Custom UDA |
 | **Scope** | All Taskwarrior tasks | Implementation workflow only |
 | **Lifecycle** | pending → completed/deleted | todo → done (tasks)<br/>pending → inprogress → review → approved (phases) |
 | **Primary Use** | Filter actionable tasks | Track workflow progress |
 
 ## Key Workflow Rules
 
-1. **Spec must be approved** (`work_status:approved`) before any implementation
-2. **Phases are sequential** - complete one before starting next
-3. **Tasks within phase** follow dependency order
-4. **Only READY tasks** (all deps completed, taskwarrior `status:pending`) can be implemented
-5. **Phase auto-transitions** `work_status:review` when all tasks complete
-6. **Tests run at phase completion** - `/test` and `/git` only after all tasks in phase are done
-7. **Resumption** happens by checking for phase `work_status:inprogress` first
-8. **Human approval required** at phase boundaries and task completion
-9. **Taskwarrior `status`** controls whether task is actionable (only `pending` tasks appear in active lists)
-10. **Custom `work_status`** tracks workflow progress independently of taskwarrior status
+1. **Jira tasks are context only** - Linked via `jiraid` UDA, never via `depends:` field
+2. **Spec must be approved** (`work_state:approved`) before any implementation
+3. **Specs don't depend on Jira tasks** - Can be created/approved independently
+4. **Phases don't depend on specs** - Linked via `jiraid` UDA only
+5. **Phases are sequential** - complete one before starting next
+6. **Tasks within phase** follow dependency order
+7. **Only READY tasks** (all deps completed, taskwarrior `status:pending`) can be implemented
+8. **Phase auto-transitions** `work_state:review` when all tasks complete
+9. **Tests run at phase completion** - `/test` and `/git` only after all tasks in phase are done
+10. **Resumption** happens by checking for phase `work_state:inprogress` first
+11. **Human approval required** at phase boundaries and task completion
+12. **Taskwarrior `status`** controls whether task is actionable (only `pending` tasks appear in active lists)
+13. **Custom `work_state`** tracks workflow progress independently of taskwarrior status
 
 ## Testing & Commit Flow
 

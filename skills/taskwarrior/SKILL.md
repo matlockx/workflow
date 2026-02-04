@@ -25,6 +25,7 @@ Reference for interacting with Taskwarrior in the agentic coding workflow. This 
 
 | Tag | Applied To | Purpose |
 |-----|------------|---------|
+| `+jira` | Jira tasks | Identifies tasks synced from Jira via Bugwarrior |
 | `+spec` | Spec tasks | Identifies the specification task for a Jira issue |
 | `+phase` | Phase tasks | Groups related implementation work into phases |
 | `+impl` | All impl tasks | Identifies implementation tasks (includes phases) |
@@ -33,16 +34,20 @@ Reference for interacting with Taskwarrior in the agentic coding workflow. This 
 ### Task Hierarchy
 
 ```
-Jira Issue (synced via Bugwarrior)
-└── Spec Task (+spec)
-    └── Phase 1 (+impl +phase)
-        ├── Task 1.1 (+impl)
-        ├── Task 1.2 (+impl)
-        └── Task 1.3 (+impl)
-    └── Phase 2 (+impl +phase)
-        ├── Task 2.1 (+impl)
-        └── Task 2.2 (+impl)
+Jira Issue (+jira, work_state:new)              ← Synced via Bugwarrior
+  ↓ (linked via jiraid UDA, NOT depends:)
+Spec Task (+spec, jiraid:JIRA-123)              ← Linked via jiraid only
+  ↓ (linked via jiraid UDA, NOT depends:)
+Phase 1 (+impl +phase, jiraid:JIRA-123)         ← Linked via jiraid only
+  ├── Task 1.1 (+impl, depends:phase-uuid)      ← Depends on phase
+  ├── Task 1.2 (+impl, depends:phase-uuid)      ← Depends on phase + may depend on 1.1
+  └── Task 1.3 (+impl, depends:phase-uuid)      ← Depends on phase + may depend on 1.2
+Phase 2 (+impl +phase, jiraid:JIRA-123)         ← Linked via jiraid only
+  ├── Task 2.1 (+impl, depends:phase-uuid)      ← Depends on phase
+  └── Task 2.2 (+impl, depends:phase-uuid)      ← Depends on phase + may depend on 2.1
 ```
+
+**Important**: Jira tasks, specs, and phases are linked via `jiraid` UDA, NOT via `depends:` field. Only implementation tasks use `depends:` for their phase and inter-task dependencies.
 
 ---
 
@@ -52,6 +57,14 @@ Jira Issue (synced via Bugwarrior)
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              STATE FLOW                                      │
 ├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  JIRA TASK (work_state + status)                                            │
+│  ─────────                                                                   │
+│  ┌────────────┐                                                              │
+│  │    new     │  (Informational only - never blocks implementation)         │
+│  │  pending   │  Synced from Jira via Bugwarrior                            │
+│  └────────────┘  Linked to specs/phases/tasks via jiraid UDA                │
+│                                                                              │
 │                                                                              │
 │  SPEC                                                                        │
 │  ────                                                                        │
@@ -93,6 +106,15 @@ Jira Issue (synced via Bugwarrior)
 ---
 
 ## State Machines
+
+### Jira Task States (`work_state` + `status`)
+
+| work_state | status | Meaning | Notes |
+|------------|--------|---------|-------|
+| `new` | `pending` | Synced from Jira, open | Informational only, never blocks |
+| `new` | `completed` | Closed in Jira | Informational only |
+
+**Important**: Jira tasks are managed by Bugwarrior. Never edit manually. They do NOT block implementation work.
 
 ### Spec States (`work_state`)
 
@@ -178,11 +200,11 @@ Phase '<name>' approved
 ### Finding Tasks
 
 ```bash
+# Find Jira task (synced from Bugwarrior)
+task jiraid:$ID +jira export
+
 # Find spec task for a Jira issue
 task jiraid:$ID +spec export
-
-# Find the Jira task itself (synced from Bugwarrior)
-task jiraid:$ID status:pending export
 
 # Find all implementation tasks for a Jira issue
 task jiraid:$ID +impl export
@@ -290,9 +312,10 @@ task add "<phase-number>. Phase: <phase-name>" \
   jiraid:<JIRAKEY> \
   repository:<repo> \
   work_state:todo \
-  +impl +phase \
-  depends:<spec-uuid>
+  +impl +phase
 ```
+
+**Note**: Phase is linked to Jira via `jiraid` UDA, NOT via `depends:` field.
 
 ### Create an Implementation Task
 
