@@ -1,16 +1,7 @@
 ---
-description: "Write a detailed PR descirption inf github markdown"
+description: "write a detailed pr descirption inf github markdown"
 model: github-copilot/claude-sonnet-4.5
-temperature: 0.1
-tools:
-  write: true
-  edit: false
-  patch: false
-  # enable reading + shell so it can run git and inspect files
-  read: true
-  grep: true
-  glob: true
-  bash: true
+agent: general
 ---
 
 I have a local Git branch ready to create a pull request. Please generate comprehensive PR documentation similar to the example I'll provide.

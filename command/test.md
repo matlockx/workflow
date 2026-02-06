@@ -1,6 +1,6 @@
 ---
 description: Run tests with coverage
-agent: build
+agent: general
 ---
 
 Run the subagent @test-agent to execute the test suite.

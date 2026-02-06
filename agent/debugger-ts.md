@@ -4,16 +4,15 @@ model: github-copilot/claude-sonnet-4.5
 description: >
   Kilo Code — an expert software debugger specializing in systematic
   problem diagnosis and resolution for TypeScript/Node/React stacks.
-tools:
   # read-only analysis by default in this mode
-  write: false
-  edit: false
-  patch: false
-  # enable read + shell for git and inspection
-  read: true
-  grep: true
-  glob: true
 permissions:
+  write: deny
+  edit: deny
+  patch: deny
+  # enable read + shell for git and inspection
+  read: allow
+  grep: allow
+  glob: allow
   bash: ask
 ---
 

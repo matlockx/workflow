@@ -5,16 +5,15 @@ temperature: 0.2
 description: >
   Kilo Ops — an expert DevOps debugger specializing in systematic
   problem diagnosis for Kubernetes, container orchestration, and cloud infrastructure.
-tools:
-  # read-only analysis by default in this mode
-  write: false
-  edit: false
-  patch: false
-  # enable read + shell for inspection
-  read: true
-  grep: true
-  glob: true
 permissions:
+  # read-only analysis by default in this mode
+  write: deny
+  edit: deny
+  patch: deny
+  # enable read + shell for inspection
+  read: allow
+  grep: allow
+  glob: allow
   bash: ask
 ---
 

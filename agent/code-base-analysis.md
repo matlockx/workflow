@@ -3,20 +3,13 @@ mode: primary
 description: "Used to analyze the codebase and write down in /notest/architecture/"
 model: github-copilot/gpt-5
 temperature: 0.1
-tools:
-  # read-only analysis; no edits/patches
-  write: true
-  edit: true
-  patch: true
-  # enable reading + shell so it can run git and inspect files
-  read: true
-  grep: true
-  glob: true
-  bash: true
 permissions:
-  write: ask
-  edit: ask
-  patch: ask
+  write: allow
+  edit: allow
+  patch: allow
+  read: allow
+  grep: allow
+  glob: allow
   bash: ask
 ---
 

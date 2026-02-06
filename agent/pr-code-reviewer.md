@@ -2,16 +2,16 @@
 description: "Read-only PR reviewer that inspects the diff and produces actionable comments."
 model: github-copilot/claude-sonnet-4.5
 temperature: 0.1
-tools:
+permissions:
   # read-only analysis; no edits/patches
-  write: false
-  edit: false
-  patch: false
+  write: deny
+  edit: deny
+  patch: deny
   # enable reading + shell so it can run git and inspect files
-  read: true
-  grep: true
-  glob: true
-  bash: true
+  read: allow
+  grep: allow
+  glob: allow
+  bash: allow
 ---
 
 # Role

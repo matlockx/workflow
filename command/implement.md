@@ -417,6 +417,7 @@ View completed:
 ### Pre-Implementation
 
 Before writing code, verify:
+
 - [ ] Spec content loaded (Requirements + Design)
 - [ ] Acceptance criteria understood
 - [ ] Files to create/modify identified
@@ -441,6 +442,7 @@ Before writing code, verify:
 ### Quality Gates
 
 Before marking complete:
+
 - [ ] Code follows project style (run linter)
 - [ ] Error handling implemented
 - [ ] Types/JSDoc for public APIs

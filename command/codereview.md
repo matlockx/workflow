@@ -1,16 +1,7 @@
 ---
 description: "Read-only codwe reviewer that inspects the diff and produces actionable comments."
 temperature: 0.1
-tools:
-  # read-only analysis; no edits/patches
-  write: false
-  edit: false
-  patch: false
-  # enable reading + shell so it can run git and inspect files
-  read: true
-  grep: true
-  glob: true
-  bash: true
+agent: plan
 ---
 
 # Role

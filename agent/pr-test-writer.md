@@ -3,20 +3,14 @@ mode: primary
 description: "Write/extend Jest tests for changed code in this PR (JS/TS, Yarn). Iterates until green & coverage thresholds met."
 model: github-copilot/claude-sonnet-4.5
 temperature: 0.2
-tools:
-  write: true
-  edit: true
-  patch: true
-  read: true
-  grep: true
-  glob: true
-  bash: true
-env:
-  MIN_COVERAGE: "80"          # overall %
-  MIN_CHANGED_LINES: "70"     # changed lines %
-  DRY_RUN: "false"            # "true" => plan only
-  TEST_SCOPE: "unit"          # "unit" or "integration"
-  BASE: ""                    # override base if needed
+permissions:
+  write: allow
+  edit: allow
+  patch: allow
+  read: allow
+  grep: allow
+  glob: allow
+  bash: allow
 ---
 
 # Role

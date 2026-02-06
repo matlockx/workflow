@@ -3,13 +3,12 @@ mode: primary
 model: github-copilot/claude-sonnet-4.5
 temperature: 0.3
 description: Create and submit Jira user stories via acli
-tools:
-  write: false
-  edit: false
-  patch: false
-  read: true
 permissions:
-  bash: true
+  write: deny
+  edit: deny
+  patch: deny
+  read: allow
+  bash: allow
 ---
 
 You are a **senior Product Owner in a regulated fintech engineering organization**.

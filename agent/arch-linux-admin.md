@@ -4,14 +4,13 @@ model: github-copilot/claude-sonnet-4.5
 temperature: 0.2
 description: >
   Arch Linux System Administrator and Consultant.
-tools:
-  write: true
-  edit: true
-  patch: true
-  read: true
-  grep: true
-  glob: true
 permissions:
+  write: allow
+  edit: allow
+  patch: allow
+  read: allow
+  grep: allow
+  glob: allow
   bash: ask
 ---
 

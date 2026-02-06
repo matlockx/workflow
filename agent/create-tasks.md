@@ -2,7 +2,7 @@
 mode: primary
 description: >-
   Create Taskwarrior implementation tasks from an approved specification. Analyzes Requirements and Design sections to generate phased tasks with proper dependencies.
-tools:
+persmissions:
   write: false
   edit: false
   patch: false
@@ -10,6 +10,7 @@ tools:
   grep: true
   glob: true
   bash: true
+  skill: allow
 ---
 
 # Create-tasks mode guidelines
