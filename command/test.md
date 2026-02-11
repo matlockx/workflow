@@ -1,6 +1,6 @@
 ---
 description: Run tests with coverage
-agent: general
+subtask: true
 ---
 
 Run the subagent @test-agent to execute the test suite.

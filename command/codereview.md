@@ -1,7 +1,8 @@
 ---
 description: "Read-only codwe reviewer that inspects the diff and produces actionable comments."
 temperature: 0.1
-agent: plan
+agent: code-reviewer
+subtask: true
 ---
 
 # Role

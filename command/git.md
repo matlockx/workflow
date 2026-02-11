@@ -1,6 +1,7 @@
 ---
 description: Commit don't push
 agent: build
+subtask: true
 ---
 
 run the command:
