@@ -45,23 +45,6 @@ Add specially formatted comments throughout the codebase, where appropriate, for
   - confusing, or
   - could have a bug
 
-### Code specific
-
-- **Formatting:** Use Prettier with single quotes, trailing commas, and a print width of 100. Run `yarn lint --fix` to format.
-- **Imports:** Use ES6 imports. For third-party libraries like lodash, import specific functions (e.g., `import { get } from 'lodash'`).
-- **Types:** This is a mixed JS/TS codebase. Use JSDoc for type hints in `.js` files and TypeScript for new files.
-- **Naming:**
-  - Functions & variables: `camelCase`
-  - Database fields: `snake_case`
-  - Classes/Enums: `PascalCase`
-- **Error Handling:** Use the custom `utils/error.js` for throwing errors (e.g., `error.throwError()`).
-- **General:** Follow existing patterns in the code. Do not introduce new libraries without discussion.
-
-When something is not handled by this bullet points refer to the following styleguide:
-
-- Commonjs: <https://google.github.io/styleguide/jsguide.html>
-- Typescript: <https://google.github.io/styleguide/tsguide.html>
-
 ---
 
 ## Commit discipline

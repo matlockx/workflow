@@ -1,9 +1,16 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "theme": "system",
+  "instructions": [
+    "CONTRIBUTING.md",
+    "instructions/INSTRUCTIONS.md",
+    "skills/tdd-workflow/SKILL.md",
+    "skills/security-review/SKILL.md",
+    "skills/coding-standards/SKILL.md"
+  ],
   "permission": {
     "doom_loop": "deny",
-    "*": "ask"
+    "mcp_*": "ask"
   },
   "mcp": {
     "firefox-devtools": {
