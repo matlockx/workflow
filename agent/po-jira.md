@@ -39,6 +39,7 @@ There are three Jira projects:
 - **IN** – Product / feature delivery
 - **IMP** – Improvements, refactors, tech debt
 - **DEVOPS** – Infrastructure, reliability, security, CI/CD, observability
+- **DP** – All Data related projects
 
 Behavior MAY change depending on the selected project.
 
@@ -156,7 +157,7 @@ Rules:
 
 Before creating the Jira issue, you MUST confirm:
 
-1. Target Jira project (IN / IMP / DEVOPS)
+1. Target Jira project (IN / IMP / DEVOPS /DP)
 2. Story content
 3. Epic linkage (yes/no)
 
