@@ -1,0 +1,328 @@
+#!/usr/bin/env bash
+#
+# opencode-init - Initialize OpenCode workflow in a new project
+#
+# Usage:
+#   opencode-init [--backend=beads|jira-taskwarrior] [target-dir]
+#
+# Examples:
+#   opencode-init                     # Initialize in current directory with Beads
+#   opencode-init ~/projects/myapp    # Initialize in specified directory
+#   opencode-init --backend=beads .   # Explicit backend selection
+#
+# AIDEV-NOTE: This script copies the minimal workflow files needed to use
+# OpenCode's /spec, /createtasks, and /implement commands in a new project.
+
+set -euo pipefail
+
+# ============================================
+# Configuration
+# ============================================
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+OPENCODE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Defaults
+BACKEND="beads"
+TARGET_DIR="."
+
+# Colors (if terminal supports them)
+if [[ -t 1 ]]; then
+  RED='\033[0;31m'
+  GREEN='\033[0;32m'
+  YELLOW='\033[0;33m'
+  BLUE='\033[0;34m'
+  NC='\033[0m' # No Color
+else
+  RED=''
+  GREEN=''
+  YELLOW=''
+  BLUE=''
+  NC=''
+fi
+
+# ============================================
+# Helper Functions
+# ============================================
+
+log_info() {
+  echo -e "${BLUE}ℹ${NC} $1"
+}
+
+log_success() {
+  echo -e "${GREEN}✓${NC} $1"
+}
+
+log_warn() {
+  echo -e "${YELLOW}⚠${NC} $1"
+}
+
+log_error() {
+  echo -e "${RED}✗${NC} $1" >&2
+}
+
+usage() {
+  cat <<EOF
+Usage: opencode-init [OPTIONS] [target-dir]
+
+Initialize OpenCode workflow in a project directory.
+
+Options:
+  --backend=TYPE    Workflow backend: beads (default) or jira-taskwarrior
+  --help, -h        Show this help message
+
+Arguments:
+  target-dir        Directory to initialize (default: current directory)
+
+Examples:
+  opencode-init                          # Init current dir with Beads
+  opencode-init ~/projects/myapp         # Init specific directory
+  opencode-init --backend=beads .        # Explicit backend
+
+Backends:
+  beads             Local file-based workflow (recommended for solo/small teams)
+  jira-taskwarrior  Jira + Taskwarrior integration (for teams with Jira)
+
+EOF
+  exit 0
+}
+
+# ============================================
+# Argument Parsing
+# ============================================
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --backend=*)
+      BACKEND="${1#*=}"
+      shift
+      ;;
+    --backend)
+      BACKEND="$2"
+      shift 2
+      ;;
+    --help|-h)
+      usage
+      ;;
+    -*)
+      log_error "Unknown option: $1"
+      echo "Run 'opencode-init --help' for usage."
+      exit 1
+      ;;
+    *)
+      TARGET_DIR="$1"
+      shift
+      ;;
+  esac
+done
+
+# Validate backend
+if [[ "$BACKEND" != "beads" && "$BACKEND" != "jira-taskwarrior" ]]; then
+  log_error "Invalid backend: $BACKEND"
+  echo "Valid backends: beads, jira-taskwarrior"
+  exit 1
+fi
+
+# ============================================
+# Pre-flight Checks
+# ============================================
+
+log_info "Initializing OpenCode workflow with backend: ${BLUE}$BACKEND${NC}"
+
+# Check target directory
+if [[ ! -d "$TARGET_DIR" ]]; then
+  log_info "Creating directory: $TARGET_DIR"
+  mkdir -p "$TARGET_DIR"
+fi
+
+TARGET_DIR="$(cd "$TARGET_DIR" && pwd)"
+log_info "Target directory: $TARGET_DIR"
+
+# Check if already initialized
+if [[ -f "$TARGET_DIR/opencode.json" ]]; then
+  log_warn "opencode.json already exists in target directory"
+  read -p "Overwrite? [y/N] " -n 1 -r
+  echo
+  if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    log_info "Aborted."
+    exit 0
+  fi
+fi
+
+# Check backend prerequisites
+if [[ "$BACKEND" == "beads" ]]; then
+  if ! command -v bd &> /dev/null; then
+    log_warn "Beads CLI (bd) not found. Install with: brew install beads-ai/tap/beads"
+  fi
+elif [[ "$BACKEND" == "jira-taskwarrior" ]]; then
+  if ! command -v task &> /dev/null; then
+    log_warn "Taskwarrior (task) not found. Install with: brew install task"
+  fi
+  if ! command -v acli &> /dev/null; then
+    log_warn "Atlassian CLI (acli) not found. See: https://developer.atlassian.com/cloud/acli/"
+  fi
+fi
+
+# ============================================
+# Copy Files
+# ============================================
+
+log_info "Copying workflow files..."
+
+# Create directory structure
+mkdir -p "$TARGET_DIR/command"
+mkdir -p "$TARGET_DIR/agent"
+mkdir -p "$TARGET_DIR/skills/workflow-backend"
+mkdir -p "$TARGET_DIR/backends/$BACKEND"
+mkdir -p "$TARGET_DIR/lib"
+
+# Copy commands
+cp "$OPENCODE_ROOT/command/spec.md" "$TARGET_DIR/command/"
+cp "$OPENCODE_ROOT/command/createtasks.md" "$TARGET_DIR/command/"
+cp "$OPENCODE_ROOT/command/implement.md" "$TARGET_DIR/command/"
+log_success "Copied commands: spec, createtasks, implement"
+
+# Copy agents
+cp "$OPENCODE_ROOT/agent/spec-mode.md" "$TARGET_DIR/agent/"
+cp "$OPENCODE_ROOT/agent/create-tasks.md" "$TARGET_DIR/agent/"
+log_success "Copied agents: spec-mode, create-tasks"
+
+# Copy workflow skill
+cp "$OPENCODE_ROOT/skills/workflow-backend/SKILL.md" "$TARGET_DIR/skills/workflow-backend/"
+log_success "Copied skill: workflow-backend"
+
+# Copy backend
+cp "$OPENCODE_ROOT/backends/$BACKEND/index.js" "$TARGET_DIR/backends/$BACKEND/"
+cp "$OPENCODE_ROOT/backends/$BACKEND/README.md" "$TARGET_DIR/backends/$BACKEND/"
+log_success "Copied backend: $BACKEND"
+
+# Copy backend loader
+cp "$OPENCODE_ROOT/lib/backend-loader.js" "$TARGET_DIR/lib/"
+log_success "Copied lib: backend-loader"
+
+# Copy interface (for reference)
+cp "$OPENCODE_ROOT/backends/interface.ts" "$TARGET_DIR/backends/"
+log_success "Copied interface definition"
+
+# ============================================
+# Generate opencode.json
+# ============================================
+
+log_info "Generating opencode.json..."
+
+if [[ "$BACKEND" == "beads" ]]; then
+  cat > "$TARGET_DIR/opencode.json" <<'EOF'
+{
+  "$schema": "https://opencode.ai/schemas/opencode.json",
+  "workflow": {
+    "backend": {
+      "type": "beads",
+      "config": {}
+    }
+  }
+}
+EOF
+elif [[ "$BACKEND" == "jira-taskwarrior" ]]; then
+  cat > "$TARGET_DIR/opencode.json" <<'EOF'
+{
+  "$schema": "https://opencode.ai/schemas/opencode.json",
+  "workflow": {
+    "backend": {
+      "type": "jira-taskwarrior",
+      "config": {
+        "jiraSite": "YOUR_ORG.atlassian.net",
+        "jiraProject": "YOUR_PROJECT_KEY",
+        "jiraEmail": "your.email@example.com",
+        "taskrcPath": "~/.taskrc",
+        "taskDataLocation": "~/.task",
+        "lmmNotesRoot": "./notes"
+      }
+    }
+  }
+}
+EOF
+  log_warn "Edit opencode.json to configure your Jira site and project"
+fi
+
+log_success "Generated opencode.json"
+
+# ============================================
+# Initialize Backend
+# ============================================
+
+if [[ "$BACKEND" == "beads" ]]; then
+  if command -v bd &> /dev/null; then
+    if [[ ! -d "$TARGET_DIR/.beads" ]]; then
+      log_info "Initializing Beads workspace..."
+      (cd "$TARGET_DIR" && bd init)
+      log_success "Beads workspace initialized"
+    else
+      log_info "Beads workspace already exists"
+    fi
+  fi
+fi
+
+# ============================================
+# Add to .gitignore
+# ============================================
+
+GITIGNORE="$TARGET_DIR/.gitignore"
+if [[ -f "$GITIGNORE" ]]; then
+  if ! grep -q "# OpenCode" "$GITIGNORE"; then
+    log_info "Adding OpenCode entries to .gitignore..."
+    cat >> "$GITIGNORE" <<'EOF'
+
+# OpenCode
+.beads/db/          # Beads database (local state)
+notes/              # Spec notes (optional: remove if you want to track specs)
+EOF
+    log_success "Updated .gitignore"
+  fi
+else
+  log_info "Creating .gitignore..."
+  cat > "$GITIGNORE" <<'EOF'
+# OpenCode
+.beads/db/          # Beads database (local state)
+notes/              # Spec notes (optional: remove if you want to track specs)
+EOF
+  log_success "Created .gitignore"
+fi
+
+# ============================================
+# Summary
+# ============================================
+
+echo
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${GREEN}✓ OpenCode workflow initialized successfully!${NC}"
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo
+echo "Directory: $TARGET_DIR"
+echo "Backend:   $BACKEND"
+echo
+echo "Files created:"
+echo "  opencode.json              - Workflow configuration"
+echo "  command/spec.md            - /spec command"
+echo "  command/createtasks.md     - /createtasks command"
+echo "  command/implement.md       - /implement command"
+echo "  agent/spec-mode.md         - Spec writing agent"
+echo "  agent/create-tasks.md      - Task creation agent"
+echo "  backends/$BACKEND/         - Backend implementation"
+echo
+echo -e "${BLUE}Next steps:${NC}"
+if [[ "$BACKEND" == "beads" ]]; then
+  echo "  1. Create an issue:    bd issue create \"Your feature description\""
+  echo "  2. Write a spec:       /spec ISSUE-1"
+  echo "  3. Create tasks:       /createtasks ISSUE-1"
+  echo "  4. Start implementing: /implement ISSUE-1"
+elif [[ "$BACKEND" == "jira-taskwarrior" ]]; then
+  echo "  1. Edit opencode.json with your Jira site/project"
+  echo "  2. Authenticate:       acli jira auth"
+  echo "  3. Create an issue in Jira, note the key (e.g., PROJ-123)"
+  echo "  4. Write a spec:       /spec PROJ-123"
+  echo "  5. Create tasks:       /createtasks PROJ-123"
+  echo "  6. Start implementing: /implement PROJ-123"
+fi
+echo
+echo "Documentation: $OPENCODE_ROOT/backends/$BACKEND/README.md"
+echo
