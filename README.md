@@ -1,373 +1,339 @@
+# Agentic Workflow Framework
 
-# Agentic Workflow V2
+**OpenCode × Pluggable Workflow Backends**
 
-**Opencode × Jira × Bugwarrior × Taskwarrior**
-
-This is a high-level description of the workflow. Detailed technical setup instructions live in `docs/` (for example `docs/setup.md`).
-
-## Goal
-
-Create an **end-to-end, agent-assisted workflow** that:
-
-- Keeps **Jira clean and authoritative**
-- Uses **Taskwarrior as the local execution engine**
-- Treats **specs as first-class, reviewable artifacts**
-- Lets **agents accelerate work** without removing human control
-- Works across **multiple repos and developer machines**
-
-This is designed for fintech / regulated environments where correctness, traceability, and human sign-off matter.
+A workflow-agnostic framework for agent-assisted software development that lets you use your preferred issue tracker, task manager, and workflow methodology.
 
 ---
 
-## Core Principles
+## 🎯 What This Is
 
-1) **Jira = contract**
+An **end-to-end, agent-assisted development workflow** that:
 
-   - High-level intent
-   - Ownership, priority, status
-   - Minimal noise
+- ✅ **Works with your existing tools** (Jira, Beads, GitHub Issues, or custom)
+- ✅ **Treats specs as first-class artifacts** (version controlled, reviewable)
+- ✅ **Lets agents accelerate work** without removing human control
+- ✅ **Works across multiple repos and developer machines**
+- ✅ **Supports multiple workflows** via pluggable backends
 
-2) **Taskwarrior = execution state**
-
-   - What I am doing, now
-   - Specs, subtasks, reviews
-   - Local state machines (using `status` + `work_state`)
-
-3) **Bugwarrior = sync layer**
-
-   - Pulls Jira → Taskwarrior
-   - Never manages local execution tasks
-
-4) **Agents = accelerators, not decision-makers**
-
-   - Agents may draft, propose, and execute
-   - Humans approve specs and code
+Originally designed for fintech/regulated environments, now **fully workflow-agnostic**.
 
 ---
 
-## State model (truth)
+## 🏗️ Architecture
 
-I track state using **Taskwarrior `status`** plus a custom **`work_state`** field.
+```
+┌──────────────────────────────────────────────────────┐
+│              OpenCode Commands                        │
+│   /spec, /createtasks, /implement, /git, etc.       │
+└────────────────────┬─────────────────────────────────┘
+                     │
+                     ↓
+┌──────────────────────────────────────────────────────┐
+│          Workflow Backend Interface                   │
+│  (Unified API: issues, specs, tasks, state)          │
+└────────────────────┬─────────────────────────────────┘
+                     │
+       ┌─────────────┼─────────────┐
+       ↓             ↓             ↓
+┌──────────────┐ ┌─────────┐ ┌──────────┐
+│Jira-Task     │ │ Beads   │ │ Custom   │
+│warrior       │ │ Backend │ │ Backends │
+│Backend       │ │         │ │          │
+└──────────────┘ └─────────┘ └──────────┘
+```
 
-- `status` is coarse: `pending` / `completed`
-- `work_state` is fine-grained: `draft`, `review`, `approved`, `rejected`, ...
-
-Recommended vocabulary (lowercase): `new`, `draft`, `todo`, `inprogress`, `review`, `approved`, `rejected`, `done`, `active`.
-
-### Jira tasks (synced via Bugwarrior)
-
-Jira tasks are **informational context only**. They do NOT block implementation work.
-
-| Meaning | Taskwarrior `status` | `work_state` |
-| --- | --- | --- |
-| Synced from Jira | `pending` | `new` |
-| Updated by Bugwarrior | `pending` | `new` |
-| Closed in Jira | `completed` | `new` |
-
-**Important notes:**
-- Jira tasks are linked to specs/phases/tasks via the `jiraid` UDA field
-- They do NOT use Taskwarrior dependencies (`depends:`)
-- Never edit Bugwarrior-synced tasks manually
-- Implementation work can proceed regardless of Jira task status
-
-### Spec tasks
-
-| Meaning | Taskwarrior `status` | `work_state` |
-| --- | --- | --- |
-| New spec work to do | `pending` | empty or `new` |
-| Draft exists | `pending` | `draft` |
-| Approved | `completed` | `approved` |
-| Rejected / needs rework | `pending` | `rejected` |
-
-### Execution tasks
-
-| Meaning | Taskwarrior `status` | `work_state` |
-| --- | --- | --- |
-| Ready to start | `pending` | `todo` |
-| Being implemented | `pending` | `inprogress` |
-| Done | `completed` | `done` |
-
-### Phase tasks
-
-Phase tasks are container tasks tagged `+phase`.
-
-| Meaning                | Taskwarrior `status` | `work_state` |
-| ---------------------- | -------------------- | ------------- |
-| Phase in progress      | `pending`            | `active`      |
-| Phase ready for review | `pending`            | `review`      |
-| Phase accepted         | `completed`          | `approved`    |
-| Phase rejected         | `pending`            | `rejected`    |
+**Core Principle**: Your workflow engine (Jira, Beads, etc.) handles state and tasks. OpenCode provides the agent layer and coordination.
 
 ---
 
-## High-level architecture
+## 🚀 Quick Start
 
-```mermaid
-flowchart LR
-  H[Human] -->|draft idea| PO[PO-Jira agent]
-  PO -->|acli| J[Jira]
+### 1. Choose Your Backend
 
-  J -->|bugwarrior pull| BW[Bugwarrior]
-  BW --> TW[Taskwarrior]
+Pick a workflow backend that matches your tools:
 
-  TW --> SA[Spec agent]
-  SA -->|writes spec + annotates link| TW
+- **`jira-taskwarrior`** - Jira (ACLI) + Taskwarrior + Bugwarrior (original workflow)
+- **`beads`** - Steve Yegge's Beads task manager
+- **`custom`** - Roll your own (implement the backend interface)
 
-  TW --> TCA[Task creation agent]
-  TCA -->|creates phase + work tasks| TW
+### 2. Install OpenCode
 
-  TW --> BA[Build agent]
-  BA --> CODE[Code]
+```bash
+# Clone this repo
+git clone https://github.com/your-username/opencode.git
+cd opencode
 
-  CODE --> H
-  TW --> H
+# Install dependencies (if any)
+# Follow setup guide for your chosen backend
+```
+
+### 3. Configure Your Backend
+
+Create or update `opencode.json`:
+
+```json
+{
+  "workflow": {
+    "backend": {
+      "type": "jira-taskwarrior",
+      "config": {
+        "jiraUrl": "https://your-org.atlassian.net",
+        "taskwarriorPath": "task",
+        "lmmNotesRoot": "$LLM_NOTES_ROOT"
+      }
+    }
+  }
+}
+```
+
+### 4. Follow Your Backend Setup Guide
+
+- **Jira-Taskwarrior**: See [`docs/setup/setup-jira-taskwarrior.md`](docs/setup/setup-jira-taskwarrior.md)
+- **Beads**: See [`docs/setup/setup-beads.md`](docs/setup/setup-beads.md)
+- **Mac Users**: See [`docs/setup/setup-mac.md`](docs/setup/setup-mac.md) first
+
+---
+
+## 🔄 Typical Workflow
+
+Regardless of your backend, the workflow follows the same pattern:
+
+### 1. Create an Issue/Story
+
+```bash
+# Create high-quality user stories (agent-assisted)
+/po-issue "Add semantic search to markets page"
+```
+
+The agent helps you craft proper user stories with acceptance criteria.
+
+### 2. Draft a Spec
+
+```bash
+# Create a specification from an issue
+/spec ISSUE-123
+```
+
+The agent:
+- Pulls issue context from your backend
+- Drafts a detailed spec (Requirements + Design)
+- Stores it as a reviewable markdown file
+- Links it back to your issue tracker
+
+### 3. Review & Approve the Spec
+
+```bash
+# Review the spec file
+cat $LLM_NOTES_ROOT/myrepo/notes/specs/ISSUE-123__feature-name.md
+
+# If good, approve it (agent prompts you)
+# Spec state: draft → approved
+```
+
+### 4. Generate Implementation Tasks
+
+```bash
+# Create granular implementation tasks from approved spec
+/createtasks ISSUE-123
+```
+
+The agent:
+- Analyzes your spec
+- Breaks it into phases and tasks
+- Creates tasks in your backend
+- Sets up dependencies
+
+### 5. Implement (Agent-Assisted)
+
+```bash
+# Start implementation (agent implements code)
+/implement ISSUE-123
+```
+
+The agent:
+- Reads specs and tasks
+- Implements code following TDD
+- Updates task states as work progresses
+- Follows your coding standards
+
+### 6. Review, Test, Commit
+
+```bash
+# Run tests
+/test
+
+# Review code
+/codereview
+
+# Commit changes
+/git
+```
+
+### 7. Create PR
+
+```bash
+# Create pull request
+/create-pr
 ```
 
 ---
 
-## Workflow breakdown
+## 🧩 Available Backends
 
-## 1) Creating stories in Jira
+### Jira-Taskwarrior (Original)
 
-Stories are created agent-first, with human confirmation.
+**Best for**: Teams already using Jira + Taskwarrior
 
-### Tools
+**Tools**:
+- Jira (via ACLI) for issue tracking
+- Taskwarrior for local task execution
+- Bugwarrior for syncing Jira → Taskwarrior
 
-- ❌ Atlassian MCP – evaluated, rejected
-- ✅ [ACLI](https://developer.atlassian.com/cloud/acli/guides/introduction/) – deterministic, CLI-native
+**Setup**: [`docs/setup/setup-jira-taskwarrior.md`](docs/setup/setup-jira-taskwarrior.md)
 
-### Agent
+### Beads
 
-**PO-Jira Agent**
+**Best for**: Individuals or small teams wanting lightweight task management
 
-Responsibilities:
+**Tools**:
+- Beads CLI/API for issues and tasks
+- Local-first workflow
 
-- Turn rough input into a high-quality Jira story
-- Enforce:
-  - proper user story format
-  - acceptance criteria (Given / When / Then)
-  - INVEST quality gate
-- Ask for:
-  - Jira project (`IN`, `IMP`, `DEVOPS`)
-  - optional epic (never guessed)
+**Setup**: [`docs/setup/setup-beads.md`](docs/setup/setup-beads.md)
 
-Constraints:
+### Custom Backend
 
-- Agent never creates tickets without explicit confirmation
-- Agent never guesses project or epic
-- Jira description uses Jira wiki markup (not Markdown)
+**Best for**: Teams with unique workflows or custom tools
 
----
+**How**: Implement the `WorkflowBackend` interface
 
-## 2) Retrieving stories from Jira (Bugwarrior)
-
-Jira is synced locally using Bugwarrior.
-
-Purpose:
-
-- Pull assigned, open Jira issues
-- Represent them as local “contract tasks”
-
-Result:
-
-Each Jira issue becomes one Taskwarrior task:
-
-- Description: `KEY Summary`
-- Tags: `+jira` + Jira labels
-- UDA fields: `jira_assignee`, and optionally status/priority/epic
-- Jira description stored as annotation
-
-Important: Bugwarrior tasks are never edited manually.
+**Guide**: [`docs/architecture/adding-backends.md`](docs/architecture/adding-backends.md)
 
 ---
 
-## 3) Spec drafting (Spec agent)
+## 📋 Core Principles
 
-Specs are local design gates, not Jira subtasks.
+### 1. Backend = Source of Truth
 
-### How I start a spec (actual workflow)
+Your chosen backend (Jira, Beads, etc.) is authoritative for:
+- Issues/stories
+- Task state
+- Ownership and priority
 
-1. List spec tasks locally:
+OpenCode coordinates but doesn't replace your workflow engine.
 
-   ```bash
-   task specs
-   ```
+### 2. Specs = First-Class Artifacts
 
-   This shows the spec tasks and the `jiraid` I want to work on.
+Specs are:
+- Version controlled (markdown in git)
+- Portable across machines (`$LLM_NOTES_ROOT`)
+- Reviewable like code
+- Backend-agnostic
 
-2. Start the spec flow:
+### 3. Agents = Accelerators, Not Decision-Makers
 
-   ```bash
-   /specjira JIRA-XXX
-   ```
+Agents:
+- ✅ Draft specs
+- ✅ Generate implementation tasks
+- ✅ Write code
+- ✅ Run tests
 
-   `/specjira` does **not** call Jira directly. It pulls the Jira summary + description from the Jira task that Bugwarrior synced into Taskwarrior.
-   If the Jira task is missing/outdated, run `bugwarrior-pull` first.
+Humans:
+- ✅ Approve specs
+- ✅ Review code
+- ✅ Make architectural decisions
 
-   The spec is written to a portable location under `$LLM_NOTES_ROOT` and linked back to the spec task via an annotation.
+### 4. State Machines Are Explicit
 
-### Spec tasks
+Every backend implements clear state transitions:
+- `new` → `draft` → `approved` (specs)
+- `todo` → `inprogress` → `done` (tasks)
+- `active` → `review` → `approved` (phases)
 
-New specs start as:
-
-> status: pending
-> work_state: (empty)
-
-Spec agent writes a first draft and stores it at:
-
-`$LLM_NOTES_ROOT/<repo>/notes/specs/<JIRAKEY>__<slug>.md`
-
-This path is intentionally portable:
-
-- every dev machine can use a different absolute location for `$LLM_NOTES_ROOT`
-- the spec task only stores a relative path (via Taskwarrior annotations)
-
-It annotates that location onto the Taskwarrior task.
-
-Then the spec task becomes:
-
-> status: pending
-> work_state: draft
-
-#### Mermaid: spec lifecycle
-
-```mermaid
-flowchart TD
-  A[New spec<br/>status pending<br/>work_state empty or new] -->|spec agent writes draft| B[Draft<br/>status pending<br/>work_state draft]
-  B -->|human approves| C[Approved<br/>status completed<br/>work_state approved]
-  B -->|human rejects| D[Rejected<br/>status pending<br/>work_state rejected]
-  D -->|rework| B
-```
+Backends can extend these states, but core states are standardized.
 
 ---
 
-## 4) Human spec review
+## 📚 Documentation
 
-If approved without changes:
+### Getting Started
+- [Mac Setup Guide](docs/setup/setup-mac.md)
+- [Jira-Taskwarrior Setup](docs/setup/setup-jira-taskwarrior.md)
+- [Beads Setup](docs/setup/setup-beads.md)
+- [Migration from Upstream](docs/migration-from-upstream.md)
 
-> status: completed
-> work_state: approved
+### Architecture
+- [Workflow Backend Interface](docs/architecture/workflow-backend-interface.md)
+- [Adding Custom Backends](docs/architecture/adding-backends.md)
+- [Backend Injection Diagrams](docs/BACKEND_INJECTION_DIAGRAMS.md)
+- [Implementation Details](docs/implement-workflows.md)
 
-If the spec needs rework:
-
-> status: pending
-> work_state: rejected
-
-Then iterate until happy. Taskwarrior history shows whether it passed on the first try.
-
----
-
-## 5) Task creation (from spec → execution tasks)
-
-The task creation agent pulls the spec (via the Taskwarrior annotation) and creates hierarchical tasks.
-
-New execution tasks start as:
-
-> status: pending
-> work_state: todo
+### Customizations
+- [Customization Log](CUSTOMIZATIONS.md) - Track of all changes in this fork
+- [Task List](TODO.md) - Current development tasks
 
 ---
 
-## 6) Implementation (phases + tasks)
+## 🔧 Project Status
 
-Implementation is structured in phases.
+**Current Phase**: Phase 0 - Foundation & Documentation
 
-### Phase tasks
+This is an **independent fork** focused on workflow flexibility. See [`CUSTOMIZATIONS.md`](CUSTOMIZATIONS.md) for the full story.
 
-Phase tasks:
+**Completed**:
+- ✅ Architecture design
+- ✅ Backend interface definition
+- 🚧 Jira-Taskwarrior backend (in progress)
+- 📋 Beads backend (planned)
 
-- Tag: `+phase`
-- Act as container / sequencing points
-- Tasks inside the phase are executed sequentially and use Taskwarrior dependencies
-
-While the phase is being worked on:
-
-> status: pending
-> work_state: active
-
-### Work tasks
-
-When implementation starts a task:
-
-> status: pending
-> work_state: inprogress
-
-When done:
-
-> status: completed
-> work_state: done
-
-### Phase ready for review
-
-Once all tasks inside a phase are done, the phase becomes:
-
-> status: pending
-> work_state: review
-
-#### Mermaid: task + phase lifecycle
-
-```mermaid
-flowchart TD
-  subgraph T[Task - work item]
-    T1[Todo<br/>status pending<br/>work_state todo] -->|start| T2[In progress<br/>status pending<br/>work_state inprogress]
-    T2 -->|finish| T3[Done<br/>status completed<br/>work_state done]
-  end
-
-  subgraph P[Phase - container]
-    P1[Active<br/>status pending<br/>work_state active] -->|all tasks done| P2[Review<br/>status pending<br/>work_state review]
-    P2 -->|accept| P3[Approved<br/>status completed<br/>work_state approved]
-    P2 -->|reject| P4[Rejected<br/>status pending<br/>work_state rejected]
-    P4 -->|fix-on-the-go OR reset| P1
-  end
-```
+See [`TODO.md`](TODO.md) for detailed progress.
 
 ---
 
-## 7) Human phase review (tests + code review)
+## 🤝 Contributing
 
-### Accepted
+### For Users
+- Report issues and bugs
+- Request new backend implementations
+- Share your workflow customizations
 
-If accepted:
+### For Developers
+- Implement new backends (see [guide](docs/architecture/adding-backends.md))
+- Improve existing backends
+- Add tests and documentation
 
-> status: completed
-> work_state: approved
-
-This is set for all tasks inside the phase.
-
-Then run:
-
-- `/test`
-- `/git` (commit per phase)
-
-### Rejected
-
-If rejected:
-
-> status: pending
-> work_state: rejected
-
-There are two main options:
-
-- Fix it on the go (prompt + patch)
-- Redo the specs and start over from scratch
-  - delete the tasks and start over from the spec
-  - switch the spec to `rejected` before restarting
+**Important**: This is an independent fork. Contributions here won't go to the upstream repository.
 
 ---
 
-## 8) PR creation
+## 🙏 Acknowledgments
 
-If we accept the phase (and eventually all phases), we create a PR:
+This project is a fork of the original OpenCode agentic workflow by [matlockx](https://github.com/matlockx/opencode), originally designed for fintech/regulated environments with Jira + Taskwarrior.
 
-`/create-pr`
+**Key Changes in This Fork**:
+- Workflow-agnostic architecture (pluggable backends)
+- macOS support
+- Generic domain (not fintech-specific)
+- Multiple backend support
+
+See [`CUSTOMIZATIONS.md`](CUSTOMIZATIONS.md) for the full divergence history.
 
 ---
 
-## What this gives you
+## 📄 License
 
-- Clean Jira
-- Local-first execution
-- Specs as real artifacts (linked via annotations)
-- Explicit design / review gates
-- Agent acceleration without loss of control
-- Full audit trail (Taskwarrior history)
+MIT (same as upstream)
+
+---
+
+## 🗺️ What This Gives You
+
+- **Clean separation**: Your workflow backend handles state, agents handle acceleration
+- **Local-first specs**: Portable, version-controlled design artifacts
+- **Explicit gates**: Clear approval points (spec review, code review)
+- **Agent acceleration**: Without loss of human control
+- **Full audit trail**: Every state change tracked
+- **Workflow flexibility**: Use tools that fit your team
+
+**Choose your backend. Start building.**

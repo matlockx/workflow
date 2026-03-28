@@ -1,4 +1,4 @@
-# AGENTS.md - SalaryHero
+# AGENTS.md - OpenCode Workflow Framework
 
 ## The Golden Rule
 
@@ -60,9 +60,12 @@ You will receive a prompt to execute a task. Once the task is finished provide a
 ## Domain Glossary (learn these!)
 
 - **Agent**: AI entity with memory, tools, and defined behavior
-- **Task**: Workflow definition composed of steps (NOT a Celery task)
-- **Execution**: Running instance of a task
-- **Tool**: Function an agent can call (browser, API, etc.)
+- **Backend**: Pluggable workflow engine (Jira, Beads, custom, etc.)
+- **Issue**: High-level work item (user story, bug, epic) from your workflow backend
+- **Spec**: Technical specification document (markdown) derived from an issue
+- **Task**: Granular implementation work item tracked by your backend
+- **Phase**: Container for related tasks (sequential execution)
+- **Work State**: Fine-grained state tracking (draft, todo, inprogress, review, approved, etc.)
 - **Session**: Conversation context with memory
 - **Entry**: Single interaction within a session
 
