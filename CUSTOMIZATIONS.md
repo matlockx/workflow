@@ -413,3 +413,5 @@ When working on this codebase:
 | 2026-03-28 | Phase 5 | Completed comprehensive tool installation documentation (Taskwarrior, Bugwarrior, ACLI) for macOS |
 | 2026-03-28 | Phase 5 | Verified all path handling uses portable patterns (~/,  $HOME, $LLM_NOTES_ROOT) - no hardcoded Linux paths |
 | 2026-03-28 | Phase 5 | Verified shell compatibility (zsh/bash) and documented GNU vs BSD command differences - all commands portable |
+| 2026-03-28 | Phase 5 | Completed full Beads backend E2E test on macOS (Apple Silicon) - all tests passed, no quirks detected |
+| 2026-03-28 | Phase 5 | Created comprehensive macOS quirks documentation - jira-taskwarrior test deferred (requires external tools) |

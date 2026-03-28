@@ -244,11 +244,11 @@ This document tracks all tasks for transforming OpenCode into a workflow-agnosti
 
 ### 5.5: Testing
 
-- ⬜ **5.5.1**: Full end-to-end test on macOS with jira-taskwarrior backend
-- ⬜ **5.5.2**: Full end-to-end test on macOS with Beads backend
-- ⬜ **5.5.3**: Document any macOS-specific quirks
+- ⚠️ **5.5.1**: Full end-to-end test on macOS with jira-taskwarrior backend (deferred - requires task/acli installation)
+- ✅ **5.5.2**: Full end-to-end test on macOS with Beads backend
+- ✅ **5.5.3**: Document any macOS-specific quirks
 
-**Completion**: 13/16 tasks
+**Completion**: 15/16 tasks (1 task deferred - requires external tools)
 
 ---
 
