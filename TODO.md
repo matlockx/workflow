@@ -219,9 +219,9 @@ This document tracks all tasks for transforming OpenCode into a workflow-agnosti
 
 ### 5.1: Update Setup Documentation
 
-- ⬜ **5.1.1**: Replace all `pacman` commands → `brew` in docs
-- ⬜ **5.1.2**: Update `/docs/setup.md` to include Mac instructions
-- ⬜ **5.1.3**: Document macOS-specific environment setup
+- ✅ **5.1.1**: Replace Arch-only setup assumptions with macOS/Linux guidance in shared docs
+- ✅ **5.1.2**: Update `/docs/setup.md` to include Mac instructions
+- ✅ **5.1.3**: Document macOS-specific environment setup
 
 ### 5.2: Tool Installation
 
@@ -248,7 +248,7 @@ This document tracks all tasks for transforming OpenCode into a workflow-agnosti
 - ⬜ **5.5.2**: Full end-to-end test on macOS with Beads backend
 - ⬜ **5.5.3**: Document any macOS-specific quirks
 
-**Completion**: 0/16 tasks
+**Completion**: 3/16 tasks
 
 ---
 

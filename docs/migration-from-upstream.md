@@ -10,7 +10,7 @@ This guide helps users migrate from the original [matlockx/opencode](https://git
 - ✅ You're happy with Jira + Taskwarrior + Bugwarrior workflow
 - ✅ You're in a fintech/regulated environment aligned with SalaryHero's practices
 - ✅ You don't need workflow flexibility
-- ✅ Linux (Arch Linux) is your primary platform
+- ✅ You prefer the original Linux/Arch-oriented setup without additional abstraction
 
 ### Migrate to This Fork If:
 - ✅ You want to use different workflow tools (Beads, GitHub Issues, custom)
@@ -158,14 +158,14 @@ Create or update `opencode.json`:
 Ensure `$LLM_NOTES_ROOT` is set:
 
 ```bash
-# Add to ~/.zshrc or ~/.bashrc
+# Add to ~/.zshrc (macOS default) or ~/.bashrc
 export LLM_NOTES_ROOT="$HOME/Code/llm-notes"
 ```
 
 Reload your shell:
 
 ```bash
-source ~/.zshrc  # or source ~/.bashrc
+source ~/.zshrc  # or source ~/.bashrc if you use bash
 ```
 
 ### Step 5: Test Your Workflow
@@ -227,6 +227,7 @@ Run: context.backend.getIssue($ARGUMENTS)
 | Beads workflow | ❌ | ✅ | ✅ New in fork |
 | macOS setup guide | ⚠️ | ✅ | ✅ Enhanced in fork |
 | Linux (Arch) setup | ✅ | ✅ | ✅ Still supported |
+| macOS setup | ⚠️ | ✅ | ✅ First-class in fork |
 | Spec storage format | ✅ | ✅ | ✅ Unchanged |
 | State model | ✅ | ✅ | ✅ Enhanced (backward compatible) |
 | Skills structure | ✅ | ⚠️ | ⚠️ Reorganized |

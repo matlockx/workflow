@@ -408,3 +408,4 @@ When working on this codebase:
 | 2026-03-28 | Phase 4 | Added Beads setup guide documenting install, config, runtime verification, and workspace gotchas |
 | 2026-03-28 | Phase 4 | Sequential sandbox test verified live Beads workflow: issue -> spec -> approve -> tasks -> task state update |
 | 2026-03-28 | Phase 4 | README updated with Beads config/workflow examples; Phase 4 documentation complete (14/14 tasks) |
+| 2026-03-28 | Phase 5 | Shared setup and migration docs updated for macOS-first guidance and shell compatibility |

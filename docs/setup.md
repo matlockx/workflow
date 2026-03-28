@@ -10,7 +10,7 @@ This is a concrete, copy/pasteable setup that gets the whole flow working end-to
 
 ### Assumptions
 
-* You’re on Arch Linux (works on other distros with equivalent packages)
+* You’re on macOS or Linux
 * You already use Opencode
 * Jira is Atlassian Cloud
 
@@ -18,7 +18,7 @@ This is a concrete, copy/pasteable setup that gets the whole flow working end-to
 
 All devs must have *some* local checkout of `llm-notes`, but the location can differ.
 
-Set this once in your shell profile (`~/.zshrc` or `~/.bashrc`):
+Set this once in your shell profile (`~/.zshrc` on macOS by default, or `~/.bashrc` if you use bash):
 
 ```bash
 export LLM_NOTES_ROOT="$HOME/Code/llm-notes"
@@ -32,21 +32,47 @@ export LLM_NOTES_ROOT="$HOME/Code/llm-notes"
 
 ## 1.1 Taskwarrior
 
+### macOS
+
 ```bash
+brew install task
+task --version
+```
+
+### Linux
+
+```bash
+# Arch
 sudo pacman -S taskwarrior
+
+# Debian/Ubuntu
+sudo apt-get install taskwarrior
+
 task --version
 ```
 
 ## 1.2 Bugwarrior
 
-Prefer system packages on Arch (less Python packaging pain):
+### macOS
 
 ```bash
-sudo pacman -S bugwarrior python-setuptools python-jira
+python3 -m pip install --user bugwarrior jira
 bugwarrior-pull --version
 ```
 
-> If you insist on `uv tool`, ensure the tool env has `setuptools` (because of `pkg_resources`).
+### Linux
+
+```bash
+# Arch
+sudo pacman -S bugwarrior python-setuptools python-jira
+
+# Debian/Ubuntu
+python3 -m pip install --user bugwarrior jira
+
+bugwarrior-pull --version
+```
+
+> If you use `uv tool`, ensure the tool environment includes `setuptools` because Bugwarrior dependencies may still expect it.
 
 ## 1.3 Jira CLI (ACLI)
 
@@ -58,6 +84,8 @@ acli jira me
 ```
 
 You want `acli jira me` to work before proceeding.
+
+On macOS, prefer Atlassian's official install instructions and ensure the resulting binary is in your shell `PATH`.
 
 ---
 
@@ -139,7 +167,7 @@ You should now see tasks representing Jira issues assigned to you.
 
 You’ll typically want 4 agents:
 
-1. **PO-Jira Agent**: Creates Jira stories via `acli`
+1. **PO-Issue Agent**: Creates issues via the configured backend
 2. **Spec Agent**: Creates a local spec task + spec file + annotation
 3. **Build Agent**: Executes implementation tasks (local only)
 4. **Review Agent**: Collects context and queues human review
@@ -148,7 +176,7 @@ Below are the technical bits that matter for the “whole flow” to work.
 
 ---
 
-## 4.1 PO-Jira Agent (ACLI + Jira wiki markup)
+## 4.1 PO-Issue Agent (ACLI + Jira wiki markup for Jira backends)
 
 Key requirements:
 
@@ -157,7 +185,7 @@ Key requirements:
 
   * Jira project: `IN | IMP | DEVOPS`
   * Epic link (optional, never guessed)
-* Agent uses `acli create jira story`
+* For Jira-backed workflows, agent uses `acli` to create the issue
 
 Output format inside Jira description should be:
 
@@ -189,19 +217,15 @@ Labels to add:
 
 ---
 
-## 4.2 Spec Agent (creates local spec task + file + annotation)
+## 4.2 Spec Agent (creates backend-tracked spec + file)
 
 ### What it does
 
-Given a Jira task (from Taskwarrior):
+Given an issue from the configured backend:
 
-* Creates a local spec task:
-
-  * `+spec`
-  * `work_state:draft`
-  * depends on Jira task UUID
+* Creates or resolves a backend-tracked spec entry
 * Creates a spec file in `llm-notes`
-* Annotates the spec task with a **portable** link
+* Stores or links the portable spec path through backend metadata
 
 ### Spec annotation format (portable)
 
