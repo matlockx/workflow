@@ -238,9 +238,9 @@ This document tracks all tasks for transforming OpenCode into a workflow-agnosti
 
 ### 5.4: Shell Compatibility
 
-- ⬜ **5.4.1**: Update shell examples to work on zsh (default macOS shell)
-- ⬜ **5.4.2**: Test all bash commands on macOS
-- ⬜ **5.4.3**: Fix any macOS-specific command differences (GNU vs BSD)
+- ✅ **5.4.1**: Update shell examples to work on zsh (default macOS shell)
+- ✅ **5.4.2**: Test all bash commands on macOS
+- ✅ **5.4.3**: Fix any macOS-specific command differences (GNU vs BSD)
 
 ### 5.5: Testing
 
@@ -248,7 +248,7 @@ This document tracks all tasks for transforming OpenCode into a workflow-agnosti
 - ⬜ **5.5.2**: Full end-to-end test on macOS with Beads backend
 - ⬜ **5.5.3**: Document any macOS-specific quirks
 
-**Completion**: 10/16 tasks
+**Completion**: 13/16 tasks
 
 ---
 

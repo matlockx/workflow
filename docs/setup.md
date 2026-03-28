@@ -10,9 +10,18 @@ This is a concrete, copy/pasteable setup that gets the whole flow working end-to
 
 ### Assumptions
 
-* You’re on macOS or Linux
+* You're on macOS or Linux
 * You already use Opencode
 * Jira is Atlassian Cloud
+* Shell: bash or zsh (all commands work in both)
+
+### Shell Profile Location
+
+- **macOS (zsh)**: `~/.zshrc` (default on Catalina 10.15+)
+- **macOS (bash)**: `~/.bash_profile` or `~/.bashrc`
+- **Linux (bash)**: `~/.bashrc`
+
+All shell commands in this guide use portable syntax compatible with both bash and zsh.
 
 ### Directory convention (portable specs)
 

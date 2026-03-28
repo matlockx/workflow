@@ -261,6 +261,47 @@ ls $LLM_NOTES_ROOT/*/notes/specs/
 
 ---
 
+## Shell Compatibility
+
+### zsh (Recommended for macOS)
+
+Modern macOS (Catalina 10.15+) uses **zsh** as the default shell. All commands in this guide work in both zsh and bash.
+
+```bash
+# Check your current shell
+echo $SHELL
+# Output: /bin/zsh (on modern macOS)
+
+# Shell profile files:
+# - zsh: ~/.zshrc
+# - bash: ~/.bashrc or ~/.bash_profile
+```
+
+### Command Compatibility
+
+All shell commands in OpenCode docs are tested on macOS and use portable syntax:
+
+- ✅ **Environment variables**: `$HOME`, `$LLM_NOTES_ROOT` work in both shells
+- ✅ **Tilde expansion**: `~/.config` works in both shells  
+- ✅ **Here-docs**: `cat << EOF` syntax works in both shells
+- ✅ **Command substitution**: `$(command)` works in both shells
+- ✅ **Piping and redirection**: Standard bash syntax works in zsh
+
+### GNU vs BSD Commands
+
+macOS uses **BSD** versions of Unix commands, which differ slightly from **GNU** versions on Linux:
+
+| Command | macOS (BSD) | Linux (GNU) | OpenCode Docs |
+|---------|-------------|-------------|---------------|
+| `sed -i` | `sed -i ''` | `sed -i` | ✅ Not used |
+| `grep -P` | Not available | Available | ✅ Not used |
+| `readlink -f` | Not available | Available | ✅ Not used |
+| `date -d` | `date -j -f` | `date -d` | ✅ Not used |
+
+**Good news**: OpenCode docs don't use GNU-specific syntax, so all commands work on macOS without modification.
+
+---
+
 ## Common macOS-Specific Issues
 
 ### Issue: Command not found (task, acli, etc.)
