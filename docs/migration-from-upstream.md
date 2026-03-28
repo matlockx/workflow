@@ -374,7 +374,7 @@ source ~/.zshrc
 1. Check [README.md](../README.md)
 2. Review setup guides:
    - [Mac Setup](setup/setup-mac.md)
-   - [Jira-Taskwarrior Setup](setup/setup-jira-taskwarrior.md)
+   - [Jira-Taskwarrior Setup](../backends/jira-taskwarrior/README.md)
 3. Check [TODO.md](../TODO.md) for known issues/roadmap
 
 ---

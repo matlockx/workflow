@@ -532,6 +532,7 @@ code $LLM_NOTES_ROOT
 - [Backend Interface](../architecture/workflow-backend-interface.md)
 - [Jira-Taskwarrior Setup](../../backends/jira-taskwarrior/README.md)
 - [Beads Setup](setup-beads.md)
+- [macOS Quirks](macos-quirks.md)
 - [Migration Guide](../migration-from-upstream.md)
 
 ---

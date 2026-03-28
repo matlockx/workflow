@@ -215,6 +215,8 @@ This document tracks all tasks for transforming OpenCode into a workflow-agnosti
 
 ## Phase 5: Mac Compatibility (Days 29-32)
 
+Status: Complete except for one external-environment validation blocker (`5.5.1`).
+
 **Goal**: Full macOS support
 
 ### 5.1: Update Setup Documentation
@@ -296,19 +298,19 @@ This document tracks all tasks for transforming OpenCode into a workflow-agnosti
 ## Overall Progress
 
 **Total Tasks**: 112
-**Completed**: 1
-**In Progress**: 1
-**Remaining**: 110
+**Completed**: 74
+**In Progress**: 0
+**Remaining**: 38
 
-**Overall Completion**: 1.8%
+**Overall Completion**: 66.1%
 
 ---
 
 ## Current Sprint
 
-**Phase**: Phase 0 (Foundation & Documentation)
-**Status**: In Progress
-**Focus**: Creating architectural documentation and planning
+**Phase**: Phase 6 (Testing & Polish)
+**Status**: Ready to Start
+**Focus**: Interface tests, integration tests, and documentation review
 
 ---
 
@@ -323,7 +325,8 @@ This document tracks all tasks for transforming OpenCode into a workflow-agnosti
 
 ## Blockers & Dependencies
 
-None currently.
+- `5.5.1` requires a live macOS environment with `task` (Taskwarrior), `acli` (Atlassian CLI), and Jira credentials configured.
+- Current environment is missing `task` and `acli`, so full `jira-taskwarrior` end-to-end validation remains deferred.
 
 ---
 

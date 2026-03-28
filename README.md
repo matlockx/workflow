@@ -89,7 +89,7 @@ Create or update `opencode.json`:
 
 ### 4. Follow Your Backend Setup Guide
 
-- **Jira-Taskwarrior**: See [`docs/setup/setup-jira-taskwarrior.md`](docs/setup/setup-jira-taskwarrior.md)
+- **Jira-Taskwarrior**: See [`backends/jira-taskwarrior/README.md`](backends/jira-taskwarrior/README.md)
 - **Beads**: See [`docs/setup/setup-beads.md`](docs/setup/setup-beads.md)
 - **Mac Users**: See [`docs/setup/setup-mac.md`](docs/setup/setup-mac.md) first
 
@@ -190,7 +190,7 @@ The agent:
 - Taskwarrior for local task execution
 - Bugwarrior for syncing Jira → Taskwarrior
 
-**Setup**: [`docs/setup/setup-jira-taskwarrior.md`](docs/setup/setup-jira-taskwarrior.md)
+**Setup**: [`backends/jira-taskwarrior/README.md`](backends/jira-taskwarrior/README.md)
 
 ### Beads
 
@@ -301,7 +301,7 @@ Backends can extend these states, but core states are standardized.
 
 ### Getting Started
 - [Mac Setup Guide](docs/setup/setup-mac.md)
-- [Jira-Taskwarrior Setup](docs/setup/setup-jira-taskwarrior.md)
+- [Jira-Taskwarrior Setup](backends/jira-taskwarrior/README.md)
 - [Beads Setup](docs/setup/setup-beads.md)
 - [Migration from Upstream](docs/migration-from-upstream.md)
 
