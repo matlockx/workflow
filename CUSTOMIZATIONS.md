@@ -422,3 +422,6 @@ When working on this codebase:
 | 2026-03-28 | Phase 6 | Expanded top-level quickstarts, backend examples, and troubleshooting links so both jira-taskwarrior and beads are easier to start and debug |
 | 2026-03-28 | Phase 6 | Corrected stale backend status and config examples so top-level docs match the implemented jira-taskwarrior and beads backends |
 | 2026-03-28 | Phase 6 | Closed the migration-guide tasks by documenting that no dedicated migration script is needed and aligning troubleshooting with the implemented jira-taskwarrior config |
+| 2026-03-28 | Phase 6 | Created interface-contract-test.js (112 tests), jira-taskwarrior/integration-test.js (23 tests), beads/integration-test.js (27 tests), backend-switching-test.js (27 tests) |
+| 2026-03-28 | Phase 6 | Added AIDEV-NOTE anchors to jira-taskwarrior backend (shellEscape, _getDefaultFixVersion, _taskExport, createIssue tempfile, UUID resolution) |
+| 2026-03-28 | Phase 6 | Phase 6 complete (18/18 tasks) — workflow-agnostic transformation finished |
