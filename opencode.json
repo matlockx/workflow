@@ -1,5 +1,21 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "workflow": {
+    "backend": {
+      "type": "mock",
+      "config": {
+        "lmmNotesRoot": "$LLM_NOTES_ROOT",
+        "autoGenerateSpecs": true,
+        "initialIssues": [
+          {
+            "id": "MOCK-1",
+            "summary": "Setup workflow-agnostic backend system",
+            "description": "Implement pluggable backend architecture to support multiple workflow engines (Jira, Beads, custom)"
+          }
+        ]
+      }
+    }
+  },
   "provider": {
     "lmstudio": {
       "npm": "@ai-sdk/openai-compatible",
