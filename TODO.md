@@ -232,9 +232,9 @@ This document tracks all tasks for transforming OpenCode into a workflow-agnosti
 
 ### 5.3: Path Handling
 
-- ⬜ **5.3.1**: Review all absolute path references
-- ⬜ **5.3.2**: Replace hardcoded `/home/` paths with `~` or env vars
-- ⬜ **5.3.3**: Test `$LLM_NOTES_ROOT` resolution on macOS
+- ✅ **5.3.1**: Review all absolute path references
+- ✅ **5.3.2**: Replace hardcoded `/home/` paths with `~` or env vars
+- ✅ **5.3.3**: Test `$LLM_NOTES_ROOT` resolution on macOS
 
 ### 5.4: Shell Compatibility
 
@@ -248,7 +248,7 @@ This document tracks all tasks for transforming OpenCode into a workflow-agnosti
 - ⬜ **5.5.2**: Full end-to-end test on macOS with Beads backend
 - ⬜ **5.5.3**: Document any macOS-specific quirks
 
-**Completion**: 7/16 tasks
+**Completion**: 10/16 tasks
 
 ---
 

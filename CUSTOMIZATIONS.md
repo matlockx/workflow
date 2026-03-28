@@ -411,3 +411,4 @@ When working on this codebase:
 | 2026-03-28 | Phase 5 | Shared setup and migration docs updated for macOS-first guidance and shell compatibility |
 | 2026-03-28 | Phase 5 | Fixed broken Jira-Taskwarrior setup links and updated macOS Homebrew PATH guidance |
 | 2026-03-28 | Phase 5 | Completed comprehensive tool installation documentation (Taskwarrior, Bugwarrior, ACLI) for macOS |
+| 2026-03-28 | Phase 5 | Verified all path handling uses portable patterns (~/,  $HOME, $LLM_NOTES_ROOT) - no hardcoded Linux paths |
