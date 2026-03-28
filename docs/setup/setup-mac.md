@@ -31,7 +31,7 @@ brew --version
 
 Pick your workflow backend:
 
-- **Jira-Taskwarrior**: If using Jira + Taskwarrior + Bugwarrior → [Setup Guide](setup-jira-taskwarrior.md)
+- **Jira-Taskwarrior**: If using Jira + Taskwarrior + Bugwarrior → [Setup Guide](../../backends/jira-taskwarrior/README.md)
 - **Beads**: If using Beads task manager → [Setup Guide](setup-beads.md)
 - **Custom**: Roll your own → [Backend Interface Docs](../architecture/workflow-backend-interface.md)
 
@@ -116,20 +116,108 @@ Now follow the setup guide for your chosen backend:
 
 ### For Jira-Taskwarrior Backend
 
-See: [Jira-Taskwarrior Setup Guide](setup-jira-taskwarrior.md)
+See: [Jira-Taskwarrior Setup Guide](../../backends/jira-taskwarrior/README.md)
 
-**Quick Summary**:
+#### Install Taskwarrior
+
+Taskwarrior is a command-line task management tool:
+
 ```bash
-# Install tools
-brew install task  # Taskwarrior
-pip3 install bugwarrior  # Jira sync
+# Install via Homebrew (recommended)
+brew install task
 
-# Install Atlassian CLI
-# See: https://developer.atlassian.com/cloud/acli/guides/install-acli/
+# Verify installation
+task --version
+# Expected output: task 2.6.x or higher
 
-# Configure taskwarrior
-# See full guide for .taskrc configuration
+# Configure User Defined Attributes (UDAs)
+# Create or edit ~/.taskrc
+cat >> ~/.taskrc << 'EOF'
+
+# User Defined Attributes (UDAs) for OpenCode
+uda.jiraid.type=string
+uda.jiraid.label=Jira ID
+uda.jiraid.values=
+
+uda.work_state.type=string
+uda.work_state.label=Work State
+uda.work_state.values=new,draft,todo,inprogress,review,approved,rejected,done
+
+uda.repository.type=string
+uda.repository.label=Repository
+uda.repository.values=
+EOF
+
+# Verify UDAs are configured
+task show | grep "uda\."
+# Should show the three UDAs above
 ```
+
+#### Install Bugwarrior (Optional)
+
+Bugwarrior syncs external issue trackers (like Jira) to Taskwarrior:
+
+```bash
+# Install via pip3
+pip3 install bugwarrior
+
+# Verify installation
+bugwarrior-pull --version
+
+# Create config directory
+mkdir -p ~/.config/bugwarrior
+
+# Create configuration file
+cat > ~/.config/bugwarrior/bugwarrior.toml << 'EOF'
+[general]
+targets = my_jira
+
+[my_jira]
+service = jira
+jira.base_uri = https://your-site.atlassian.net
+jira.username = you@example.com
+jira.password = YOUR_API_TOKEN
+jira.query = assignee = currentUser() AND resolution = Unresolved
+EOF
+
+# Edit the config with your actual Jira details
+# Then sync:
+bugwarrior-pull
+```
+
+**Note**: Bugwarrior is optional. You can use OpenCode without it, but syncing Jira issues to Taskwarrior provides better integration.
+
+#### Install Atlassian CLI (ACLI)
+
+ACLI enables Jira operations from the command line:
+
+```bash
+# Option 1: Install via Homebrew (if available)
+brew tap atlassian/tap
+brew install atlassian-cli
+
+# Option 2: Download from Atlassian
+# Visit: https://developer.atlassian.com/cloud/acli/guides/install-acli/
+# Download the macOS installer and follow instructions
+
+# Verify installation
+acli --version
+
+# Authenticate with Jira
+acli jira auth login --web
+# This will open your browser for OAuth authentication
+
+# Verify authentication
+acli jira auth status
+
+# Test with a simple query
+acli jira workitem list --assignee me --max-results 5
+```
+
+**Troubleshooting ACLI**:
+- If `brew install` fails, use the manual download method
+- Make sure ACLI is in your PATH: `which acli`
+- For auth issues, try: `acli jira auth login --web` again
 
 ### For Beads Backend
 
@@ -188,8 +276,8 @@ which acli
 # If not found, install
 brew install task  # For Taskwarrior
 
-# Add Homebrew bin to PATH (if needed)
-echo 'export PATH="/usr/local/bin:$PATH"' >> ~/.zshrc
+# Add Homebrew bin to PATH (Apple Silicon commonly uses /opt/homebrew/bin)
+echo 'export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"' >> ~/.zshrc
 source ~/.zshrc
 ```
 
@@ -401,7 +489,7 @@ code $LLM_NOTES_ROOT
 ### OpenCode
 - [Main README](../../README.md)
 - [Backend Interface](../architecture/workflow-backend-interface.md)
-- [Jira-Taskwarrior Setup](setup-jira-taskwarrior.md)
+- [Jira-Taskwarrior Setup](../../backends/jira-taskwarrior/README.md)
 - [Beads Setup](setup-beads.md)
 - [Migration Guide](../migration-from-upstream.md)
 

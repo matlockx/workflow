@@ -225,10 +225,10 @@ This document tracks all tasks for transforming OpenCode into a workflow-agnosti
 
 ### 5.2: Tool Installation
 
-- ⬜ **5.2.1**: Document Taskwarrior installation on Mac: `brew install task`
-- ⬜ **5.2.2**: Document Bugwarrior installation on Mac (if using jira-taskwarrior backend)
-- ⬜ **5.2.3**: Document ACLI installation on Mac
-- ⬜ **5.2.4**: Document Beads installation on Mac (if available)
+- ✅ **5.2.1**: Document Taskwarrior installation on Mac: `brew install task`
+- ✅ **5.2.2**: Document Bugwarrior installation on Mac (if using jira-taskwarrior backend)
+- ✅ **5.2.3**: Document ACLI installation on Mac
+- ✅ **5.2.4**: Document Beads installation on Mac (if available)
 
 ### 5.3: Path Handling
 
@@ -248,7 +248,7 @@ This document tracks all tasks for transforming OpenCode into a workflow-agnosti
 - ⬜ **5.5.2**: Full end-to-end test on macOS with Beads backend
 - ⬜ **5.5.3**: Document any macOS-specific quirks
 
-**Completion**: 3/16 tasks
+**Completion**: 7/16 tasks
 
 ---
 
