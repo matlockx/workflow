@@ -61,6 +61,18 @@ class BeadsBackend {
         stderr: stderr.trim()
       }
     } catch (error) {
+      // AIDEV-NOTE: Classify "not found" errors from bd CLI output so callers
+      // receive NOT_FOUND instead of BACKEND_UNAVAILABLE. The bd CLI writes
+      // "no issue found matching" to stderr/message when the item doesn't exist.
+      const msg = (error.message || '').toLowerCase()
+      if (msg.includes('no issue found matching') || msg.includes('no beads item found')) {
+        throw this._createError(
+          'NOT_FOUND',
+          `Beads item not found: ${error.message}`,
+          null,
+          error
+        )
+      }
       throw this._createError(
         'BACKEND_UNAVAILABLE',
         `Beads command failed: ${error.message}`,
@@ -397,6 +409,17 @@ ${issue.description || '(Fill in requirements)'}
   async approveSpec(specId) {
     await this._ensureWorkspace()
     const existing = await this.getTask(specId)
+
+    // AIDEV-NOTE: Validate the current state before approving. The beads
+    // backend stores opencode_state in metadata; check that explicitly.
+    const currentState = existing.metadata?.beadsMetadata?.opencode_state || existing.state
+    if (currentState === 'approved') {
+      throw this._createError(
+        'INVALID_TRANSITION',
+        `Cannot approve spec in state ${currentState}`
+      )
+    }
+
     const updated = await this._bdJson([
       'update',
       specId,
@@ -449,6 +472,16 @@ ${issue.description || '(Fill in requirements)'}
 
     if (!specIssueId) {
       throw this._createError('INVALID_STATE', 'Spec issue not found or not mappable for task creation')
+    }
+
+    // AIDEV-NOTE: Check spec is approved before creating tasks, matching the
+    // interface contract (throws INVALID_STATE if spec not in approved state).
+    const specState = spec?.metadata?.beadsMetadata?.opencode_state || spec?.state
+    if (specState !== 'approved') {
+      throw this._createError(
+        'INVALID_STATE',
+        `Cannot create tasks from spec in state '${specState}'. Spec must be approved first.`
+      )
     }
 
     const created = []
@@ -516,11 +549,14 @@ ${issue.description || '(Fill in requirements)'}
         args.push('--label', tag)
       }
     }
-    if (filter.specId) args.push('--spec', filter.specId)
+    // AIDEV-NOTE: specId is stored in JSON metadata (not native spec_id field),
+    // so we filter in memory rather than using --spec which applies to the native
+    // spec_id column. Same pattern as issueId filtering below.
 
     const result = await this._bdJson(args)
     let tasks = Array.isArray(result) ? result.map(issue => this._normalizeTask(issue)) : []
 
+    if (filter.specId) tasks = tasks.filter(task => task.specId === filter.specId)
     if (filter.issueId) tasks = tasks.filter(task => task.issueId === filter.issueId)
     if (filter.state) tasks = tasks.filter(task => task.state === filter.state)
     if (filter.isPhase !== undefined) tasks = tasks.filter(task => task.isPhase === filter.isPhase)
