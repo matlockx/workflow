@@ -246,7 +246,7 @@ Status: Complete except for one external-environment validation blocker (`5.5.1`
 
 ### 5.5: Testing
 
-- ⚠️ **5.5.1**: Full end-to-end test on macOS with jira-taskwarrior backend (deferred - requires task/acli installation)
+- ⚠️ **5.5.1**: Full end-to-end test on macOS with jira-taskwarrior backend (partially validated - ACLI/task installed and backend adapted, but live Jira project key/access is still required)
 - ✅ **5.5.2**: Full end-to-end test on macOS with Beads backend
 - ✅ **5.5.3**: Document any macOS-specific quirks
 
@@ -325,8 +325,8 @@ Status: Complete except for one external-environment validation blocker (`5.5.1`
 
 ## Blockers & Dependencies
 
-- `5.5.1` requires a live macOS environment with `task` (Taskwarrior), `acli` (Atlassian CLI), and Jira credentials configured.
-- Current environment is missing `task` and `acli`, so full `jira-taskwarrior` end-to-end validation remains deferred.
+- `5.5.1` now has local macOS prerequisites installed (`task`, `acli`) and authenticated Jira access.
+- Remaining blocker: a valid Jira project key with create/read permissions is still needed for a full live `jira-taskwarrior` end-to-end validation.
 
 ---
 

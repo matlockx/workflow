@@ -416,3 +416,4 @@ When working on this codebase:
 | 2026-03-28 | Phase 5 | Completed full Beads backend E2E test on macOS (Apple Silicon) - all tests passed, no quirks detected |
 | 2026-03-28 | Phase 5 | Created comprehensive macOS quirks documentation - jira-taskwarrior test deferred (requires external tools) |
 | 2026-03-28 | Phase 5 | Closed remaining setup doc gaps, linked macOS quirks doc, and recorded the jira-taskwarrior runtime blocker in TODO planning |
+| 2026-03-28 | Phase 5 | Adapted jira-taskwarrior backend to the installed ACLI v1.3 command surface and verified local macOS prerequisites; remaining live blocker is Jira project access/config |
