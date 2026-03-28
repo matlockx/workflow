@@ -404,3 +404,6 @@ When working on this codebase:
 | 2026-03-28 | Phase 4 | Local Beads CLI presence confirmed; runtime validation blocked by Dolt init/server issues |
 | 2026-03-28 | Phase 4 | Isolated temp validation reproduced a Beads/Dolt init race-lock failure; backend coding still deferred |
 | 2026-03-28 | Phase 4 | Fresh temp retry succeeded; real Beads JSON command flow verified in isolated workspace |
+| 2026-03-28 | Phase 4 | First-pass Beads backend implemented with conservative state mapping and wrapper tests |
+| 2026-03-28 | Phase 4 | Added Beads setup guide documenting install, config, runtime verification, and workspace gotchas |
+| 2026-03-28 | Phase 4 | Sequential sandbox test verified live Beads workflow: issue -> spec -> approve -> tasks -> task state update |

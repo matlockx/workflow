@@ -189,27 +189,27 @@ This document tracks all tasks for transforming OpenCode into a workflow-agnosti
 
 ### 4.2: Implement Beads Backend
 
-- ⬜ **4.2.1**: Create `backends/beads/` directory
-- ⬜ **4.2.2**: Create `backends/beads/README.md`
-- ⬜ **4.2.3**: Implement WorkflowBackend interface for Beads (all methods)
+- ✅ **4.2.1**: Create `backends/beads/` directory
+- ✅ **4.2.2**: Create `backends/beads/README.md`
+- ✅ **4.2.3**: Implement first-pass WorkflowBackend interface for Beads
 
 ### 4.3: Configuration
 
-- ⬜ **4.3.1**: Document Beads backend config
+- ✅ **4.3.1**: Document Beads backend config
 
 ### 4.4: Testing
 
-- ⬜ **4.4.1**: Create integration tests for Beads backend
-- ⬜ **4.4.2**: Test full workflow: issue → spec → tasks → implement
-- ⬜ **4.4.3**: Document Beads-specific setup in `docs/setup/setup-beads.md`
+- ✅ **4.4.1**: Create backend test coverage for Beads wrapper
+- ✅ **4.4.2**: Test full workflow: issue → spec → tasks → implement
+- ✅ **4.4.3**: Document Beads-specific setup in `docs/setup/setup-beads.md`
 
 ### 4.5: Documentation
 
-- ⬜ **4.5.1**: Create `docs/setup/setup-beads.md`
+- ✅ **4.5.1**: Create `docs/setup/setup-beads.md`
 - ⬜ **4.5.2**: Add Beads examples to `README.md`
 - ⬜ **4.5.3**: Create troubleshooting guide for Beads
 
-**Completion**: 4/14 tasks
+**Completion**: 12/14 tasks
 
 ---
 
