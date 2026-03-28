@@ -113,23 +113,23 @@ This document tracks all tasks for transforming OpenCode into a workflow-agnosti
 
 ---
 
-## Phase 3: Command Refactoring (Days 15-21)
+## Phase 3: Command Refactoring (Days 15-21) 🔄 IN PROGRESS
 
 **Goal**: Make commands backend-agnostic
 
 ### 3.1: Create Generic Command Adapter
 
-- ⬜ **3.1.1**: Create `command/lib/backend-adapter.js` (or `.ts`)
-- ⬜ **3.1.2**: Add backend detection logic (reads from `opencode.json`)
-- ⬜ **3.1.3**: Add backend initialization
+- ✅ **3.1.1**: Create `lib/backend-loader.js` (backend loader/factory)
+- ✅ **3.1.2**: Add backend detection logic (reads from `opencode.json`)
+- ✅ **3.1.3**: Add backend initialization and validation
 
 ### 3.2: Refactor `/spec` Command (was `/specjira`)
 
-- ⬜ **3.2.1**: Create new `/command/spec.md`
-- ⬜ **3.2.2**: Update to use `backend.createSpec()` instead of direct `task` calls
-- ⬜ **3.2.3**: Make issue ID extraction backend-agnostic
+- ✅ **3.2.1**: Create new `/command/spec.md` (backend-agnostic version)
+- ✅ **3.2.2**: Update to use `backend.getIssue()` and `backend.approveSpec()` instead of direct calls
+- ✅ **3.2.3**: Make issue ID extraction backend-agnostic (supports any backend ID format)
 - ⬜ **3.2.4**: Test with jira-taskwarrior backend
-- ⬜ **3.2.5**: Keep `/specjira` as deprecated alias with warning
+- ✅ **3.2.5**: Replace `/specjira` with deprecated alias pointing to `/spec`
 
 ### 3.3: Refactor `/createtasks` Command
 
@@ -162,7 +162,7 @@ This document tracks all tasks for transforming OpenCode into a workflow-agnosti
 - ⬜ **3.7.2**: Add auto-detection from `opencode.json`
 - ⬜ **3.7.3**: Add validation (error if backend not configured)
 
-**Completion**: 0/24 tasks
+**Completion**: 8/24 tasks (33%)
 
 ---
 

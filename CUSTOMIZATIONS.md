@@ -279,6 +279,55 @@ When working on this codebase:
 
 ---
 
+## [2026-03-28] - Phase 3: Command Refactoring (In Progress)
+
+**Goal**: Make commands backend-agnostic by using backend interface instead of direct tool calls
+
+**Changes**:
+1. **Backend Loader** (`lib/backend-loader.js`, ~200 lines):
+   - `getBackend()` - Factory function to load configured backend
+   - `loadBackendConfig()` - Reads workflow.backend from opencode.json
+   - `listBackends()` - Discovers available backends in backends/ directory
+   - `validateBackendConfig()` - Validates backend configuration
+   - `getBackendInfo()` - Returns backend name, version, description
+
+2. **Command: `/spec`** (formerly `/specjira`):
+   - Created new generic `/command/spec.md` (~240 lines)
+   - Uses `backend.getIssue(issueId)` instead of `task jiraid:... export`
+   - Uses `backend.approveSpec(specId)` instead of `task modify work_state:approved`
+   - Backend-agnostic issue ID handling (supports any backend ID format)
+   - Portable spec storage in `$LLM_NOTES_ROOT` (unchanged)
+   - Step-by-step interactive mode preserved
+   - Works with any configured backend (jira-taskwarrior, mock, beads, etc.)
+
+3. **Deprecated Alias: `/specjira`**:
+   - Replaced `/command/specjira.md` with deprecation wrapper
+   - Shows clear warning to use `/spec` instead
+   - Forwards to new `/spec` command automatically
+   - Includes migration guide and rationale
+
+**Key Design Patterns**:
+- Commands query backend for data (`getIssue()`, `getSpec()`)
+- Spec file creation remains manual/interactive (agent-driven)
+- Backend handles registration/tracking (`approveSpec()`, state updates)
+- Graceful fallback if backend doesn't support features
+
+**Status**: 8/24 tasks completed (33%)
+- Tasks 3.1.1-3.1.3: Backend loader ✅
+- Tasks 3.2.1-3.2.3, 3.2.5: `/spec` command refactored ✅
+- Task 3.2.4: Testing pending (requires backend configuration)
+- Tasks 3.3.x: `/createtasks` refactoring next
+- Tasks 3.4.x: `/implement` refactoring after that
+
+**Next Steps**:
+1. Test `/spec` command with mock backend
+2. Refactor `/command/createtasks.md` to use `backend.createTasks()`
+3. Refactor `/command/implement.md` to use `backend.getTasks()` and `backend.updateTaskState()`
+4. Update agent prompts to be backend-agnostic
+5. Update skills to reference backend interface instead of specific tools
+
+---
+
 ## Change History
 
 | Date | Phase | Description |
@@ -286,4 +335,5 @@ When working on this codebase:
 | 2026-03-28 | Phase 0 | Initial fork, foundation documentation created |
 | 2026-03-28 | Phase 1 | Backend abstraction layer, mock backend, comprehensive tests |
 | 2026-03-28 | Phase 2 | Jira-Taskwarrior backend extraction, full implementation |
+| 2026-03-28 | Phase 3 | Backend loader + /spec command refactored (8/24 tasks) |
 
