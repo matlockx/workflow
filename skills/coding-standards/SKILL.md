@@ -1,6 +1,6 @@
 ---
 name: coding-standards
-description: Universal coding standards, best practices, and patterns for TypeScript, JavaScript, React, and Node.js development.
+description: Universal coding standards, best practices, and patterns for Go, Rust, TypeScript, JavaScript, React, and Node.js development.
 ---
 
 # Coding Standards & Best Practices
@@ -549,5 +549,291 @@ const DEBOUNCE_DELAY_MS = 500
 if (retryCount > MAX_RETRIES) { }
 setTimeout(callback, DEBOUNCE_DELAY_MS)
 ```
+
+---
+
+## Go Standards
+
+### Formatting & Linting
+
+```bash
+# Always run before commit
+gofmt -w .
+goimports -w .
+
+# Lint with golangci-lint
+golangci-lint run ./...
+```
+
+### Naming Conventions
+
+```go
+// Exported (public) - PascalCase
+type UserService struct {}
+func (s *UserService) CreateUser() {}
+const MaxRetries = 3
+
+// Unexported (private) - camelCase
+type userRepository struct {}
+func (r *userRepository) findByID() {}
+const defaultTimeout = 30 * time.Second
+
+// Interfaces - verb + "er" suffix (when single method)
+type Reader interface { Read(p []byte) (n int, err error) }
+type UserCreator interface { CreateUser(ctx context.Context, u *User) error }
+
+// Avoid stuttering
+// BAD:  user.UserService, config.ConfigLoader
+// GOOD: user.Service, config.Loader
+```
+
+### Error Handling
+
+```go
+// ALWAYS check errors - never ignore
+result, err := doSomething()
+if err != nil {
+    return fmt.Errorf("doSomething failed: %w", err) // Wrap with context
+}
+
+// Sentinel errors for expected conditions
+var ErrNotFound = errors.New("not found")
+var ErrAlreadyExists = errors.New("already exists")
+
+// Check sentinel errors
+if errors.Is(err, ErrNotFound) {
+    return nil, status.NotFound("user not found")
+}
+
+// Custom error types for rich errors
+type ValidationError struct {
+    Field   string
+    Message string
+}
+func (e *ValidationError) Error() string {
+    return fmt.Sprintf("%s: %s", e.Field, e.Message)
+}
+
+// Check error types
+var valErr *ValidationError
+if errors.As(err, &valErr) {
+    log.Printf("validation failed on field: %s", valErr.Field)
+}
+```
+
+### Context Propagation
+
+```go
+// ALWAYS pass context as first parameter
+func (s *Service) GetUser(ctx context.Context, id string) (*User, error) {
+    // Check for cancellation in long operations
+    select {
+    case <-ctx.Done():
+        return nil, ctx.Err()
+    default:
+    }
+
+    // Pass context to downstream calls
+    return s.repo.FindByID(ctx, id)
+}
+
+// Add timeouts at entry points
+ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+defer cancel()
+```
+
+### Project Structure
+
+```
+myservice/
+├── cmd/
+│   └── server/
+│       └── main.go           # Entry point
+├── internal/                  # Private packages
+│   ├── handler/              # HTTP/gRPC handlers
+│   ├── service/              # Business logic
+│   ├── repository/           # Data access
+│   └── model/                # Domain types
+├── pkg/                       # Public packages (importable)
+│   └── client/               # SDK for consumers
+├── api/                       # API definitions (proto, OpenAPI)
+├── migrations/               # SQL migrations
+├── Makefile
+├── Dockerfile
+└── go.mod
+```
+
+### Testing Patterns
+
+```go
+// Table-driven tests
+func TestCalculatePrice(t *testing.T) {
+    tests := []struct {
+        name     string
+        quantity int
+        price    float64
+        want     float64
+        wantErr  bool
+    }{
+        {"single item", 1, 10.00, 10.00, false},
+        {"multiple items", 5, 10.00, 50.00, false},
+        {"zero quantity", 0, 10.00, 0, false},
+        {"negative quantity", -1, 10.00, 0, true},
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            got, err := CalculatePrice(tt.quantity, tt.price)
+            if (err != nil) != tt.wantErr {
+                t.Errorf("error = %v, wantErr %v", err, tt.wantErr)
+                return
+            }
+            if got != tt.want {
+                t.Errorf("got %v, want %v", got, tt.want)
+            }
+        })
+    }
+}
+
+// Use testify for assertions (optional but cleaner)
+import "github.com/stretchr/testify/assert"
+
+func TestGetUser(t *testing.T) {
+    user, err := svc.GetUser(ctx, "123")
+    assert.NoError(t, err)
+    assert.Equal(t, "123", user.ID)
+    assert.NotEmpty(t, user.Name)
+}
+
+// Use testify/require for fatal assertions
+import "github.com/stretchr/testify/require"
+
+func TestCreateUser(t *testing.T) {
+    user, err := svc.CreateUser(ctx, input)
+    require.NoError(t, err) // Stops test if fails
+    assert.Equal(t, input.Name, user.Name)
+}
+```
+
+### Interface Design
+
+```go
+// Keep interfaces small - prefer composition
+type Reader interface {
+    Read(ctx context.Context, id string) (*Entity, error)
+}
+
+type Writer interface {
+    Write(ctx context.Context, e *Entity) error
+}
+
+type ReadWriter interface {
+    Reader
+    Writer
+}
+
+// Define interfaces where they are USED, not implemented
+// In handler package:
+type UserGetter interface {
+    GetUser(ctx context.Context, id string) (*User, error)
+}
+
+func NewHandler(users UserGetter) *Handler {
+    return &Handler{users: users}
+}
+```
+
+### Concurrency Patterns
+
+```go
+// Use errgroup for parallel work with error handling
+import "golang.org/x/sync/errgroup"
+
+func fetchAll(ctx context.Context, ids []string) ([]*Item, error) {
+    g, ctx := errgroup.WithContext(ctx)
+    results := make([]*Item, len(ids))
+
+    for i, id := range ids {
+        i, id := i, id // Capture loop vars
+        g.Go(func() error {
+            item, err := fetch(ctx, id)
+            if err != nil {
+                return err
+            }
+            results[i] = item
+            return nil
+        })
+    }
+
+    if err := g.Wait(); err != nil {
+        return nil, err
+    }
+    return results, nil
+}
+
+// Protect shared state with mutex
+type Counter struct {
+    mu    sync.Mutex
+    value int
+}
+
+func (c *Counter) Inc() {
+    c.mu.Lock()
+    defer c.mu.Unlock()
+    c.value++
+}
+```
+
+### Common Pitfalls
+
+```go
+// BAD: Goroutine leak - channel never read
+go func() {
+    ch <- result // Blocks forever if no receiver
+}()
+
+// GOOD: Use buffered channel or select with context
+ch := make(chan Result, 1)
+go func() {
+    ch <- result
+}()
+
+// BAD: Defer in loop
+for _, f := range files {
+    f, err := os.Open(f)
+    defer f.Close() // Only runs after loop exits!
+}
+
+// GOOD: Use closure or explicit close
+for _, f := range files {
+    func() {
+        f, err := os.Open(f)
+        if err != nil { return }
+        defer f.Close()
+        // process f
+    }()
+}
+
+// BAD: Ignoring context cancellation
+func longOperation(ctx context.Context) error {
+    for i := 0; i < 1000000; i++ {
+        doWork(i) // Never checks ctx
+    }
+    return nil
+}
+
+// GOOD: Check context periodically
+func longOperation(ctx context.Context) error {
+    for i := 0; i < 1000000; i++ {
+        if ctx.Err() != nil {
+            return ctx.Err()
+        }
+        doWork(i)
+    }
+    return nil
+}
+```
+
+---
 
 **Remember**: Code quality is not negotiable. Clear, maintainable code enables rapid development and confident refactoring.
