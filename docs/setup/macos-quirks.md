@@ -59,6 +59,8 @@ This document captures macOS-specific behaviors, compatibility notes, and quirks
 
 **Result**: Backend now handles these differences and the live macOS validation succeeds.
 
+**Safety rule**: Do not run the live Jira validation by default. Only run it when the user explicitly requests a live Jira E2E and explicitly confirms immediately before execution, because it creates real Jira work items.
+
 ---
 
 ## Architecture-Specific Notes

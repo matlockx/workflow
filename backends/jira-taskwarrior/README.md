@@ -419,6 +419,15 @@ node backends/jira-taskwarrior/test.js
 
 Note: Tests are mocked and don't require real Jira/Taskwarrior installations.
 
+### Live Jira E2E Safety Rule
+
+`jira-taskwarrior` can operate against a real Jira project and create live work items.
+
+- Only run a live Jira end-to-end validation when the user explicitly asks for it.
+- Always get an explicit confirmation immediately before executing the live run.
+- Prefer an isolated Taskwarrior config/data directory and a disposable Jira project when validating.
+- Clean up or cancel temporary Jira issues after the test if deletion is not permitted.
+
 ## License
 
 MIT

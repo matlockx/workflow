@@ -418,3 +418,4 @@ When working on this codebase:
 | 2026-03-28 | Phase 5 | Closed remaining setup doc gaps, linked macOS quirks doc, and recorded the jira-taskwarrior runtime blocker in TODO planning |
 | 2026-03-28 | Phase 5 | Adapted jira-taskwarrior backend to the installed ACLI v1.3 command surface and verified local macOS prerequisites; remaining live blocker is Jira project access/config |
 | 2026-03-28 | Phase 5 | Completed live macOS jira-taskwarrior E2E after adapting ACLI v1.3 commands, Taskwarrior JSON export parsing, and project-required fixVersion handling |
+| 2026-03-28 | Workflow Safety | Added an explicit failsafe: live jira-taskwarrior E2E may only run when the user asks for it and reconfirms immediately before execution |

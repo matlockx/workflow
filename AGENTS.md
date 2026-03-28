@@ -153,6 +153,7 @@ When responding to user instructions, the AI assistant (Opencode, Claude, Cursor
 4. **Never commit secrets** - Use environment variables
 5. **Never assume business logic** - Always ask
 6. **Never remove AIDEV- comments** - They're there for a reason
+7. **Never run live Jira end-to-end tests by default** - Only execute live `jira-taskwarrior` E2E against a real Jira project when the user explicitly asks for it and explicitly confirms again immediately before execution
 
 Remember: We optimize for maintainability over cleverness.  
 When in doubt, choose the boring solution.
