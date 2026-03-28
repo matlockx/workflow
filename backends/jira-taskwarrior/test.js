@@ -19,7 +19,7 @@ const originalExec = require('child_process').exec
 // Mock command outputs
 const mockOutputs = {
   // ACLI outputs
-  'acli jira auth status --json': JSON.stringify({ authenticated: true }),
+  'acli jira auth status': `✓ Authenticated\n  Site: example.atlassian.net\n  Email: test@example.com\n  Authentication Type: oauth\n`,
   'acli jira workitem search': JSON.stringify({
     issues: [
       {
@@ -39,7 +39,7 @@ const mockOutputs = {
       }
     ]
   }),
-  'acli jira workitem get': JSON.stringify({
+  'acli jira workitem view': JSON.stringify({
     key: 'PROJ-123',
     fields: {
       summary: 'Implement user authentication',
@@ -234,11 +234,11 @@ require('child_process').exec = (cmd, options, callback) => {
       if (cmd.includes('task add')) console.log('Mock exec (task add):', cmd) // Debug
       
       if (cmd.includes('auth status')) {
-        stdout = mockOutputs['acli jira auth status --json']
+        stdout = mockOutputs['acli jira auth status']
       } else if (cmd.includes('workitem search')) {
         stdout = mockOutputs['acli jira workitem search']
-      } else if (cmd.includes('workitem get')) {
-        stdout = mockOutputs['acli jira workitem get']
+      } else if (cmd.includes('workitem view')) {
+        stdout = mockOutputs['acli jira workitem view']
       } else if (cmd.includes('workitem create')) {
         stdout = mockOutputs['acli jira workitem create']
       } else if (cmd.includes('task show')) {

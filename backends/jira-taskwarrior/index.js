@@ -16,6 +16,14 @@ const path = require('path')
 
 const execAsync = promisify(exec)
 
+function shellEscape(value) {
+  if (value === undefined || value === null) {
+    return "''"
+  }
+
+  return `'${String(value).replace(/'/g, `'\\''`)}'`
+}
+
 // ============================================
 // JIRA-TASKWARRIOR BACKEND IMPLEMENTATION
 // ============================================
@@ -42,6 +50,11 @@ class JiraTaskwarriorBackend {
       
       ...config
     }
+
+    this.config.taskrcPath = this._expandHomePath(this.config.taskrcPath)
+    this.config.taskDataLocation = this._expandHomePath(this.config.taskDataLocation)
+    this.config.lmmNotesRoot = this._expandHomePath(this.config.lmmNotesRoot)
+    this.config.bugwarriorConfig = this._expandHomePath(this.config.bugwarriorConfig)
     
     // Validate required configuration
     this._validateConfig()
@@ -61,6 +74,22 @@ class JiraTaskwarriorBackend {
         'Jira project not configured. Set jiraProject in config or JIRA_PROJECT env var'
       )
     }
+  }
+
+  _expandHomePath(filePath) {
+    if (!filePath || typeof filePath !== 'string') {
+      return filePath
+    }
+
+    if (filePath === '~') {
+      return process.env.HOME || filePath
+    }
+
+    if (filePath.startsWith('~/')) {
+      return path.join(process.env.HOME || '~', filePath.slice(2))
+    }
+
+    return filePath
   }
   
   // ============================================
@@ -107,10 +136,12 @@ class JiraTaskwarriorBackend {
    */
   async _checkAcliAuth() {
     try {
-      const { stdout } = await execAsync('acli jira auth status --json')
-      const status = JSON.parse(stdout)
-      
-      if (!status.authenticated) {
+      // AIDEV-NOTE: ACLI v1.3 uses plain-text auth status and different workitem verbs/flags than older wrappers.
+      // Keep this check tolerant so the backend works across ACLI variants without forcing repo-wide command rewrites.
+      const { stdout } = await execAsync('acli jira auth status')
+      const isAuthenticated = stdout.includes('Authenticated')
+
+      if (!isAuthenticated) {
         throw this._createError(
           'AUTH_ERROR',
           'ACLI not authenticated',
@@ -308,13 +339,14 @@ class JiraTaskwarriorBackend {
       
       // Execute search via ACLI
       const result = await this._acli(
-        `workitem search --jql "${jql}" --max-results ${limit} --start-at ${offset}`
+        `workitem search --jql ${shellEscape(jql)} --limit ${limit + offset}`
       )
       
       // Parse issues from result
-      const issues = result.issues || []
+      const issues = result.issues || result.workItems || result.values || result || []
+      const pagedIssues = Array.isArray(issues) ? issues.slice(offset, offset + limit) : []
       
-      return issues.map(issue => this._normalizeJiraIssue(issue))
+      return pagedIssues.map(issue => this._normalizeJiraIssue(issue))
     } catch (error) {
       throw this._createError(
         'SEARCH_ERROR',
@@ -327,7 +359,7 @@ class JiraTaskwarriorBackend {
   
   async getIssue(issueId) {
     try {
-      const result = await this._acli(`workitem get --id "${issueId}"`)
+      const result = await this._acli(`workitem view ${shellEscape(issueId)}`)
       
       if (!result || !result.key) {
         throw this._createError(
@@ -354,27 +386,23 @@ class JiraTaskwarriorBackend {
       // Build ACLI create command
       const args = [
         `workitem create`,
-        `--project "${this.config.jiraProject}"`,
-        `--summary "${issueData.summary}"`,
-        `--type "${issueData.type || 'Story'}"`
+        `--project ${shellEscape(this.config.jiraProject)}`,
+        `--summary ${shellEscape(issueData.summary)}`,
+        `--type ${shellEscape(issueData.type || 'Story')}`
       ]
       
       if (issueData.description) {
         // Convert markdown to ADF (Atlassian Document Format)
         const adf = this._markdownToADF(issueData.description)
-        args.push(`--description '${JSON.stringify(adf)}'`)
+        args.push(`--description ${shellEscape(JSON.stringify(adf))}`)
       }
       
       if (issueData.assignee) {
-        args.push(`--assignee "${issueData.assignee}"`)
+        args.push(`--assignee ${shellEscape(issueData.assignee)}`)
       }
       
       if (issueData.labels && issueData.labels.length > 0) {
-        args.push(`--labels "${issueData.labels.join(',')}"`)
-      }
-      
-      if (issueData.priority) {
-        args.push(`--priority "${issueData.priority}"`)
+        args.push(`--label ${shellEscape(issueData.labels.join(','))}`)
       }
       
       const result = await this._acli(args.join(' '))
