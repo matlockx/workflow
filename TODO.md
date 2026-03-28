@@ -206,10 +206,10 @@ This document tracks all tasks for transforming OpenCode into a workflow-agnosti
 ### 4.5: Documentation
 
 - ✅ **4.5.1**: Create `docs/setup/setup-beads.md`
-- ⬜ **4.5.2**: Add Beads examples to `README.md`
-- ⬜ **4.5.3**: Create troubleshooting guide for Beads
+- ✅ **4.5.2**: Add Beads examples to `README.md`
+- ✅ **4.5.3**: Create troubleshooting guide for Beads
 
-**Completion**: 12/14 tasks
+**Completion**: 14/14 tasks
 
 ---
 

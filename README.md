@@ -202,6 +202,48 @@ The agent:
 
 **Setup**: [`docs/setup/setup-beads.md`](docs/setup/setup-beads.md)
 
+**Example config**:
+
+```json
+{
+  "workflow": {
+    "backend": {
+      "type": "beads",
+      "config": {
+        "workspaceDir": "/absolute/path/to/repo",
+        "beadsDir": "/absolute/path/to/repo/.beads",
+        "lmmNotesRoot": "$LLM_NOTES_ROOT",
+        "repository": "repo-name"
+      }
+    }
+  }
+}
+```
+
+**Example workflow**:
+
+```bash
+# Initialize Beads in your repo
+bd init --stealth
+
+# Create a Beads issue manually or through your preferred flow
+bd create "Implement backend abstraction" \
+  --type feature \
+  --description "Make workflow commands backend-agnostic" \
+  --json
+
+# Use OpenCode against the Beads backend
+/spec opencode-123 --backend=beads
+/createtasks opencode-123 --backend=beads
+/implement opencode-123 --backend=beads
+```
+
+**Notes**:
+
+- Run Beads commands from the initialized workspace root.
+- `bd ready --json` is the best ready-work signal for Beads.
+- Specs remain portable markdown files under `$LLM_NOTES_ROOT`.
+
 ### Custom Backend
 
 **Best for**: Teams with unique workflows or custom tools
