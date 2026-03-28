@@ -18,6 +18,10 @@ const os = require('os')
 
 const execAsync = promisify(exec)
 
+// AIDEV-NOTE: shellEscape wraps values in single quotes and escapes internal
+// single quotes using the POSIX 'end-quote, escaped-quote, re-quote' trick.
+// This is critical for safely passing user-supplied strings (e.g. issue
+// summaries) to child_process.exec without shell injection.
 function shellEscape(value) {
   if (value === undefined || value === null) {
     return "''"
@@ -168,6 +172,9 @@ class JiraTaskwarriorBackend {
     return this._acli(`project view --key ${shellEscape(projectKey)}`)
   }
 
+  // AIDEV-NOTE: Returns the first unreleased, non-archived version from the
+  // project's version list. ACLI uses this as the default fixVersion when
+  // creating issues so work lands in the active sprint/release automatically.
   _getDefaultFixVersion(project) {
     const versions = Array.isArray(project?.versions) ? project.versions : []
     return versions.find(version => !version.released && !version.archived) || null
@@ -210,6 +217,10 @@ class JiraTaskwarriorBackend {
   /**
    * Execute Taskwarrior export command and parse JSON
    */
+  // AIDEV-NOTE: Taskwarrior 3.x emits a JSON array; older 2.x variants emit
+  // one JSON object per line with no surrounding brackets.  We detect which
+  // format we got by checking whether the output starts with '[' and fall back
+  // to the newline-delimited parse path so both versions are supported.
   async _taskExport(filter) {
     try {
       const output = await this._task(`${filter} export`)
@@ -428,6 +439,10 @@ class JiraTaskwarriorBackend {
         }
       }
 
+      // AIDEV-NOTE: ACLI does not support large JSON payloads via CLI flags
+      // directly.  We serialise the payload to a temp file and pass its path
+      // via --from-json instead.  The finally block ensures cleanup even when
+      // the ACLI call throws (e.g. auth failure, network error).
       const tempFile = path.join(os.tmpdir(), `opencode-jira-create-${Date.now()}.json`)
       fs.writeFileSync(tempFile, JSON.stringify(payload, null, 2))
 
@@ -856,19 +871,23 @@ ${issue.description || 'No description provided.'}
       )
     }
     
-    // Create phase tasks
-    for (const phase of phases) {
-      const phaseSlug = this._slugify(phase.name)
-      const phaseProject = `${issueId}.${phaseSlug}`
-      
-      // Create phase task
-      await this._task(
-        `add "Phase ${phase.number}: ${phase.name}" +impl +phase jiraid:${issueId} work_state:todo repository:${this.config.repository} project:${phaseProject}`
-      )
+      // Create phase tasks
+      for (const phase of phases) {
+        const phaseSlug = this._slugify(phase.name)
+        const phaseProject = `${issueId}.${phaseSlug}`
+        
+        // Create phase task
+        await this._task(
+          `add "Phase ${phase.number}: ${phase.name}" +impl +phase jiraid:${issueId} work_state:todo repository:${this.config.repository} project:${phaseProject}`
+        )
 
-      // Get full phase task details
-      const phaseTasks = await this._taskExport(`jiraid:${issueId} +impl +phase project:${phaseProject}`)
-      const phaseTask = phaseTasks.find(task => task.description === `Phase ${phase.number}: ${phase.name}`)
+        // AIDEV-NOTE: `task add` output does NOT include the UUID of the newly
+        // created task (Taskwarrior 3.4 behaviour change from 2.x).  We resolve
+        // the UUID by immediately exporting tasks that match the description we
+        // just added.  The description is unique within the project+jiraid
+        // scope, so the first match is authoritative.
+        const phaseTasks = await this._taskExport(`jiraid:${issueId} +impl +phase project:${phaseProject}`)
+        const phaseTask = phaseTasks.find(task => task.description === `Phase ${phase.number}: ${phase.name}`)
 
       if (!phaseTask?.uuid) {
         throw this._createError('PARSE_ERROR', 'Failed to resolve created phase task UUID')
@@ -898,12 +917,14 @@ ${issue.description || 'No description provided.'}
       const numTasks = 2 + Math.floor(Math.random() * 2) // 2-3 tasks
       
       for (let i = 1; i <= numTasks; i++) {
-        await this._task(
-          `add "Implement task ${i} for ${phase.name}" +impl jiraid:${issueId} work_state:todo depends:${phaseUUID} repository:${this.config.repository} project:${phaseProject}`
-        )
+          await this._task(
+            `add "Implement task ${i} for ${phase.name}" +impl jiraid:${issueId} work_state:todo depends:${phaseUUID} repository:${this.config.repository} project:${phaseProject}`
+          )
 
-        const implTasks = await this._taskExport(`jiraid:${issueId} +impl project:${phaseProject}`)
-        const implTask = implTasks.find(task => task.description === `Implement task ${i} for ${phase.name}`)
+          // AIDEV-NOTE: Same UUID resolution pattern as phase task above —
+          // `task add` does not echo the UUID, so we export and match by desc.
+          const implTasks = await this._taskExport(`jiraid:${issueId} +impl project:${phaseProject}`)
+          const implTask = implTasks.find(task => task.description === `Implement task ${i} for ${phase.name}`)
 
         if (!implTask?.uuid) {
           throw this._createError('PARSE_ERROR', 'Failed to resolve created implementation task UUID')
