@@ -5,262 +5,104 @@ agent: spec-mode
 
 # Create spec from issue
 
-You are creating a specification from an issue tracked in the configured workflow backend.
-
-## Prerequisites
-
-Before running this command, ensure:
-- The workflow backend is properly configured in `opencode.json`
-- The issue exists in the backend and is accessible
-- `$LLM_NOTES_ROOT` environment variable is set (for portable spec storage)
+Create or continue a specification for an issue tracked in the configured workflow backend.
 
 ## Steps
 
-### 1. Load workflow backend
+1. **Load and validate the backend**
+   - Parse raw arguments with `require('./lib/backend-loader.js').parseBackendOverride($ARGUMENTS)`.
+   - If a `--backend` override is provided, use it.
+   - Load the backend with `require('./lib/backend-loader.js').getBackend(backendType)`.
+   - If backend initialization fails, stop and show the error.
+   - If the backend is missing or misconfigured, tell the user to check `opencode.json`.
 
-- Use the backend loader: `require('./lib/backend-loader.js').getBackend()`
-- This reads the backend configuration from `opencode.json` and initializes the appropriate backend
-- Handle errors if backend is not configured or unavailable
+2. **Extract the issue ID**
+   - Read the full issue identifier from the cleaned arguments returned by `parseBackendOverride()`.
+   - Keep backend-specific prefixes if present (examples: `IN-1373`, `MOCK-1`, `beads:123`).
+   - Store it as `issueId`.
 
-### 2. Extract issue ID from arguments
+3. **Fetch issue context**
+   - Call `backend.getIssue(issueId)`.
+   - Use the returned `summary`, `description`, `status`, `labels`, and optional `url` as planning context.
+   - If the issue is not found:
+     - Tell the user the issue could not be found.
+     - If the configured backend is `jira-taskwarrior`, suggest `bugwarrior-pull`.
+     - Stop.
 
-- The issue ID is provided in `$ARGUMENTS` (e.g., "IN-1373", "beads:123")
-- Extract the full ID including any backend prefix
-- Store as `issueId` for backend queries
+4. **Resolve or create the backend-tracked spec**
+   - First try `backend.getSpec(issueId)`.
+   - If a spec already exists:
+     - Use the existing spec file at `spec.filePath`.
+     - Preserve its current lifecycle state unless the user approves a change.
+   - If no spec exists:
+     - Call `backend.createSpec(issueId)`.
+     - Use the returned `spec.id` and `spec.filePath` as the canonical spec record.
+     - Treat the backend-created file as a scaffold that you can replace with richer content.
 
-### 3. Query backend for issue details
+5. **Prepare the spec document**
+   - Write the spec to `spec.filePath`.
+   - Use the spec-mode structure with only:
+     - `Requirements`
+     - `Design`
+   - Do not include implementation tasks in the spec; those are created later by `/createtasks`.
+   - Use YAML frontmatter that matches the portable format used in this repo:
+     - `issueId: <issueId>`
+     - `createdAt: <ISO8601>`
+     - `work_state: draft`
+     - `approvedAt: <ISO8601>` only after approval
+   - Base the title on `issue.summary`.
+   - If `issue.url` exists, include it in the document for reference.
 
-- Call: `backend.getIssue(issueId)`
-- This returns an Issue object with:
-  - `id` - The issue identifier
-  - `summary` - Short title
-  - `description` - Full description (primary context for spec)
-  - `status` - Current status in backend
-  - `url` - Link to the issue (if available)
-  - `labels` - Tags/categories
-  - `metadata` - Backend-specific metadata
+6. **Follow step-by-step planning mode**
+   - Start by drafting only the `Requirements` section.
+   - Use `issue.description` as the primary source of truth.
+   - Leave `Design` as a placeholder until requirements are reviewed.
+   - After writing requirements, pause and ask exactly:
+     - `Please review the requirements above. Are they accurate and complete? Should I proceed to the Design section?`
 
-### 4. Validate issue exists
+7. **Complete the design after approval**
+   - Once the user approves the requirements, fill in the `Design` section.
+   - Keep the design practical and implementation-oriented.
+   - After writing design, pause and ask exactly:
+     - `Please review the design above. Is it accurate and complete? Should I mark the spec as approved?`
 
-- If `backend.getIssue()` throws a NOT_FOUND error:
-  - Inform user that issue was not found
-  - Suggest backend-specific sync commands if applicable
-  - For jira-taskwarrior: suggest `bugwarrior-pull`
-  - Exit if issue not found
+8. **Approve the spec when the user confirms**
+   - If the user approves the completed spec:
+     - Update the YAML frontmatter to:
+       - `work_state: approved`
+       - `approvedAt: <ISO8601 timestamp>`
+     - Call `backend.approveSpec(spec.id)`.
+   - If approval fails, tell the user the backend update failed and keep the file consistent with the actual backend state.
 
-### 5. Determine spec file location
+9. **Handle edits to approved specs safely**
+   - If an existing spec is already approved and the user wants to change it:
+     - Warn: `This spec is approved. Modifying it will revert it to draft state. Continue?`
+   - If the user confirms:
+     - Update the file frontmatter back to `work_state: draft`.
+     - Remove `approvedAt`.
+     - If the backend supports rejection/rework flow, call `backend.rejectSpec(spec.id, 'Reverted due to spec edits')`.
+   - If the user declines, stop without editing the spec.
 
-- Get current repo name: `git remote get-url origin` and extract repo name
-- If `$LLM_NOTES_ROOT` is set:
-  - Use: `$LLM_NOTES_ROOT/<repo>/notes/specs/<ISSUE_ID>__<slug>.md`
-- Otherwise:
-  - Use: `notes/specs/<ISSUE_ID>__<slug>.md` (relative to repo root)
-- Generate `<slug>` from issue `summary`:
-  - Lowercase
-  - Replace spaces with dashes
-  - Remove special characters
-  - Max 5 words
-  - Example: "Implement User Balance Write" → "implement-user-balance-write"
+10. **Report back clearly**
+   - Report:
+     - issue ID
+     - spec ID
+     - spec path
+     - current state
+     - issue URL if available
+   - When a new draft is created, end with the requirements review prompt.
+   - When a spec is approved, point the user to `/createtasks <issueId>`.
 
-### 6. Create the spec file
+## AIDEV-NOTE: backend-tracked spec lifecycle
 
-- Use the spec-mode structure (Requirements, Design, Tasks)
-- Use issue `description` as the primary context
-- Follow step-by-step mode (Requirements → Design)
-- Include YAML frontmatter with:
-  - `issueId: <issue_id>`
-  - `createdAt: <ISO8601 date>`
-  - `work_state: draft`
-  - `approvedAt: <ISO8601 date>` (only added when spec is approved in Step 8)
-- Title: Based on issue `summary`
-- If issue `url` is available, include it as a reference in the spec
-
-### 7. Register spec in backend
-
-After creating the spec file, register it in the backend system:
-
-**Option A: If backend tracks specs separately (like jira-taskwarrior)**
-- Create a spec entry in the backend to track the spec lifecycle
-- For jira-taskwarrior, this creates a Taskwarrior task with:
-  - Description: `SPEC: <issueId> <summary>`
-  - Tags: `+spec`
-  - State: `work_state:draft`
-  - Link to parent issue
-  - Annotation with portable spec path
-
-**Option B: If backend doesn't track specs separately (like mock)**
-- Skip backend registration
-- Spec file is self-contained with state in YAML frontmatter
-
-**Implementation:**
-```javascript
-// Check if backend supports spec tracking
-if (typeof backend.createSpec === 'function') {
-  try {
-    // Some backends have automatic createSpec, but we've already created the file
-    // So we may need to call a different method, or manually register
-    // For now, defer to backend-specific implementation
-  } catch (error) {
-    // If backend doesn't support spec tracking, that's OK
-    // Spec file is self-contained
-  }
-}
-```
-
-### 8. Report back to user
-
-Inform the user of:
-- Spec file location (full path)
-- Issue ID and link (if available)
-- Current work_state (draft)
-- Current section created (Requirements)
-- Next steps: "Please review the requirements above. Are they accurate and complete? Should I proceed to the Design section?"
-
-### 9. Finalize and approve spec (after Design is complete and approved)
-
-**Trigger**: After Design section is completed and user-approved
-
-**Prompt user**: "The spec is now complete with Requirements and Design. Would you like to mark this spec as approved? (This will change the work_state from 'draft' to 'approved')"
-
-**If user confirms YES**:
-
-1. Update spec file YAML frontmatter:
-   - Set `work_state: approved`
-   - Add `approvedAt: <ISO8601 timestamp>`
-
-2. Update backend (if supported):
-   - Call `backend.approveSpec(issueId)` to update backend state
-   - For jira-taskwarrior: Updates Taskwarrior task to `work_state:approved`
-   - Handle gracefully if backend doesn't support spec state tracking
-
-3. Report success:
-   ```
-   Spec approved!
-   
-   Next steps:
-   1. Review the approved spec
-   2. Create implementation tasks: /createtasks <ISSUE_ID>
-   
-   The /createtasks command will parse the implementation plan from the Design section 
-   and create granular tasks with proper dependencies.
-   ```
-
-**If user declines NO**:
-- Keep spec in 'draft' state
-- Report: "Spec remains in 'draft' state. You can approve it later by re-running this command and approving, or manually updating the state."
+- Prefer `backend.getSpec()` / `backend.createSpec()` so the backend remains the source of truth for whether a spec exists.
+- Use `spec.id` when calling `backend.approveSpec()` or `backend.rejectSpec()`.
+- The markdown file is the editable artifact, but backend lifecycle state must stay in sync with the file frontmatter.
+- Support optional command-time override via `--backend=<type>` without changing repo config.
 
 ## Notes
 
-- The backend abstracts away the specific tools (Jira, Taskwarrior, Beads, etc.)
-- Issue descriptions may contain backend-specific markup (Jira wiki markup, Markdown, etc.)
-- Follow step-by-step mode by default (pause after each section for approval)
-- Spec can be created and approved independently of issue status in the backend
-- The portable spec storage in `$LLM_NOTES_ROOT` ensures specs work across machines and backends
-
-## Spec State Management
-
-### States
-
-- **draft**: Initial state for new specs or specs being modified
-- **approved**: Spec has been finalized and approved for implementation
-- **rejected**: Spec needs rework (optional, backend-specific)
-
-### State Transitions
-
-- New specs start as `draft`
-- Completed specs can be marked `approved` (adds `approvedAt` timestamp)
-- Modified approved specs should revert to `draft` (removes `approvedAt` timestamp)
-
-### Tracking
-
-- **Spec file**: State tracked in YAML frontmatter (`work_state` and `approvedAt`)
-- **Backend**: State tracked via backend API (if supported)
-  - jira-taskwarrior: Taskwarrior task with `work_state` UDA
-  - mock backend: No separate tracking (file is source of truth)
-  - beads: Custom state tracking (TBD)
-
-### YAML Frontmatter Examples
-
-**Draft state:**
-
-```yaml
----
-issueId: IN-1373
-createdAt: 2025-12-14T10:30:00Z
-work_state: draft
----
-```
-
-**Approved state:**
-
-```yaml
----
-issueId: IN-1373
-createdAt: 2025-12-14T10:30:00Z
-work_state: approved
-approvedAt: 2025-12-14T14:45:00Z
----
-```
-
-**After modification (reverted):**
-
-```yaml
----
-issueId: IN-1373
-createdAt: 2025-12-14T10:30:00Z
-work_state: draft
-# approvedAt removed
----
-```
-
-### Editing Approved Specs
-
-When a user requests changes to an approved spec:
-
-1. Automatically detect `work_state: approved` in YAML frontmatter
-2. Ask user: "This spec is approved. Modifying it will revert to draft state. Continue?"
-3. If user confirms:
-   - Revert work_state to `draft` in spec file
-   - Remove `approvedAt` from YAML frontmatter
-   - Call `backend.rejectSpec(issueId, "Reverted due to user modifications")` if backend supports it
-   - Notify user: "Spec has been reverted to 'draft' state due to modifications"
-4. If user declines:
-   - Cancel the modification
-   - Keep spec in approved state
-
-## Backend-Specific Behaviors
-
-### jira-taskwarrior backend
-
-- Issues come from Jira (synced via Bugwarrior)
-- Specs tracked as Taskwarrior tasks with `+spec` tag
-- State synchronized between spec file and Taskwarrior `work_state` UDA
-- Annotations added for audit trail
-
-### mock backend
-
-- Issues stored in memory
-- No separate spec tracking (spec file is source of truth)
-- State only in YAML frontmatter
-
-### beads backend (future)
-
-- Issues are Beads items
-- Specs may be stored as Beads attachments or separate items
-- State tracking TBD
-
-## Error Handling
-
-Handle backend errors gracefully:
-
-- **NOT_FOUND**: Issue doesn't exist → suggest sync/pull
-- **BACKEND_UNAVAILABLE**: Backend unreachable → suggest checking configuration
-- **PERMISSION_DENIED**: No access → suggest checking credentials
-- **ALREADY_EXISTS**: Spec already exists → offer to open existing spec
-
-## Backward Compatibility
-
-This command replaces the legacy `/specjira` command. Users can:
-- Use `/spec <issue_id>` for any backend
-- Optionally use `/specjira <issue_id>` (deprecated alias with warning)
-- Manually specify backend: `/spec --backend jira-taskwarrior <issue_id>` (future enhancement)
+- The backend abstracts the underlying workflow tools.
+- Preserve portable spec storage through the backend-provided `spec.filePath`.
+- Issue descriptions may contain backend-specific markup; keep the meaning, not the formatting quirks.
+- This command replaces the legacy `/specjira` flow.

@@ -61,7 +61,7 @@ This guide helps users migrate from the original [matlockx/opencode](https://git
 - `/skills/workflow-backend/SKILL.md` - Generic backend skill
 - `/backends/jira-taskwarrior/SKILL.md` - Taskwarrior-specific details
 
-**Migration**: Update agent prompts if they reference skills directly.
+**Migration**: Update agent prompts and local habits to prefer `workflow-backend`; keep `taskwarrior` only for legacy Jira-Taskwarrior-specific references.
 
 #### 4. Agent Names
 
@@ -71,7 +71,7 @@ This guide helps users migrate from the original [matlockx/opencode](https://git
 **After** (This Fork):
 - `po-issue` agent - Creates issues (backend-agnostic)
 
-**Migration**: Commands still work, but agent prompts are more generic.
+**Migration**: Agent names and prompts are now workflow-agnostic; update any local references from `po-jira` to `po-issue`.
 
 ### Non-Breaking Changes
 

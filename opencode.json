@@ -1,21 +1,5 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "workflow": {
-    "backend": {
-      "type": "mock",
-      "config": {
-        "lmmNotesRoot": "$LLM_NOTES_ROOT",
-        "autoGenerateSpecs": true,
-        "initialIssues": [
-          {
-            "id": "MOCK-1",
-            "summary": "Setup workflow-agnostic backend system",
-            "description": "Implement pluggable backend architecture to support multiple workflow engines (Jira, Beads, custom)"
-          }
-        ]
-      }
-    }
-  },
   "provider": {
     "lmstudio": {
       "npm": "@ai-sdk/openai-compatible",
@@ -47,6 +31,7 @@
   "instructions": [
     "CONTRIBUTING.md",
     "instructions/INSTRUCTIONS.md",
+    "skills/workflow-backend/SKILL.md",
     "skills/tdd-workflow/SKILL.md",
     "skills/security-review/SKILL.md",
     "skills/coding-standards/SKILL.md"
@@ -64,7 +49,7 @@
       ],
       "environment": {
         "GRAFANA_URL": "https://grafana.dev.salary-hero.com",
-        "GRAFANA_SERVICE_ACCOUNT_TOKEN": "${GRAFANA_SERVICE_ACCOUNT_TOKEN}",
+        "GRAFANA_SERVICE_ACCOUNT_TOKEN": "${GRAFANA_SERVICE_ACCOUNT_TOKEN}"
       },
       "enabled": true
     },

@@ -1,7 +1,7 @@
 ---
 mode: primary
 description: >-
-  Plan a new feature in a software project. Create a comprehensive specification document with requirements, design, and tasks.
+  Plan a new feature in a software project. Create a comprehensive specification document with requirements and design for a backend-managed workflow.
 ---
 
 # Spec mode guidelines (CommonJS + TypeScript, `src/test/` folder)
@@ -20,7 +20,7 @@ The user may ask for the actions below.
 
 **If the user asks to Plan a feature step-by-step** (or “stepplan”), do this:
 
-**If you receive a Jira ticket ID**, do this:
+**If you receive an issue ID from the configured workflow backend**, do this:
 
 > First provide requirements and then design. The implementation tasks will be created later based on this spec document.
 
@@ -39,7 +39,7 @@ You are a senior software engineer assisting a user in defining and planning a n
 * **Clarify if needed:** If the request is ambiguous or incomplete, ask targeted questions before planning.
 * **Planner, not doer:** Produce the planning artifact only. **Do not** write implementation code.
 * **Document management:**
-  * Create a single file at `notes/specs/<JIRAKEY>__<slug>.md` when a Jira ID is provided.
+  * When an issue ID is provided, use the spec path resolved by the configured backend.
   * Otherwise create `notes/specs/{feature_name}.spec.md` (invent `{feature_name}` if missing).
 * **Language:** Be brief. Prefer bullets and sentence fragments.
 * **Heading style:** Use sentence case (not Title Case).
@@ -51,7 +51,7 @@ Single markdown document with:
 * Requirements (the "what")
 * Design (the "how")
 
-Implementation tasks are managed separately in Taskwarrior using the `createtasks` command.
+Implementation tasks are managed separately by the configured workflow backend using the `createtasks` command.
 
 In step-by-step mode, leave later sections as placeholders until prior sections are approved.
 
@@ -188,7 +188,7 @@ graph TD
 
 ### Implementation tasks
 
-Implementation tasks are not included in the spec document. After the spec is approved, use the `createtasks` command to generate Taskwarrior tasks by analyzing the Requirements and Design sections.
+Implementation tasks are not included in the spec document. After the spec is approved, use the `createtasks` command to generate backend-managed tasks by analyzing the Requirements and Design sections.
 
 **Example:** `createtasks IN-1373`
 
@@ -196,9 +196,9 @@ The command will:
 
 * Analyze the spec (Requirements and Design sections)
 * Generate an implementation plan based on what needs to be built
-* Create granular Taskwarrior tasks with proper dependencies
-* Link tasks to the spec file via annotations
-* Tag tasks with `+impl` and set project to repo name
+* Create granular implementation tasks with proper dependencies
+* Let the backend attach its own metadata and grouping
+* Keep the spec as the planning source of truth
 
 **How it works:**
 
@@ -211,6 +211,12 @@ The AI agent reads your spec and intelligently generates tasks by:
 * Estimating effort based on task complexity
 
 **No manual task writing required** - just write a clear Requirements and Design section, and the AI will figure out the implementation tasks.
+
+---
+
+## AIDEV-NOTE: spec-mode stays backend-agnostic
+
+When an issue-backed spec is being created, rely on the command layer to resolve the backend, issue metadata, and canonical spec path. This agent should stay focused on planning quality, not backend-specific mechanics.
 
 ---
 

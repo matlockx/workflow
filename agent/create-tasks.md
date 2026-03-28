@@ -1,7 +1,7 @@
 ---
 mode: primary
 description: >-
-  Create Taskwarrior implementation tasks from an approved specification. Analyzes Requirements and Design sections to generate phased tasks with proper dependencies.
+  Create backend-managed implementation tasks from an approved specification. Analyze Requirements and Design sections to generate phased tasks with proper dependencies.
 persmissions:
   write: false
   edit: false
@@ -19,13 +19,13 @@ The user may ask for the actions below.
 
 ## Actions
 
-**If the user provides a Jira ID**, do this:
+**If the user provides an issue ID**, do this:
 
-> Analyze the approved spec and create implementation tasks in Taskwarrior with proper phases and dependencies.
+> Analyze the approved spec and create implementation tasks in the configured backend with proper phases and dependencies.
 
 **If the user asks to regenerate tasks**, do this:
 
-> Delete existing implementation tasks for the Jira ID and recreate them from the spec.
+> Re-check existing implementation tasks for the issue and only regenerate them if the backend and command flow support that safely.
 
 ## Guiding principles
 
@@ -35,7 +35,7 @@ You are a senior software engineer creating implementation tasks from an approve
 * **TDD approach:** Create test tasks before implementation tasks where applicable.
 * **Logical dependencies:** Tasks depend on their prerequisites (models → tests → implementation).
 * **Granular but reasonable:** Each task should be completable in a focused work session.
-* **Hierarchical structure:** Use phases to group related tasks under a project hierarchy.
+* **Hierarchical structure:** Use phases to group related tasks under a backend-managed hierarchy.
 
 ## Task structure
 
@@ -159,16 +159,13 @@ Project: IN-1373 (root - contains phase tasks)
 View with: task project:IN-1373 tree
 ```
 
-## Taskwarrior conventions
+## Backend conventions
 
-* **Jira linking:** `jiraid:<JIRAKEY>` UDA links all tasks to the original Jira ticket
-* **Repository:** `repository:<repo>` UDA stores the git repo name for filtering
-* **Work status:** Always set to `todo` for all created tasks
-* **Tags:**
-  * `+impl` - All implementation tasks
-  * `+phase` - Phase grouping tasks
-  * `+conditional` - Optional tasks
-* **Hierarchical projects:**
-  * Phase tasks: `project:<JIRAKEY>`
-  * Implementation tasks: `project:<JIRAKEY>.<phase-slug>`
-* **Spec annotation:** Every task annotated with spec file location for reference
+* The command layer resolves the approved spec via `backend.getSpec(issueId)`.
+* The backend owns task creation via `backend.createTasks(spec.id)`.
+* The backend owns task metadata, grouping, and dependency storage.
+* The agent should focus on task quality, phase shape, and dependency logic rather than backend-specific commands.
+
+## AIDEV-NOTE: create-tasks agent should not embed backend CLI details
+
+Keep this agent focused on analyzing the approved spec and producing a solid implementation breakdown. The command/backend layers are responsible for persistence, tags, project fields, annotations, and other backend-specific mechanics.

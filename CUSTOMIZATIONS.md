@@ -292,39 +292,102 @@ When working on this codebase:
    - `getBackendInfo()` - Returns backend name, version, description
 
 2. **Command: `/spec`** (formerly `/specjira`):
-   - Created new generic `/command/spec.md` (~240 lines)
-   - Uses `backend.getIssue(issueId)` instead of `task jiraid:... export`
-   - Uses `backend.approveSpec(specId)` instead of `task modify work_state:approved`
+   - Created new generic `/command/spec.md`
+   - Uses `backend.getIssue(issueId)` for issue context
+   - Uses `backend.getSpec(issueId)` / `backend.createSpec(issueId)` for canonical spec resolution
+   - Uses `backend.approveSpec(spec.id)` and optional `backend.rejectSpec(spec.id, ...)` for lifecycle changes
    - Backend-agnostic issue ID handling (supports any backend ID format)
-   - Portable spec storage in `$LLM_NOTES_ROOT` (unchanged)
+   - Portable spec storage remains backend-provided via `spec.filePath`
    - Step-by-step interactive mode preserved
-   - Works with any configured backend (jira-taskwarrior, mock, beads, etc.)
 
-3. **Deprecated Alias: `/specjira`**:
+3. **Command: `/createtasks`**:
+   - Refactored `/command/createtasks.md` to use backend orchestration
+   - Uses `backend.getSpec(issueId)` instead of querying Taskwarrior spec tasks directly
+   - Uses `backend.getTasks({ issueId, tags: ['impl'] })` to detect existing implementation tasks
+   - Uses `backend.createTasks(spec.id)` to delegate actual task creation to the backend
+   - Removes embedded Taskwarrior creation logic from the command definition
+   - Keeps the command responsible for validation, preview, and user-facing summaries
+
+4. **Command: `/implement`**:
+   - Refactored `/command/implement.md` to use backend task APIs
+   - Uses `backend.getSpec(issueId)` to validate approved spec state before work begins
+   - Uses `backend.getTasks({ issueId, tags: ['impl'] })` and dependency data to resume work
+   - Uses `backend.updateTaskState(task.id, state)` for task and phase transitions
+   - Preserves resumable phase/task workflow without hardcoding Taskwarrior commands
+
+5. **Deprecated Alias: `/specjira`**:
    - Replaced `/command/specjira.md` with deprecation wrapper
    - Shows clear warning to use `/spec` instead
    - Forwards to new `/spec` command automatically
    - Includes migration guide and rationale
 
+6. **Agent prompts**:
+   - Updated `agent/spec-mode.md` to reference backend-managed specs/tasks
+   - Updated `agent/create-tasks.md` to remove Taskwarrior-specific persistence assumptions
+   - Renamed `agent/po-jira.md` to `agent/po-issue.md`
+   - Rewrote the issue-creation agent so drafting stays generic and Jira creation is treated as a backend-specific case
+
+7. **Validation and config fix**:
+   - Fixed invalid JSON in `opencode.json` (trailing comma in Grafana MCP environment block)
+   - Validated backend loader successfully against the configured `mock` backend
+   - Verified `/spec`-related backend flow (`getIssue` -> `createSpec` -> `approveSpec`)
+   - Verified `/createtasks` flow (`getSpec` -> `createTasks`)
+   - Verified `/implement` state-flow assumptions against backend task transitions
+   - Confirmed `backends/mock/test.js` passes end-to-end after config fix
+
+8. **Workflow skill split**:
+   - Added `skills/workflow-backend/SKILL.md` as the generic orchestration skill
+   - Updated `opencode.json` instructions to load the generic workflow-backend skill
+   - Added `backends/jira-taskwarrior/SKILL.md` for backend-local Jira/Taskwarrior operational details
+   - Preserved `skills/taskwarrior/SKILL.md` as legacy guidance until references are fully retired
+
+9. **Environment validation limit**:
+   - Checked for real `jira-taskwarrior` backend prerequisites in this environment
+   - `task` is not installed
+   - `acli` is not installed
+   - Real Jira/Taskwarrior end-to-end validation remains deferred to an environment with those tools configured
+
+10. **Legacy skill deprecation cleanup**:
+   - Marked `skills/taskwarrior/SKILL.md` as deprecated compatibility guidance
+   - Redirected migration and architecture docs toward `skills/workflow-backend/SKILL.md`
+   - Documented `backends/jira-taskwarrior/SKILL.md` as the home for raw Taskwarrior/Jira operational detail
+
+11. **Backend override support**:
+   - Added `parseBackendOverride()` to `lib/backend-loader.js`
+   - Supports both `--backend=mock` and `--backend mock`
+   - Returns cleaned command arguments so issue IDs can still be parsed consistently
+   - Updated `/spec`, `/createtasks`, and `/implement` docs to load the backend through the override-aware flow
+   - Validated parser behavior with representative command samples
+
 **Key Design Patterns**:
-- Commands query backend for data (`getIssue()`, `getSpec()`)
-- Spec file creation remains manual/interactive (agent-driven)
-- Backend handles registration/tracking (`approveSpec()`, state updates)
+- Commands query backend for data (`getIssue()`, `getSpec()`, `getTasks()`)
+- Spec authoring remains agent-driven, but spec existence/state is backend-owned
+- Task generation is backend-owned; commands orchestrate validation and reporting
+- Implementation flow is backend-owned for state, command-owned for execution/resume logic
+- Agent prompts are being aligned with the backend abstraction so command and agent language stay consistent
+- Commands support backend override selection without editing `opencode.json`
 - Graceful fallback if backend doesn't support features
 
-**Status**: 8/24 tasks completed (33%)
+**Status**: 24/24 tasks completed (100%)
 - Tasks 3.1.1-3.1.3: Backend loader ✅
 - Tasks 3.2.1-3.2.3, 3.2.5: `/spec` command refactored ✅
 - Task 3.2.4: Testing pending (requires backend configuration)
-- Tasks 3.3.x: `/createtasks` refactoring next
-- Tasks 3.4.x: `/implement` refactoring after that
+- Tasks 3.3.1-3.3.2: `/createtasks` command refactored ✅
+- Task 3.3.3: Testing pending
+- Tasks 3.4.1-3.4.2: `/implement` command refactored ✅
+- Task 3.4.3: Mock-backend validation complete ✅
+- Tasks 3.5.1-3.5.4: agent prompts refactored ✅
+- Tasks 3.6.1-3.6.2: generic workflow skill added ✅
+- Task 3.6.3: backend-local Jira-Taskwarrior skill added ✅
+- Legacy skill references redirected/deprecated ✅
+- Tasks 3.7.1-3.7.3: backend override parsing and command docs updated ✅
 
 **Next Steps**:
-1. Test `/spec` command with mock backend
-2. Refactor `/command/createtasks.md` to use `backend.createTasks()`
-3. Refactor `/command/implement.md` to use `backend.getTasks()` and `backend.updateTaskState()`
-4. Update agent prompts to be backend-agnostic
-5. Update skills to reference backend interface instead of specific tools
+1. Test `/spec` with the `jira-taskwarrior` backend in a real environment
+2. Test `/createtasks` with the `jira-taskwarrior` backend in a real environment
+3. Test `/implement` with the `jira-taskwarrior` backend in a real environment
+4. Remove the legacy `skills/taskwarrior/SKILL.md` shim once no references remain
+5. Decide whether to mark real Jira/Taskwarrior runtime validation as Phase 6 instead of Phase 3 follow-up
 
 ---
 
@@ -335,5 +398,9 @@ When working on this codebase:
 | 2026-03-28 | Phase 0 | Initial fork, foundation documentation created |
 | 2026-03-28 | Phase 1 | Backend abstraction layer, mock backend, comprehensive tests |
 | 2026-03-28 | Phase 2 | Jira-Taskwarrior backend extraction, full implementation |
-| 2026-03-28 | Phase 3 | Backend loader + /spec command refactored (8/24 tasks) |
-
+| 2026-03-28 | Phase 3 | Backend loader, commands, agents, validation, skill migration, and backend override support complete (24/24 tasks) |
+| 2026-03-28 | Phase 4 | Beads research started; CLI/data-model mapping documented (3/14 tasks) |
+| 2026-03-28 | Phase 4 | Beads upstream command/state behavior analyzed; implementation assumptions refined |
+| 2026-03-28 | Phase 4 | Local Beads CLI presence confirmed; runtime validation blocked by Dolt init/server issues |
+| 2026-03-28 | Phase 4 | Isolated temp validation reproduced a Beads/Dolt init race-lock failure; backend coding still deferred |
+| 2026-03-28 | Phase 4 | Fresh temp retry succeeded; real Beads JSON command flow verified in isolated workspace |

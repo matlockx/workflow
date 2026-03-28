@@ -1,6 +1,6 @@
 ---
 name: taskwarrior
-description: Query patterns, state management, and operations for the Jira-Taskwarrior agentic coding workflow
+description: "[DEPRECATED] Legacy Taskwarrior-specific workflow guidance. Prefer skills/workflow-backend/SKILL.md for generic orchestration and backends/jira-taskwarrior/SKILL.md for Jira-Taskwarrior details."
 license: MIT
 metadata:
   workflow: jira-taskwarrior
@@ -8,6 +8,15 @@ metadata:
 ---
 
 # Taskwarrior Skill
+
+This skill is deprecated.
+
+- Prefer `skills/workflow-backend/SKILL.md` for backend-agnostic orchestration.
+- Prefer `backends/jira-taskwarrior/SKILL.md` for Jira + Taskwarrior operational details.
+
+## AIDEV-NOTE: legacy compatibility shim
+
+Keep this file as a compatibility shim while older docs or prompts may still refer to `taskwarrior`. Do not expand it further; direct new guidance to the generic workflow skill or backend-local skill.
 
 Reference for interacting with Taskwarrior in the agentic coding workflow. This skill covers query patterns, state management, and common operations for specs, phases, and implementation tasks.
 
