@@ -21,17 +21,17 @@ Backends allow OpenCode to work with different issue trackers and task managemen
 ### Production Backends
 
 - **`jira-taskwarrior/`** - Jira (ACLI) + Taskwarrior + Bugwarrior
-  - Status: ⬜ Planned (Phase 2)
+  - Status: ✅ Implemented and validated on macOS
   - Best for: Teams using Jira
   
 - **`beads/`** - Steve Yegge's Beads task manager
-  - Status: ⬜ Planned (Phase 4)
+  - Status: ✅ Implemented and validated on macOS
   - Best for: Lightweight, local-first workflows
 
 ### Development/Testing Backends
 
 - **`mock/`** - In-memory JSON-based backend
-  - Status: 🔄 In Development (Phase 1)
+  - Status: ✅ Implemented for local testing and demos
   - Best for: Testing, development, demos
 
 ---

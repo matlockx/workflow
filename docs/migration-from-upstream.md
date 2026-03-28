@@ -97,6 +97,8 @@ This guide helps users migrate from the original [matlockx/opencode](https://git
 
 ## Migration Steps
 
+**Good news**: no dedicated migration script is currently required. Existing specs stay in the same markdown format, and the `jira-taskwarrior` backend continues to use the same Taskwarrior data model. Migration is primarily a config and command-name update.
+
 ### Step 1: Backup Your Data
 
 ```bash
@@ -136,9 +138,13 @@ Create or update `opencode.json`:
     "backend": {
       "type": "jira-taskwarrior",
       "config": {
-        "jiraUrl": "https://your-org.atlassian.net",
-        "taskwarriorPath": "task",
-        "lmmNotesRoot": "$LLM_NOTES_ROOT"
+        "jiraSite": "your-org.atlassian.net",
+        "jiraProject": "PROJ",
+        "jiraEmail": "you@example.com",
+        "taskrcPath": "~/.taskrc",
+        "taskDataLocation": "~/.task",
+        "lmmNotesRoot": "$LLM_NOTES_ROOT",
+        "repository": "your-repo"
       }
     }
   },
@@ -331,9 +337,9 @@ source ~/.zshrc
 
 ### Issue: Taskwarrior commands fail
 
-**Cause**: Taskwarrior path not configured correctly.
+**Cause**: Taskwarrior is not installed, the Taskwarrior config/data paths are wrong, or required UDAs are missing.
 
-**Fix**: Update `opencode.json`:
+**Fix**: Update `opencode.json` to use the implemented backend config keys:
 
 ```json
 {
@@ -341,12 +347,25 @@ source ~/.zshrc
     "backend": {
       "type": "jira-taskwarrior",
       "config": {
-        "taskwarriorPath": "/usr/local/bin/task"  // or "task" for PATH lookup
+        "taskrcPath": "~/.taskrc",
+        "taskDataLocation": "~/.task",
+        "jiraSite": "your-org.atlassian.net",
+        "jiraProject": "PROJ",
+        "jiraEmail": "you@example.com"
       }
     }
   }
 }
 ```
+
+Then verify:
+
+```bash
+task --version
+task show | grep "uda\."
+```
+
+If the UDAs are missing, add them using the setup in [`backends/jira-taskwarrior/README.md`](../backends/jira-taskwarrior/README.md).
 
 ### Issue: Deprecation warnings for `/specjira`
 

@@ -78,9 +78,13 @@ Create or update `opencode.json`:
     "backend": {
       "type": "jira-taskwarrior",
       "config": {
-        "jiraUrl": "https://your-org.atlassian.net",
-        "taskwarriorPath": "task",
-        "lmmNotesRoot": "$LLM_NOTES_ROOT"
+        "jiraSite": "your-org.atlassian.net",
+        "jiraProject": "PROJ",
+        "jiraEmail": "you@example.com",
+        "taskrcPath": "~/.taskrc",
+        "taskDataLocation": "~/.task",
+        "lmmNotesRoot": "$LLM_NOTES_ROOT",
+        "repository": "your-repo"
       }
     }
   }
@@ -92,6 +96,47 @@ Create or update `opencode.json`:
 - **Jira-Taskwarrior**: See [`backends/jira-taskwarrior/README.md`](backends/jira-taskwarrior/README.md)
 - **Beads**: See [`docs/setup/setup-beads.md`](docs/setup/setup-beads.md)
 - **Mac Users**: See [`docs/setup/setup-mac.md`](docs/setup/setup-mac.md) first
+
+### 5. Backend Quickstarts
+
+#### Jira-Taskwarrior Quickstart
+
+```bash
+# Verify Jira and Taskwarrior access
+acli jira auth status
+task --version
+
+# Configure backend in opencode.json, then use the standard flow
+/po-issue "Create a Jira-backed test issue"
+/spec STAR-123
+/createtasks STAR-123
+/implement STAR-123
+```
+
+Use this backend when Jira is your source of truth and Taskwarrior is your local execution layer.
+
+#### Beads Quickstart
+
+```bash
+# Initialize Beads in the repo root
+bd init --stealth
+
+# Create or pick an issue, then use the same OpenCode flow
+bd create "Create a Beads-backed test issue" --type feature --json
+/spec opencode-123 --backend=beads
+/createtasks opencode-123 --backend=beads
+/implement opencode-123 --backend=beads
+```
+
+Use this backend when you want a lightweight local-first workflow without Jira dependencies.
+
+### 6. Troubleshooting Shortcuts
+
+- **General setup**: [`docs/setup.md`](docs/setup.md)
+- **macOS-specific quirks**: [`docs/setup/macos-quirks.md`](docs/setup/macos-quirks.md)
+- **Jira-Taskwarrior backend setup/troubleshooting**: [`backends/jira-taskwarrior/README.md`](backends/jira-taskwarrior/README.md)
+- **Beads setup**: [`docs/setup/setup-beads.md`](docs/setup/setup-beads.md)
+- **Migration notes**: [`docs/migration-from-upstream.md`](docs/migration-from-upstream.md)
 
 ---
 

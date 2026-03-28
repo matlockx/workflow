@@ -419,3 +419,6 @@ When working on this codebase:
 | 2026-03-28 | Phase 5 | Adapted jira-taskwarrior backend to the installed ACLI v1.3 command surface and verified local macOS prerequisites; remaining live blocker is Jira project access/config |
 | 2026-03-28 | Phase 5 | Completed live macOS jira-taskwarrior E2E after adapting ACLI v1.3 commands, Taskwarrior JSON export parsing, and project-required fixVersion handling |
 | 2026-03-28 | Workflow Safety | Added an explicit failsafe: live jira-taskwarrior E2E may only run when the user asks for it and reconfirms immediately before execution |
+| 2026-03-28 | Phase 6 | Expanded top-level quickstarts, backend examples, and troubleshooting links so both jira-taskwarrior and beads are easier to start and debug |
+| 2026-03-28 | Phase 6 | Corrected stale backend status and config examples so top-level docs match the implemented jira-taskwarrior and beads backends |
+| 2026-03-28 | Phase 6 | Closed the migration-guide tasks by documenting that no dedicated migration script is needed and aligning troubleshooting with the implemented jira-taskwarrior config |

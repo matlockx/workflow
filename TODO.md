@@ -273,16 +273,16 @@ Status: Complete except for one external-environment validation blocker (`5.5.1`
 
 ### 6.3: Documentation Review
 
-- ⬜ **6.3.1**: Review all documentation for accuracy
-- ⬜ **6.3.2**: Add examples for both backends
-- ⬜ **6.3.3**: Create quickstart guides
-- ⬜ **6.3.4**: Add troubleshooting section
+- ✅ **6.3.1**: Review all documentation for accuracy
+- ✅ **6.3.2**: Add examples for both backends
+- ✅ **6.3.3**: Create quickstart guides
+- ✅ **6.3.4**: Add troubleshooting section
 
 ### 6.4: Migration Guide
 
-- ⬜ **6.4.1**: Create `docs/migration-from-upstream.md`
-- ⬜ **6.4.2**: Document breaking changes
-- ⬜ **6.4.3**: Provide migration scripts if needed
+- ✅ **6.4.1**: Create `docs/migration-from-upstream.md`
+- ✅ **6.4.2**: Document breaking changes
+- ✅ **6.4.3**: Provide migration scripts if needed (not needed; documented why)
 
 ### 6.5: Final Polish
 
@@ -291,18 +291,18 @@ Status: Complete except for one external-environment validation blocker (`5.5.1`
 - ⬜ **6.5.3**: Final review of `CUSTOMIZATIONS.md`
 - ⬜ **6.5.4**: Update `TODO.md` with any remaining work
 
-**Completion**: 0/18 tasks
+**Completion**: 7/18 tasks
 
 ---
 
 ## Overall Progress
 
 **Total Tasks**: 112
-**Completed**: 74
+**Completed**: 81
 **In Progress**: 0
-**Remaining**: 38
+**Remaining**: 31
 
-**Overall Completion**: 66.1%
+**Overall Completion**: 69.6%
 
 ---
 
