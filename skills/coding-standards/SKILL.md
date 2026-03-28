@@ -836,4 +836,353 @@ func longOperation(ctx context.Context) error {
 
 ---
 
+## Rust Standards
+
+### Formatting & Linting
+
+```bash
+# Always run before commit
+cargo fmt
+cargo clippy -- -D warnings
+```
+
+### Naming Conventions
+
+```rust
+// Types, traits, enums - UpperCamelCase
+struct UserService {}
+trait Repository {}
+enum UserRole { Admin, User, Guest }
+
+// Functions, methods, variables - snake_case
+fn create_user(email: &str) -> Result<User, Error> {}
+let user_id = "123";
+
+// Constants and statics - SCREAMING_SNAKE_CASE
+const MAX_RETRIES: u32 = 3;
+static DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
+
+// Modules and crates - snake_case
+mod user_service;
+mod database;
+```
+
+### Error Handling
+
+```rust
+// Use thiserror for library/service errors
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum ServiceError {
+    #[error("user not found: {id}")]
+    NotFound { id: String },
+
+    #[error("validation failed: {field} - {message}")]
+    Validation { field: String, message: String },
+
+    #[error("database error: {0}")]
+    Database(#[from] sqlx::Error),
+
+    #[error("unexpected error: {0}")]
+    Internal(#[from] anyhow::Error),
+}
+
+// Use anyhow for application/binary errors
+use anyhow::{Context, Result};
+
+fn load_config(path: &str) -> Result<Config> {
+    let content = std::fs::read_to_string(path)
+        .with_context(|| format!("failed to read config from {path}"))?;
+
+    let config: Config = toml::from_str(&content)
+        .context("failed to parse config")?;
+
+    Ok(config)
+}
+
+// ✅ GOOD: Propagate with ?
+fn process(id: &str) -> Result<Output, ServiceError> {
+    let user = repo.find(id)?;
+    let result = transform(user)?;
+    Ok(result)
+}
+
+// ❌ BAD: Panic in library code
+fn process(id: &str) -> Output {
+    let user = repo.find(id).unwrap();  // Don't panic in libs
+    transform(user).unwrap()
+}
+```
+
+### Ownership and Borrowing
+
+```rust
+// Prefer borrowing over cloning
+fn process_user(user: &User) -> Summary {  // borrow
+    // ...
+}
+
+// Clone only when needed
+fn store_user(user: User) -> StoredUser {  // owned, stored elsewhere
+    // ...
+}
+
+// Use Cow for conditionally owned data
+use std::borrow::Cow;
+
+fn normalize(s: &str) -> Cow<str> {
+    if s.contains(' ') {
+        Cow::Owned(s.replace(' ', "_"))
+    } else {
+        Cow::Borrowed(s)
+    }
+}
+
+// ✅ GOOD: Return references when lifetime allows
+fn first_user<'a>(users: &'a [User]) -> Option<&'a User> {
+    users.first()
+}
+
+// ❌ BAD: Unnecessary clone
+fn get_name(user: &User) -> String {
+    user.name.clone()  // Only clone if you need owned value
+}
+```
+
+### Async (Tokio)
+
+```rust
+use tokio::time::{timeout, Duration};
+
+// ✅ GOOD: Async functions return futures
+async fn fetch_user(id: &str) -> Result<User, ServiceError> {
+    let user = db.find_user(id).await?;
+    Ok(user)
+}
+
+// ✅ GOOD: Parallel with join!
+async fn fetch_all(id: &str) -> Result<(User, Vec<Order>), ServiceError> {
+    let (user, orders) = tokio::try_join!(
+        fetch_user(id),
+        fetch_orders(id),
+    )?;
+    Ok((user, orders))
+}
+
+// ✅ GOOD: Timeout handling
+async fn fetch_with_timeout(id: &str) -> Result<User, ServiceError> {
+    timeout(Duration::from_secs(5), fetch_user(id))
+        .await
+        .map_err(|_| ServiceError::Timeout)?
+}
+
+// ❌ BAD: Blocking inside async
+async fn process() {
+    std::thread::sleep(Duration::from_secs(1));  // Blocks runtime!
+    // Use: tokio::time::sleep(Duration::from_secs(1)).await;
+}
+```
+
+### Traits and Generics
+
+```rust
+// Define traits for dependency injection
+#[async_trait::async_trait]
+pub trait UserRepository: Send + Sync {
+    async fn find(&self, id: &str) -> Result<User, ServiceError>;
+    async fn create(&self, input: CreateUserInput) -> Result<User, ServiceError>;
+    async fn delete(&self, id: &str) -> Result<(), ServiceError>;
+}
+
+// Generic service - depends on trait, not concrete type
+pub struct UserService<R: UserRepository> {
+    repo: R,
+}
+
+impl<R: UserRepository> UserService<R> {
+    pub fn new(repo: R) -> Self {
+        Self { repo }
+    }
+
+    pub async fn get_user(&self, id: &str) -> Result<User, ServiceError> {
+        self.repo.find(id).await
+    }
+}
+
+// Test with mock
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mockall::automock;
+
+    #[automock]
+    #[async_trait::async_trait]
+    pub trait UserRepository: Send + Sync { /* ... */ }
+
+    #[tokio::test]
+    async fn test_get_user() {
+        let mut mock = MockUserRepository::new();
+        mock.expect_find()
+            .returning(|_| Ok(User { id: "1".into(), ..Default::default() }));
+
+        let service = UserService::new(mock);
+        let result = service.get_user("1").await;
+        assert!(result.is_ok());
+    }
+}
+```
+
+### Type Safety Patterns
+
+```rust
+// Use newtype pattern for semantic types
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct UserId(String);
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Email(String);
+
+impl Email {
+    pub fn new(s: impl Into<String>) -> Result<Self, ValidationError> {
+        let email = s.into();
+        if email.contains('@') {
+            Ok(Self(email))
+        } else {
+            Err(ValidationError::InvalidEmail(email))
+        }
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+// ✅ GOOD: Compiler catches wrong type
+fn send_email(to: Email, subject: &str) {}
+
+// ❌ BAD: Easy to pass wrong string
+fn send_email(to: &str, subject: &str) {}
+```
+
+### Common Pitfalls
+
+```rust
+// ❌ BAD: Holding mutex across await
+async fn process(state: Arc<Mutex<State>>) {
+    let _guard = state.lock().unwrap();
+    some_async_fn().await;  // Lock held across await point!
+}
+
+// ✅ GOOD: Drop lock before await
+async fn process(state: Arc<Mutex<State>>) {
+    let data = {
+        let guard = state.lock().unwrap();
+        guard.clone()  // Copy data, drop guard
+    };
+    some_async_fn_with(data).await;
+}
+
+// ❌ BAD: Cloning Arc inside hot loop
+for item in items {
+    let state = state.clone();  // Expensive if tight loop
+    tokio::spawn(async move { /* ... */ });
+}
+
+// ✅ GOOD: Clone once outside
+let state = Arc::clone(&state);
+for item in items {
+    let state = Arc::clone(&state);
+    tokio::spawn(async move { /* ... */ });
+}
+
+// ❌ BAD: Ignoring errors
+let _ = some_important_operation();  // Silent failure
+
+// ✅ GOOD: Handle or propagate
+some_important_operation()?;  // Propagate
+// or
+if let Err(e) = some_important_operation() {
+    tracing::error!("operation failed: {e}");
+}
+```
+
+### Project Structure
+
+```
+myservice/
+├── src/
+│   ├── main.rs            # Binary entry point
+│   ├── lib.rs             # Library root (public API)
+│   ├── config.rs          # Configuration loading
+│   ├── error.rs           # Error types
+│   ├── domain/            # Domain models and logic
+│   │   ├── mod.rs
+│   │   └── user.rs
+│   ├── repository/        # Data access
+│   │   ├── mod.rs
+│   │   └── postgres.rs
+│   ├── service/           # Business logic
+│   │   ├── mod.rs
+│   │   └── user_service.rs
+│   └── api/               # HTTP/gRPC handlers
+│       ├── mod.rs
+│       └── handlers.rs
+├── tests/                 # Integration tests
+│   └── user_test.rs
+├── Cargo.toml
+└── Cargo.lock
+```
+
+### Testing Patterns
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Unit test
+    #[test]
+    fn test_email_validation() {
+        assert!(Email::new("valid@example.com").is_ok());
+        assert!(Email::new("invalid").is_err());
+    }
+
+    // Async test with tokio
+    #[tokio::test]
+    async fn test_create_user() {
+        let service = setup_test_service().await;
+        let result = service.create_user(CreateUserInput {
+            email: "test@example.com".to_string(),
+            username: "testuser".to_string(),
+        }).await;
+
+        assert!(result.is_ok());
+        let user = result.unwrap();
+        assert_eq!(user.email, "test@example.com");
+    }
+
+    // Table-driven tests
+    #[test]
+    fn test_password_strength() {
+        let cases = vec![
+            ("weak", false),
+            ("StrongPass123!", true),
+            ("short", false),
+            ("NoSpecialChar123", false),
+        ];
+
+        for (password, expected) in cases {
+            assert_eq!(
+                is_strong_password(password),
+                expected,
+                "failed for password: {password}"
+            );
+        }
+    }
+}
+```
+
+---
+
 **Remember**: Code quality is not negotiable. Clear, maintainable code enables rapid development and confident refactoring.
