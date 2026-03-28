@@ -3,15 +3,17 @@
 # opencode-init - Initialize OpenCode workflow in a new project
 #
 # Usage:
-#   opencode-init [--backend=beads|jira-taskwarrior] [target-dir]
+#   opencode-init [OPTIONS] [target-dir]
 #
 # Examples:
-#   opencode-init                     # Initialize in current directory with Beads
-#   opencode-init ~/projects/myapp    # Initialize in specified directory
-#   opencode-init --backend=beads .   # Explicit backend selection
+#   opencode-init                           # Initialize in current directory with Beads
+#   opencode-init ~/projects/myapp          # Initialize in specified directory
+#   opencode-init --backend=beads .         # Explicit backend selection
+#   opencode-init --stack=backend --lang=go # Backend stack with Go tooling
 #
 # AIDEV-NOTE: This script copies the minimal workflow files needed to use
 # OpenCode's /spec, /createtasks, and /implement commands in a new project.
+# Phase E additions: --stack, --skills, --lang for platform engineering setup.
 
 set -euo pipefail
 
@@ -25,6 +27,40 @@ OPENCODE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Defaults
 BACKEND="beads"
 TARGET_DIR="."
+STACK=""
+SKILLS=""
+LANG=""
+
+# Available skills by category
+# AIDEV-NOTE: Update these arrays when adding new skills
+BACKEND_SKILLS=(
+  "postgres"
+  "kafka"
+  "docker"
+  "kubernetes"
+  "helm"
+  "argocd"
+  "migrations"
+  "observability"
+  "cicd"
+  "grpc"
+)
+
+GO_SKILLS=(
+  "coding-standards"
+)
+
+RUST_SKILLS=(
+  "coding-standards"
+)
+
+GO_AGENTS=(
+  "debugger-go"
+)
+
+RUST_AGENTS=(
+  "debugger-rust"
+)
 
 # Colors (if terminal supports them)
 if [[ -t 1 ]]; then
@@ -69,22 +105,92 @@ Initialize OpenCode workflow in a project directory.
 
 Options:
   --backend=TYPE    Workflow backend: beads (default) or jira-taskwarrior
+  --stack=PRESET    Stack preset: backend (includes infra skills)
+  --skills=LIST     Comma-separated skills to copy (e.g., postgres,kafka,docker)
+  --lang=LANG       Language tooling: go, rust, or both
   --help, -h        Show this help message
+  --list-skills     List all available skills
 
 Arguments:
   target-dir        Directory to initialize (default: current directory)
 
 Examples:
-  opencode-init                          # Init current dir with Beads
-  opencode-init ~/projects/myapp         # Init specific directory
-  opencode-init --backend=beads .        # Explicit backend
+  opencode-init                                    # Init with Beads backend only
+  opencode-init --stack=backend                    # Init with all backend infra skills
+  opencode-init --stack=backend --lang=go          # Backend + Go tooling
+  opencode-init --skills=postgres,docker           # Only specific skills
+  opencode-init --lang=rust                        # Only Rust debugger + coding standards
 
 Backends:
   beads             Local file-based workflow (recommended for solo/small teams)
   jira-taskwarrior  Jira + Taskwarrior integration (for teams with Jira)
 
+Stack Presets:
+  backend           All backend infrastructure skills:
+                    postgres, kafka, docker, kubernetes, helm, argocd,
+                    migrations, observability, cicd, grpc
+
+Language Tooling:
+  go                Go coding standards + debugger agent
+  rust              Rust coding standards + debugger agent
+  both              Both Go and Rust tooling
+
 EOF
   exit 0
+}
+
+list_skills() {
+  echo "Available skills:"
+  echo
+  echo "Backend Infrastructure:"
+  for skill in "${BACKEND_SKILLS[@]}"; do
+    echo "  - $skill"
+  done
+  echo
+  echo "Language-specific (included via --lang):"
+  echo "  Go:   coding-standards, debugger-go agent"
+  echo "  Rust: coding-standards, debugger-rust agent"
+  echo
+  echo "Other skills in repository:"
+  for skill_path in "$OPENCODE_ROOT"/skills/*/SKILL.md; do
+    skill_name=$(basename "$(dirname "$skill_path")")
+    # Skip if already listed
+    if [[ ! " ${BACKEND_SKILLS[*]} " =~ " ${skill_name} " ]] && \
+       [[ "$skill_name" != "coding-standards" ]] && \
+       [[ "$skill_name" != "workflow-backend" ]]; then
+      echo "  - $skill_name"
+    fi
+  done
+  exit 0
+}
+
+# Copy a skill directory
+copy_skill() {
+  local skill_name="$1"
+  local skill_src="$OPENCODE_ROOT/skills/$skill_name"
+  local skill_dst="$TARGET_DIR/skills/$skill_name"
+  
+  if [[ -d "$skill_src" ]]; then
+    mkdir -p "$skill_dst"
+    cp "$skill_src/SKILL.md" "$skill_dst/"
+    log_success "Copied skill: $skill_name"
+  else
+    log_warn "Skill not found: $skill_name"
+  fi
+}
+
+# Copy an agent file
+copy_agent() {
+  local agent_name="$1"
+  local agent_src="$OPENCODE_ROOT/agent/$agent_name.md"
+  local agent_dst="$TARGET_DIR/agent/$agent_name.md"
+  
+  if [[ -f "$agent_src" ]]; then
+    cp "$agent_src" "$agent_dst"
+    log_success "Copied agent: $agent_name"
+  else
+    log_warn "Agent not found: $agent_name"
+  fi
 }
 
 # ============================================
@@ -100,6 +206,33 @@ while [[ $# -gt 0 ]]; do
     --backend)
       BACKEND="$2"
       shift 2
+      ;;
+    --stack=*)
+      STACK="${1#*=}"
+      shift
+      ;;
+    --stack)
+      STACK="$2"
+      shift 2
+      ;;
+    --skills=*)
+      SKILLS="${1#*=}"
+      shift
+      ;;
+    --skills)
+      SKILLS="$2"
+      shift 2
+      ;;
+    --lang=*)
+      LANG="${1#*=}"
+      shift
+      ;;
+    --lang)
+      LANG="$2"
+      shift 2
+      ;;
+    --list-skills)
+      list_skills
       ;;
     --help|-h)
       usage
@@ -123,11 +256,28 @@ if [[ "$BACKEND" != "beads" && "$BACKEND" != "jira-taskwarrior" ]]; then
   exit 1
 fi
 
+# Validate stack
+if [[ -n "$STACK" && "$STACK" != "backend" ]]; then
+  log_error "Invalid stack: $STACK"
+  echo "Valid stacks: backend"
+  exit 1
+fi
+
+# Validate lang
+if [[ -n "$LANG" && "$LANG" != "go" && "$LANG" != "rust" && "$LANG" != "both" ]]; then
+  log_error "Invalid lang: $LANG"
+  echo "Valid langs: go, rust, both"
+  exit 1
+fi
+
 # ============================================
 # Pre-flight Checks
 # ============================================
 
 log_info "Initializing OpenCode workflow with backend: ${BLUE}$BACKEND${NC}"
+[[ -n "$STACK" ]] && log_info "Stack preset: ${BLUE}$STACK${NC}"
+[[ -n "$LANG" ]] && log_info "Language tooling: ${BLUE}$LANG${NC}"
+[[ -n "$SKILLS" ]] && log_info "Additional skills: ${BLUE}$SKILLS${NC}"
 
 # Check target directory
 if [[ ! -d "$TARGET_DIR" ]]; then
@@ -203,6 +353,55 @@ log_success "Copied lib: backend-loader"
 # Copy interface (for reference)
 cp "$OPENCODE_ROOT/backends/interface.ts" "$TARGET_DIR/backends/"
 log_success "Copied interface definition"
+
+# ============================================
+# Copy Stack Skills
+# ============================================
+
+if [[ "$STACK" == "backend" ]]; then
+  log_info "Copying backend stack skills..."
+  for skill in "${BACKEND_SKILLS[@]}"; do
+    copy_skill "$skill"
+  done
+fi
+
+# ============================================
+# Copy Individual Skills
+# ============================================
+
+if [[ -n "$SKILLS" ]]; then
+  log_info "Copying selected skills..."
+  IFS=',' read -ra SKILL_ARRAY <<< "$SKILLS"
+  for skill in "${SKILL_ARRAY[@]}"; do
+    # Trim whitespace
+    skill=$(echo "$skill" | xargs)
+    copy_skill "$skill"
+  done
+fi
+
+# ============================================
+# Copy Language Tooling
+# ============================================
+
+if [[ "$LANG" == "go" || "$LANG" == "both" ]]; then
+  log_info "Copying Go tooling..."
+  for skill in "${GO_SKILLS[@]}"; do
+    copy_skill "$skill"
+  done
+  for agent in "${GO_AGENTS[@]}"; do
+    copy_agent "$agent"
+  done
+fi
+
+if [[ "$LANG" == "rust" || "$LANG" == "both" ]]; then
+  log_info "Copying Rust tooling..."
+  for skill in "${RUST_SKILLS[@]}"; do
+    copy_skill "$skill"
+  done
+  for agent in "${RUST_AGENTS[@]}"; do
+    copy_agent "$agent"
+  done
+fi
 
 # ============================================
 # Generate opencode.json
@@ -299,6 +498,8 @@ echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━
 echo
 echo "Directory: $TARGET_DIR"
 echo "Backend:   $BACKEND"
+[[ -n "$STACK" ]] && echo "Stack:     $STACK"
+[[ -n "$LANG" ]] && echo "Language:  $LANG"
 echo
 echo "Files created:"
 echo "  opencode.json              - Workflow configuration"
@@ -308,6 +509,29 @@ echo "  command/implement.md       - /implement command"
 echo "  agent/spec-mode.md         - Spec writing agent"
 echo "  agent/create-tasks.md      - Task creation agent"
 echo "  backends/$BACKEND/         - Backend implementation"
+
+if [[ "$STACK" == "backend" ]]; then
+  echo
+  echo "Backend stack skills:"
+  for skill in "${BACKEND_SKILLS[@]}"; do
+    echo "  skills/$skill/"
+  done
+fi
+
+if [[ "$LANG" == "go" || "$LANG" == "both" ]]; then
+  echo
+  echo "Go tooling:"
+  echo "  skills/coding-standards/   - Go coding standards"
+  echo "  agent/debugger-go.md       - Go debugger agent"
+fi
+
+if [[ "$LANG" == "rust" || "$LANG" == "both" ]]; then
+  echo
+  echo "Rust tooling:"
+  echo "  skills/coding-standards/   - Rust coding standards"
+  echo "  agent/debugger-rust.md     - Rust debugger agent"
+fi
+
 echo
 echo -e "${BLUE}Next steps:${NC}"
 if [[ "$BACKEND" == "beads" ]]; then
