@@ -1,0 +1,1090 @@
+/**
+ * Jira-Taskwarrior Workflow Backend
+ * 
+ * Implements the WorkflowBackend interface using:
+ * - ACLI (Atlassian CLI) for Jira operations
+ * - Taskwarrior for task/state management
+ * - Bugwarrior for Jira → Taskwarrior sync (optional)
+ * 
+ * @module backends/jira-taskwarrior
+ */
+
+const { exec } = require('child_process')
+const { promisify } = require('util')
+const fs = require('fs').promises
+const path = require('path')
+
+const execAsync = promisify(exec)
+
+// ============================================
+// JIRA-TASKWARRIOR BACKEND IMPLEMENTATION
+// ============================================
+
+class JiraTaskwarriorBackend {
+  constructor(config = {}) {
+    this.config = {
+      // Jira configuration
+      jiraSite: config.jiraSite || process.env.JIRA_SITE,
+      jiraProject: config.jiraProject || process.env.JIRA_PROJECT,
+      jiraEmail: config.jiraEmail || process.env.JIRA_EMAIL,
+      
+      // Taskwarrior configuration
+      taskrcPath: config.taskrcPath || process.env.TASKRC || '~/.taskrc',
+      taskDataLocation: config.taskDataLocation || process.env.TASKDATA || '~/.task',
+      
+      // Spec storage
+      lmmNotesRoot: config.lmmNotesRoot || process.env.LLM_NOTES_ROOT || './notes',
+      repository: config.repository || 'default',
+      
+      // Bugwarrior (optional)
+      useBugwarrior: config.useBugwarrior !== false,
+      bugwarriorConfig: config.bugwarriorConfig || '~/.config/bugwarrior/bugwarrior.toml',
+      
+      ...config
+    }
+    
+    // Validate required configuration
+    this._validateConfig()
+  }
+  
+  _validateConfig() {
+    if (!this.config.jiraSite) {
+      throw this._createError(
+        'CONFIG_ERROR',
+        'Jira site not configured. Set jiraSite in config or JIRA_SITE env var'
+      )
+    }
+    
+    if (!this.config.jiraProject) {
+      throw this._createError(
+        'CONFIG_ERROR',
+        'Jira project not configured. Set jiraProject in config or JIRA_PROJECT env var'
+      )
+    }
+  }
+  
+  // ============================================
+  // ACLI WRAPPER (Jira Operations)
+  // ============================================
+  
+  /**
+   * Execute ACLI command and return parsed JSON result
+   */
+  async _acli(args, options = {}) {
+    try {
+      // Check authentication first
+      await this._checkAcliAuth()
+      
+      const cmd = `acli jira ${args} --json`
+      const { stdout, stderr } = await execAsync(cmd, {
+        maxBuffer: 10 * 1024 * 1024, // 10MB buffer
+        ...options
+      })
+      
+      if (stderr && !options.ignoreStderr) {
+        console.warn('ACLI stderr:', stderr)
+      }
+      
+      // Parse JSON output
+      try {
+        return JSON.parse(stdout)
+      } catch (error) {
+        // Some commands don't return JSON, return raw stdout
+        return { raw: stdout }
+      }
+    } catch (error) {
+      throw this._createError(
+        'ACLI_ERROR',
+        `ACLI command failed: ${error.message}`,
+        'Check if acli is installed and authenticated',
+        error
+      )
+    }
+  }
+  
+  /**
+   * Check if ACLI is authenticated
+   */
+  async _checkAcliAuth() {
+    try {
+      const { stdout } = await execAsync('acli jira auth status --json')
+      const status = JSON.parse(stdout)
+      
+      if (!status.authenticated) {
+        throw this._createError(
+          'AUTH_ERROR',
+          'ACLI not authenticated',
+          'Run: acli jira auth login --web'
+        )
+      }
+      
+      return true
+    } catch (error) {
+      if (error.code === 'AUTH_ERROR') throw error
+      
+      throw this._createError(
+        'AUTH_ERROR',
+        'Failed to check ACLI authentication',
+        'Ensure acli is installed: https://developer.atlassian.com/cloud/acli/',
+        error
+      )
+    }
+  }
+  
+  // ============================================
+  // TASKWARRIOR WRAPPER (Task/State Management)
+  // ============================================
+  
+  /**
+   * Execute Taskwarrior command and return parsed JSON result
+   */
+  async _task(args, options = {}) {
+    try {
+      const cmd = `task ${args}`
+      const { stdout, stderr } = await execAsync(cmd, {
+        env: {
+          ...process.env,
+          TASKRC: this.config.taskrcPath,
+          TASKDATA: this.config.taskDataLocation
+        },
+        maxBuffer: 10 * 1024 * 1024, // 10MB buffer
+        ...options
+      })
+      
+      // Taskwarrior writes some output to stderr even on success
+      // Only throw if command actually failed
+      
+      return stdout.trim()
+    } catch (error) {
+      throw this._createError(
+        'TASKWARRIOR_ERROR',
+        `Taskwarrior command failed: ${error.message}`,
+        'Check if taskwarrior is installed and configured',
+        error
+      )
+    }
+  }
+  
+  /**
+   * Execute Taskwarrior export command and parse JSON
+   */
+  async _taskExport(filter) {
+    try {
+      const output = await this._task(`${filter} export`)
+      
+      if (!output || output.trim() === '') {
+        return []
+      }
+      
+      // Taskwarrior export returns newline-separated JSON objects
+      const lines = output.split('\n').filter(line => line.trim())
+      return lines.map(line => JSON.parse(line))
+    } catch (error) {
+      if (error.code === 'TASKWARRIOR_ERROR') throw error
+      
+      throw this._createError(
+        'PARSE_ERROR',
+        `Failed to parse Taskwarrior export: ${error.message}`,
+        null,
+        error
+      )
+    }
+  }
+  
+  /**
+   * Check Taskwarrior UDA configuration
+   */
+  async _checkTaskwarriorUDAs() {
+    try {
+      const output = await this._task('show')
+      
+      const requiredUDAs = ['jiraid', 'work_state', 'repository']
+      const missingUDAs = []
+      
+      for (const uda of requiredUDAs) {
+        if (!output.includes(`uda.${uda}.`)) {
+          missingUDAs.push(uda)
+        }
+      }
+      
+      if (missingUDAs.length > 0) {
+        throw this._createError(
+          'CONFIG_ERROR',
+          `Missing required Taskwarrior UDAs: ${missingUDAs.join(', ')}`,
+          'Add UDAs to .taskrc - see backends/jira-taskwarrior/README.md'
+        )
+      }
+      
+      return true
+    } catch (error) {
+      if (error.code === 'CONFIG_ERROR') throw error
+      throw this._createError(
+        'TASKWARRIOR_ERROR',
+        'Failed to check Taskwarrior configuration',
+        null,
+        error
+      )
+    }
+  }
+  
+  /**
+   * Update task with dual-field state (status + work_state UDA)
+   * CRITICAL: Both fields must ALWAYS be updated together
+   */
+  async _updateTaskState(uuid, workState, status = null) {
+    try {
+      // If status provided, use it; otherwise infer from work_state
+      const taskStatus = status || this._inferStatusFromWorkState(workState)
+      
+      // Update work_state UDA
+      await this._task(`${uuid} modify work_state:${workState}`)
+      
+      // Update native status if needed
+      if (taskStatus === 'completed') {
+        await this._task(`${uuid} done`)
+      } else if (taskStatus === 'deleted') {
+        await this._task(`${uuid} delete`)
+      }
+      // For 'pending', no native status change needed (already pending)
+      
+      return true
+    } catch (error) {
+      throw this._createError(
+        'STATE_UPDATE_ERROR',
+        `Failed to update task state: ${error.message}`,
+        null,
+        error
+      )
+    }
+  }
+  
+  /**
+   * Infer Taskwarrior native status from work_state
+   */
+  _inferStatusFromWorkState(workState) {
+    const mapping = {
+      'new': 'pending',
+      'draft': 'pending',
+      'todo': 'pending',
+      'inprogress': 'pending',
+      'review': 'pending',
+      'approved': 'completed',
+      'rejected': 'pending',
+      'done': 'completed'
+    }
+    
+    return mapping[workState] || 'pending'
+  }
+  
+  // ============================================
+  // ISSUE MANAGEMENT (Jira via ACLI)
+  // ============================================
+  
+  async listIssues(filter = {}) {
+    try {
+      // Build JQL query from filter
+      const jqlParts = [`project = "${this.config.jiraProject}"`]
+      
+      if (filter.assignee) {
+        jqlParts.push(`assignee = "${filter.assignee}"`)
+      }
+      
+      if (filter.status) {
+        jqlParts.push(`status = "${filter.status}"`)
+      }
+      
+      if (filter.labels && filter.labels.length > 0) {
+        const labelQuery = filter.labels.map(l => `labels = "${l}"`).join(' AND ')
+        jqlParts.push(`(${labelQuery})`)
+      }
+      
+      if (filter.search) {
+        jqlParts.push(`(summary ~ "${filter.search}" OR description ~ "${filter.search}")`)
+      }
+      
+      const jql = jqlParts.join(' AND ')
+      const limit = filter.limit || 50
+      const offset = filter.offset || 0
+      
+      // Execute search via ACLI
+      const result = await this._acli(
+        `workitem search --jql "${jql}" --max-results ${limit} --start-at ${offset}`
+      )
+      
+      // Parse issues from result
+      const issues = result.issues || []
+      
+      return issues.map(issue => this._normalizeJiraIssue(issue))
+    } catch (error) {
+      throw this._createError(
+        'SEARCH_ERROR',
+        `Failed to list issues: ${error.message}`,
+        null,
+        error
+      )
+    }
+  }
+  
+  async getIssue(issueId) {
+    try {
+      const result = await this._acli(`workitem get --id "${issueId}"`)
+      
+      if (!result || !result.key) {
+        throw this._createError(
+          'NOT_FOUND',
+          `Issue ${issueId} not found`
+        )
+      }
+      
+      return this._normalizeJiraIssue(result)
+    } catch (error) {
+      if (error.code === 'NOT_FOUND') throw error
+      
+      throw this._createError(
+        'FETCH_ERROR',
+        `Failed to get issue ${issueId}: ${error.message}`,
+        null,
+        error
+      )
+    }
+  }
+  
+  async createIssue(issueData) {
+    try {
+      // Build ACLI create command
+      const args = [
+        `workitem create`,
+        `--project "${this.config.jiraProject}"`,
+        `--summary "${issueData.summary}"`,
+        `--type "${issueData.type || 'Story'}"`
+      ]
+      
+      if (issueData.description) {
+        // Convert markdown to ADF (Atlassian Document Format)
+        const adf = this._markdownToADF(issueData.description)
+        args.push(`--description '${JSON.stringify(adf)}'`)
+      }
+      
+      if (issueData.assignee) {
+        args.push(`--assignee "${issueData.assignee}"`)
+      }
+      
+      if (issueData.labels && issueData.labels.length > 0) {
+        args.push(`--labels "${issueData.labels.join(',')}"`)
+      }
+      
+      if (issueData.priority) {
+        args.push(`--priority "${issueData.priority}"`)
+      }
+      
+      const result = await this._acli(args.join(' '))
+      
+      return this._normalizeJiraIssue(result)
+    } catch (error) {
+      throw this._createError(
+        'CREATE_ERROR',
+        `Failed to create issue: ${error.message}`,
+        null,
+        error
+      )
+    }
+  }
+  
+  /**
+   * Normalize Jira issue to common Issue interface
+   */
+  _normalizeJiraIssue(jiraIssue) {
+    return {
+      id: jiraIssue.key,
+      summary: jiraIssue.fields?.summary || '',
+      description: this._adfToMarkdown(jiraIssue.fields?.description) || '',
+      status: jiraIssue.fields?.status?.name || 'Unknown',
+      assignee: jiraIssue.fields?.assignee?.displayName || null,
+      labels: jiraIssue.fields?.labels || [],
+      priority: jiraIssue.fields?.priority?.name || null,
+      url: `https://${this.config.jiraSite}/browse/${jiraIssue.key}`,
+      metadata: {
+        type: jiraIssue.fields?.issuetype?.name,
+        created: jiraIssue.fields?.created,
+        updated: jiraIssue.fields?.updated,
+        reporter: jiraIssue.fields?.reporter?.displayName
+      }
+    }
+  }
+  
+  /**
+   * Convert markdown to Atlassian Document Format (ADF)
+   * Simplified conversion - handles basic text and paragraphs
+   */
+  _markdownToADF(markdown) {
+    const lines = markdown.split('\n')
+    const content = []
+    
+    for (const line of lines) {
+      if (line.trim() === '') {
+        continue
+      }
+      
+      // Simple paragraph
+      content.push({
+        type: 'paragraph',
+        content: [
+          {
+            type: 'text',
+            text: line
+          }
+        ]
+      })
+    }
+    
+    return {
+      version: 1,
+      type: 'doc',
+      content
+    }
+  }
+  
+  /**
+   * Convert Atlassian Document Format (ADF) to markdown
+   * Simplified conversion - extracts text content
+   */
+  _adfToMarkdown(adf) {
+    if (!adf || !adf.content) {
+      return ''
+    }
+    
+    const extractText = (node) => {
+      if (node.type === 'text') {
+        return node.text
+      }
+      
+      if (node.content && Array.isArray(node.content)) {
+        return node.content.map(extractText).join('')
+      }
+      
+      return ''
+    }
+    
+    return adf.content.map(extractText).join('\n\n')
+  }
+  
+  // ============================================
+  // SPEC MANAGEMENT
+  // ============================================
+  
+  async createSpec(issueId) {
+    try {
+      // Check if spec already exists in Taskwarrior
+      const existingSpecs = await this._taskExport(`jiraid:${issueId} +spec`)
+      
+      if (existingSpecs.length > 0) {
+        throw this._createError(
+          'ALREADY_EXISTS',
+          `Spec for issue ${issueId} already exists`
+        )
+      }
+      
+      // Get issue details from Jira
+      const issue = await this.getIssue(issueId)
+      
+      // Generate spec file
+      const specId = `SPEC-${issueId}`
+      const slug = this._slugify(issue.summary)
+      const fileName = `${issueId}__${slug}.md`
+      
+      const specDir = path.join(
+        this.config.lmmNotesRoot,
+        this.config.repository,
+        'notes',
+        'specs'
+      )
+      const specPath = path.join(specDir, fileName)
+      
+      // Create spec directory if needed
+      await fs.mkdir(specDir, { recursive: true })
+      
+      // Generate spec content
+      const content = this._generateSpecContent(issue)
+      
+      // Write spec file
+      await fs.writeFile(specPath, content, 'utf8')
+      
+      // Create spec task in Taskwarrior
+      const taskOutput = await this._task(
+        `add "SPEC: ${issue.summary}" +spec jiraid:${issueId} work_state:draft repository:${this.config.repository} project:${issueId}`
+      )
+      
+      // Extract UUID from task output
+      const uuid = this._extractUUIDFromTaskOutput(taskOutput)
+      
+      return {
+        id: specId,
+        issueId: issueId,
+        filePath: specPath,
+        state: 'draft',
+        createdAt: new Date(),
+        metadata: {
+          taskUUID: uuid,
+          repository: this.config.repository
+        }
+      }
+    } catch (error) {
+      if (error.code === 'ALREADY_EXISTS') throw error
+      
+      throw this._createError(
+        'CREATE_ERROR',
+        `Failed to create spec: ${error.message}`,
+        null,
+        error
+      )
+    }
+  }
+  
+  async getSpec(issueId) {
+    try {
+      // Find spec task in Taskwarrior
+      const specs = await this._taskExport(`jiraid:${issueId} +spec`)
+      
+      if (specs.length === 0) {
+        throw this._createError(
+          'NOT_FOUND',
+          `Spec for issue ${issueId} not found`
+        )
+      }
+      
+      const specTask = specs[0]
+      const specId = `SPEC-${issueId}`
+      
+      // Get spec file path from repository
+      const issue = await this.getIssue(issueId)
+      const slug = this._slugify(issue.summary)
+      const fileName = `${issueId}__${slug}.md`
+      const specPath = path.join(
+        this.config.lmmNotesRoot,
+        this.config.repository,
+        'notes',
+        'specs',
+        fileName
+      )
+      
+      // Check if file exists
+      try {
+        await fs.access(specPath)
+      } catch (error) {
+        throw this._createError(
+          'NOT_FOUND',
+          `Spec file not found: ${specPath}`
+        )
+      }
+      
+      return {
+        id: specId,
+        issueId: issueId,
+        filePath: specPath,
+        state: specTask.work_state || 'draft',
+        createdAt: new Date(specTask.entry),
+        approvedAt: specTask.work_state === 'approved' ? new Date(specTask.modified) : null,
+        metadata: {
+          taskUUID: specTask.uuid,
+          repository: this.config.repository
+        }
+      }
+    } catch (error) {
+      if (error.code === 'NOT_FOUND') throw error
+      
+      throw this._createError(
+        'FETCH_ERROR',
+        `Failed to get spec: ${error.message}`,
+        null,
+        error
+      )
+    }
+  }
+  
+  async approveSpec(specId) {
+    try {
+      // Extract issueId from specId (format: SPEC-JIRA-123)
+      const issueId = specId.replace(/^SPEC-/, '')
+      
+      // Find spec task
+      const spec = await this.getSpec(issueId)
+      
+      // Validate current state
+      if (spec.state !== 'draft' && spec.state !== 'rejected') {
+        throw this._createError(
+          'INVALID_TRANSITION',
+          `Cannot approve spec in state ${spec.state}. Must be draft or rejected.`
+        )
+      }
+      
+      // Update task state to approved
+      await this._updateTaskState(spec.metadata.taskUUID, 'approved')
+      
+      return {
+        ...spec,
+        state: 'approved',
+        approvedAt: new Date()
+      }
+    } catch (error) {
+      if (error.code === 'INVALID_TRANSITION' || error.code === 'NOT_FOUND') throw error
+      
+      throw this._createError(
+        'APPROVE_ERROR',
+        `Failed to approve spec: ${error.message}`,
+        null,
+        error
+      )
+    }
+  }
+  
+  async rejectSpec(specId, reason) {
+    try {
+      const issueId = specId.replace(/^SPEC-/, '')
+      const spec = await this.getSpec(issueId)
+      
+      // Validate current state
+      if (spec.state === 'rejected') {
+        throw this._createError(
+          'INVALID_STATE',
+          'Spec is already rejected'
+        )
+      }
+      
+      // Update task state to rejected
+      await this._updateTaskState(spec.metadata.taskUUID, 'rejected')
+      
+      // Add rejection reason as annotation
+      if (reason) {
+        await this._task(`${spec.metadata.taskUUID} annotate "Rejected: ${reason}"`)
+      }
+      
+      return {
+        ...spec,
+        state: 'rejected',
+        metadata: {
+          ...spec.metadata,
+          rejectionReason: reason
+        }
+      }
+    } catch (error) {
+      if (error.code === 'INVALID_STATE' || error.code === 'NOT_FOUND') throw error
+      
+      throw this._createError(
+        'REJECT_ERROR',
+        `Failed to reject spec: ${error.message}`,
+        null,
+        error
+      )
+    }
+  }
+  
+  /**
+   * Generate spec content from issue
+   */
+  _generateSpecContent(issue) {
+    return `---
+title: "${issue.summary}"
+jiraid: "${issue.id}"
+status: draft
+created: ${new Date().toISOString()}
+---
+
+# ${issue.summary}
+
+## Context
+
+${issue.description || 'No description provided.'}
+
+## Requirements
+
+<!-- List functional and non-functional requirements -->
+
+## Design
+
+<!-- Describe the technical design and approach -->
+
+## Tasks
+
+<!-- This section will be auto-generated by /createtasks -->
+
+## Notes
+
+<!-- Additional notes and considerations -->
+`
+  }
+  
+  // ============================================
+  // TASK MANAGEMENT
+  // ============================================
+  
+  async createTasks(specId) {
+    try {
+      const issueId = specId.replace(/^SPEC-/, '')
+      
+      // Verify spec is approved
+      const spec = await this.getSpec(issueId)
+      
+      if (spec.state !== 'approved') {
+        throw this._createError(
+          'INVALID_STATE',
+          `Cannot create tasks from spec in state ${spec.state}. Spec must be approved first.`
+        )
+      }
+      
+      // Check if tasks already exist
+      const existingTasks = await this._taskExport(`jiraid:${issueId} +impl`)
+      
+      if (existingTasks.length > 0) {
+        throw this._createError(
+          'ALREADY_EXISTS',
+          `Tasks for issue ${issueId} already exist`
+        )
+      }
+      
+      // Read and parse spec file
+      const specContent = await fs.readFile(spec.filePath, 'utf8')
+      
+      // Generate tasks from spec content
+      // NOTE: This is a simplified version - real implementation would parse
+      // the spec markdown and extract phases/tasks from the Tasks section
+      const tasks = await this._generateTasksFromSpec(issueId, specContent)
+      
+      return tasks
+    } catch (error) {
+      if (error.code === 'INVALID_STATE' || error.code === 'ALREADY_EXISTS') throw error
+      
+      throw this._createError(
+        'CREATE_ERROR',
+        `Failed to create tasks: ${error.message}`,
+        null,
+        error
+      )
+    }
+  }
+  
+  /**
+   * Generate tasks from spec content
+   * Simplified implementation - parses basic structure
+   */
+  async _generateTasksFromSpec(issueId, specContent) {
+    const tasks = []
+    
+    // Extract phases from spec (simplified - look for ## Phase headings)
+    const phaseRegex = /## Phase (\d+): (.+)/g
+    const phases = []
+    let match
+    
+    while ((match = phaseRegex.exec(specContent)) !== null) {
+      phases.push({
+        number: match[1],
+        name: match[2]
+      })
+    }
+    
+    // If no phases found, create default phases
+    if (phases.length === 0) {
+      phases.push(
+        { number: '1', name: 'Implementation' },
+        { number: '2', name: 'Testing' }
+      )
+    }
+    
+    // Create phase tasks
+    for (const phase of phases) {
+      const phaseSlug = this._slugify(phase.name)
+      const phaseProject = `${issueId}.${phaseSlug}`
+      
+      // Create phase task
+      const phaseOutput = await this._task(
+        `add "Phase ${phase.number}: ${phase.name}" +impl +phase jiraid:${issueId} work_state:todo repository:${this.config.repository} project:${phaseProject}`
+      )
+      
+      const phaseUUID = this._extractUUIDFromTaskOutput(phaseOutput)
+      
+      // Get full phase task details
+      const phaseTasks = await this._taskExport(`uuid:${phaseUUID}`)
+      const phaseTask = phaseTasks[0]
+      
+      tasks.push({
+        id: phaseTask.uuid,
+        title: phaseTask.description,
+        description: `Phase ${phase.number}: ${phase.name}`,
+        state: phaseTask.work_state,
+        issueId: issueId,
+        specId: `SPEC-${issueId}`,
+        isPhase: true,
+        tags: phaseTask.tags || [],
+        depends: [],
+        createdAt: new Date(phaseTask.entry),
+        metadata: {
+          taskUUID: phaseTask.uuid,
+          project: phaseTask.project,
+          phase: phase.number
+        }
+      })
+      
+      // Create 2-3 implementation tasks per phase
+      const numTasks = 2 + Math.floor(Math.random() * 2) // 2-3 tasks
+      
+      for (let i = 1; i <= numTasks; i++) {
+        const taskOutput = await this._task(
+          `add "Implement task ${i} for ${phase.name}" +impl jiraid:${issueId} work_state:todo depends:${phaseUUID} repository:${this.config.repository} project:${phaseProject}`
+        )
+        
+        const taskUUID = this._extractUUIDFromTaskOutput(taskOutput)
+        const implTasks = await this._taskExport(`uuid:${taskUUID}`)
+        const implTask = implTasks[0]
+        
+        tasks.push({
+          id: implTask.uuid,
+          title: implTask.description,
+          description: implTask.description,
+          state: implTask.work_state,
+          issueId: issueId,
+          specId: `SPEC-${issueId}`,
+          isPhase: false,
+          tags: implTask.tags || [],
+          depends: [phaseUUID],
+          createdAt: new Date(implTask.entry),
+          metadata: {
+            taskUUID: implTask.uuid,
+            project: implTask.project,
+            phase: phase.number
+          }
+        })
+      }
+    }
+    
+    return tasks
+  }
+  
+  async getTasks(filter = {}) {
+    try {
+      // Build Taskwarrior filter
+      const filterParts = ['+impl']
+      
+      if (filter.issueId) {
+        filterParts.push(`jiraid:${filter.issueId}`)
+      }
+      
+      if (filter.specId) {
+        const issueId = filter.specId.replace(/^SPEC-/, '')
+        filterParts.push(`jiraid:${issueId}`)
+      }
+      
+      if (filter.state) {
+        filterParts.push(`work_state:${filter.state}`)
+      }
+      
+      if (filter.isPhase === true) {
+        filterParts.push('+phase')
+      } else if (filter.isPhase === false) {
+        filterParts.push('-phase')
+      }
+      
+      if (filter.tags && filter.tags.length > 0) {
+        filter.tags.forEach(tag => {
+          filterParts.push(`+${tag}`)
+        })
+      }
+      
+      const taskFilter = filterParts.join(' ')
+      const taskData = await this._taskExport(taskFilter)
+      
+      return taskData.map(task => this._normalizeTaskwarriorTask(task))
+    } catch (error) {
+      throw this._createError(
+        'FETCH_ERROR',
+        `Failed to get tasks: ${error.message}`,
+        null,
+        error
+      )
+    }
+  }
+  
+  async getTask(taskId) {
+    try {
+      const tasks = await this._taskExport(`uuid:${taskId}`)
+      
+      if (tasks.length === 0) {
+        throw this._createError(
+          'NOT_FOUND',
+          `Task ${taskId} not found`
+        )
+      }
+      
+      return this._normalizeTaskwarriorTask(tasks[0])
+    } catch (error) {
+      if (error.code === 'NOT_FOUND') throw error
+      
+      throw this._createError(
+        'FETCH_ERROR',
+        `Failed to get task: ${error.message}`,
+        null,
+        error
+      )
+    }
+  }
+  
+  async updateTaskState(taskId, state) {
+    try {
+      // Get current task
+      const task = await this.getTask(taskId)
+      
+      // Validate transition
+      if (!this.isValidTransition(task.state, state)) {
+        throw this._createError(
+          'INVALID_TRANSITION',
+          `Cannot transition from ${task.state} to ${state}`
+        )
+      }
+      
+      // Update state
+      await this._updateTaskState(taskId, state)
+      
+      // Return updated task
+      return this.getTask(taskId)
+    } catch (error) {
+      if (error.code === 'INVALID_TRANSITION' || error.code === 'NOT_FOUND') throw error
+      
+      throw this._createError(
+        'UPDATE_ERROR',
+        `Failed to update task state: ${error.message}`,
+        null,
+        error
+      )
+    }
+  }
+  
+  async updateTask(taskId, updates) {
+    try {
+      const task = await this.getTask(taskId)
+      
+      const modifyParts = []
+      
+      if (updates.description) {
+        modifyParts.push(`description:"${updates.description}"`)
+      }
+      
+      if (updates.tags && Array.isArray(updates.tags)) {
+        // Remove old tags, add new ones
+        for (const tag of updates.tags) {
+          modifyParts.push(`+${tag}`)
+        }
+      }
+      
+      if (modifyParts.length > 0) {
+        await this._task(`${taskId} modify ${modifyParts.join(' ')}`)
+      }
+      
+      // Return updated task
+      return this.getTask(taskId)
+    } catch (error) {
+      throw this._createError(
+        'UPDATE_ERROR',
+        `Failed to update task: ${error.message}`,
+        null,
+        error
+      )
+    }
+  }
+  
+  /**
+   * Normalize Taskwarrior task to common Task interface
+   */
+  _normalizeTaskwarriorTask(taskData) {
+    return {
+      id: taskData.uuid,
+      title: taskData.description,
+      description: taskData.description,
+      state: taskData.work_state || 'todo',
+      issueId: taskData.jiraid,
+      specId: taskData.jiraid ? `SPEC-${taskData.jiraid}` : null,
+      isPhase: taskData.tags && taskData.tags.includes('phase'),
+      tags: taskData.tags || [],
+      depends: taskData.depends || [],
+      createdAt: new Date(taskData.entry),
+      modifiedAt: taskData.modified ? new Date(taskData.modified) : null,
+      metadata: {
+        taskUUID: taskData.uuid,
+        project: taskData.project,
+        repository: taskData.repository,
+        status: taskData.status,
+        urgency: taskData.urgency
+      }
+    }
+  }
+  
+  // ============================================
+  // STATE MACHINE
+  // ============================================
+  
+  getWorkStates() {
+    return [
+      'new',
+      'draft',
+      'todo',
+      'inprogress',
+      'review',
+      'approved',
+      'rejected',
+      'done'
+    ]
+  }
+  
+  getValidTransitions(from) {
+    const transitions = {
+      'new': ['todo', 'draft'],
+      'draft': ['approved', 'rejected'],
+      'todo': ['inprogress'],
+      'inprogress': ['review', 'done'],
+      'review': ['approved', 'rejected'],
+      'approved': ['done'],
+      'rejected': ['draft', 'todo'],
+      'done': []
+    }
+    
+    return transitions[from] || []
+  }
+  
+  isValidTransition(from, to) {
+    return this.getValidTransitions(from).includes(to)
+  }
+  
+  // ============================================
+  // HELPER METHODS
+  // ============================================
+  
+  _createError(code, message, recovery, originalError) {
+    const error = new Error(message)
+    error.code = code
+    error.recovery = recovery
+    error.originalError = originalError
+    return error
+  }
+  
+  _slugify(text) {
+    return text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .substring(0, 50)
+  }
+  
+  /**
+   * Extract UUID from Taskwarrior task add output
+   * Output format: "Created task 123 with uuid abc-def-ghi"
+   */
+  _extractUUIDFromTaskOutput(output) {
+    const match = output.match(/uuid ([a-f0-9-]+)/)
+    if (!match) {
+      throw this._createError(
+        'PARSE_ERROR',
+        'Failed to extract UUID from task output'
+      )
+    }
+    return match[1]
+  }
+}
+
+module.exports = JiraTaskwarriorBackend
