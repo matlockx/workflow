@@ -31,18 +31,33 @@ This document captures macOS-specific behaviors, compatibility notes, and quirks
 
 **Quirks**: None detected. Beads works identically on macOS as on Linux.
 
-### Jira-Taskwarrior Backend ⚠️ Not Tested
+### Jira-Taskwarrior Backend ✅ Tested
 
-**Status**: Backend implementation complete, runtime testing deferred.
+**Status**: Live macOS validation completed.
 
-**Reason**: This test environment does not have the required tools installed:
-- `task` (Taskwarrior) - not installed
-- `acli` (Atlassian CLI) - not installed
-- Jira Cloud access - not configured
+**Test Environment**:
+- `task` 3.4.2 (Homebrew)
+- `acli` 1.3.15-stable (Homebrew)
+- Jira site: `baueraudio.atlassian.net`
+- Project tested: `STAR`
 
-**Confidence**: High - Backend uses standard shell commands and file operations. All path handling is portable. Mock tests pass.
+**Workflow Tested**:
+1. ✅ Jira authentication via API token
+2. ✅ Jira project lookup
+3. ✅ Jira issue creation
+4. ✅ Jira issue fetch
+5. ✅ Spec creation into an isolated Taskwarrior database
+6. ✅ Spec approval in Taskwarrior
 
-**Recommendation**: Test in an environment with Taskwarrior and ACLI configured. See [Jira-Taskwarrior Setup Guide](../../backends/jira-taskwarrior/README.md).
+**macOS/CLI compatibility fixes required**:
+- ACLI v1.3 uses `workitem view` instead of `workitem get`
+- ACLI v1.3 uses `--limit` instead of `--max-results`
+- `acli jira auth status` is plain text, not JSON
+- Taskwarrior 3.4 `export` returns a JSON array
+- Taskwarrior 3.4 `add` output does not include the created UUID
+- The `STAR` Jira project requires `fixVersions` during issue creation
+
+**Result**: Backend now handles these differences and the live macOS validation succeeds.
 
 ---
 

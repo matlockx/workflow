@@ -11,8 +11,10 @@
 
 const { exec } = require('child_process')
 const { promisify } = require('util')
-const fs = require('fs').promises
+const fs = require('fs')
+const fsPromises = fs.promises
 const path = require('path')
+const os = require('os')
 
 const execAsync = promisify(exec)
 
@@ -161,6 +163,15 @@ class JiraTaskwarriorBackend {
       )
     }
   }
+
+  async _getProject(projectKey = this.config.jiraProject) {
+    return this._acli(`project view --key ${shellEscape(projectKey)}`)
+  }
+
+  _getDefaultFixVersion(project) {
+    const versions = Array.isArray(project?.versions) ? project.versions : []
+    return versions.find(version => !version.released && !version.archived) || null
+  }
   
   // ============================================
   // TASKWARRIOR WRAPPER (Task/State Management)
@@ -206,9 +217,16 @@ class JiraTaskwarriorBackend {
       if (!output || output.trim() === '') {
         return []
       }
-      
-      // Taskwarrior export returns newline-separated JSON objects
-      const lines = output.split('\n').filter(line => line.trim())
+
+      const trimmed = output.trim()
+
+      if (trimmed.startsWith('[')) {
+        const parsed = JSON.parse(trimmed)
+        return Array.isArray(parsed) ? parsed : []
+      }
+
+      // Older Taskwarrior variants can emit newline-separated JSON objects.
+      const lines = trimmed.split('\n').filter(line => line.trim())
       return lines.map(line => JSON.parse(line))
     } catch (error) {
       if (error.code === 'TASKWARRIOR_ERROR') throw error
@@ -383,29 +401,46 @@ class JiraTaskwarriorBackend {
   
   async createIssue(issueData) {
     try {
-      // Build ACLI create command
-      const args = [
-        `workitem create`,
-        `--project ${shellEscape(this.config.jiraProject)}`,
-        `--summary ${shellEscape(issueData.summary)}`,
-        `--type ${shellEscape(issueData.type || 'Story')}`
-      ]
-      
-      if (issueData.description) {
-        // Convert markdown to ADF (Atlassian Document Format)
-        const adf = this._markdownToADF(issueData.description)
-        args.push(`--description ${shellEscape(JSON.stringify(adf))}`)
+      const project = await this._getProject(this.config.jiraProject)
+      const adf = issueData.description ? this._markdownToADF(issueData.description) : undefined
+      const payload = {
+        projectKey: this.config.jiraProject,
+        summary: issueData.summary,
+        type: issueData.type || 'Story'
       }
-      
+
+      if (adf) {
+        payload.description = adf
+      }
+
       if (issueData.assignee) {
-        args.push(`--assignee ${shellEscape(issueData.assignee)}`)
+        payload.assignee = issueData.assignee
       }
-      
+
       if (issueData.labels && issueData.labels.length > 0) {
-        args.push(`--label ${shellEscape(issueData.labels.join(','))}`)
+        payload.labels = issueData.labels
       }
-      
-      const result = await this._acli(args.join(' '))
+
+      const defaultFixVersion = this._getDefaultFixVersion(project)
+      if (defaultFixVersion) {
+        payload.additionalAttributes = {
+          fixVersions: [{ id: defaultFixVersion.id }]
+        }
+      }
+
+      const tempFile = path.join(os.tmpdir(), `opencode-jira-create-${Date.now()}.json`)
+      fs.writeFileSync(tempFile, JSON.stringify(payload, null, 2))
+
+      let result
+      try {
+        result = await this._acli(`workitem create --from-json ${shellEscape(tempFile)}`)
+      } finally {
+        try {
+          fs.unlinkSync(tempFile)
+        } catch (error) {
+          // Best-effort cleanup only.
+        }
+      }
       
       return this._normalizeJiraIssue(result)
     } catch (error) {
@@ -529,21 +564,25 @@ class JiraTaskwarriorBackend {
       const specPath = path.join(specDir, fileName)
       
       // Create spec directory if needed
-      await fs.mkdir(specDir, { recursive: true })
+      await fsPromises.mkdir(specDir, { recursive: true })
       
       // Generate spec content
       const content = this._generateSpecContent(issue)
       
       // Write spec file
-      await fs.writeFile(specPath, content, 'utf8')
+      await fsPromises.writeFile(specPath, content, 'utf8')
       
       // Create spec task in Taskwarrior
-      const taskOutput = await this._task(
+      await this._task(
         `add "SPEC: ${issue.summary}" +spec jiraid:${issueId} work_state:draft repository:${this.config.repository} project:${issueId}`
       )
-      
-      // Extract UUID from task output
-      const uuid = this._extractUUIDFromTaskOutput(taskOutput)
+
+      const createdSpecs = await this._taskExport(`jiraid:${issueId} +spec`)
+      const createdSpecTask = createdSpecs.find(task => task.description === `SPEC: ${issue.summary}`)
+
+      if (!createdSpecTask?.uuid) {
+        throw this._createError('PARSE_ERROR', 'Failed to resolve created spec task UUID')
+      }
       
       return {
         id: specId,
@@ -552,7 +591,7 @@ class JiraTaskwarriorBackend {
         state: 'draft',
         createdAt: new Date(),
         metadata: {
-          taskUUID: uuid,
+          taskUUID: createdSpecTask.uuid,
           repository: this.config.repository
         }
       }
@@ -597,7 +636,7 @@ class JiraTaskwarriorBackend {
       
       // Check if file exists
       try {
-        await fs.access(specPath)
+         await fsPromises.access(specPath)
       } catch (error) {
         throw this._createError(
           'NOT_FOUND',
@@ -770,7 +809,7 @@ ${issue.description || 'No description provided.'}
       }
       
       // Read and parse spec file
-      const specContent = await fs.readFile(spec.filePath, 'utf8')
+       const specContent = await fsPromises.readFile(spec.filePath, 'utf8')
       
       // Generate tasks from spec content
       // NOTE: This is a simplified version - real implementation would parse
@@ -823,15 +862,19 @@ ${issue.description || 'No description provided.'}
       const phaseProject = `${issueId}.${phaseSlug}`
       
       // Create phase task
-      const phaseOutput = await this._task(
+      await this._task(
         `add "Phase ${phase.number}: ${phase.name}" +impl +phase jiraid:${issueId} work_state:todo repository:${this.config.repository} project:${phaseProject}`
       )
-      
-      const phaseUUID = this._extractUUIDFromTaskOutput(phaseOutput)
-      
+
       // Get full phase task details
-      const phaseTasks = await this._taskExport(`uuid:${phaseUUID}`)
-      const phaseTask = phaseTasks[0]
+      const phaseTasks = await this._taskExport(`jiraid:${issueId} +impl +phase project:${phaseProject}`)
+      const phaseTask = phaseTasks.find(task => task.description === `Phase ${phase.number}: ${phase.name}`)
+
+      if (!phaseTask?.uuid) {
+        throw this._createError('PARSE_ERROR', 'Failed to resolve created phase task UUID')
+      }
+
+      const phaseUUID = phaseTask.uuid
       
       tasks.push({
         id: phaseTask.uuid,
@@ -855,13 +898,16 @@ ${issue.description || 'No description provided.'}
       const numTasks = 2 + Math.floor(Math.random() * 2) // 2-3 tasks
       
       for (let i = 1; i <= numTasks; i++) {
-        const taskOutput = await this._task(
+        await this._task(
           `add "Implement task ${i} for ${phase.name}" +impl jiraid:${issueId} work_state:todo depends:${phaseUUID} repository:${this.config.repository} project:${phaseProject}`
         )
-        
-        const taskUUID = this._extractUUIDFromTaskOutput(taskOutput)
-        const implTasks = await this._taskExport(`uuid:${taskUUID}`)
-        const implTask = implTasks[0]
+
+        const implTasks = await this._taskExport(`jiraid:${issueId} +impl project:${phaseProject}`)
+        const implTask = implTasks.find(task => task.description === `Implement task ${i} for ${phase.name}`)
+
+        if (!implTask?.uuid) {
+          throw this._createError('PARSE_ERROR', 'Failed to resolve created implementation task UUID')
+        }
         
         tasks.push({
           id: implTask.uuid,
@@ -1099,20 +1145,6 @@ ${issue.description || 'No description provided.'}
       .substring(0, 50)
   }
   
-  /**
-   * Extract UUID from Taskwarrior task add output
-   * Output format: "Created task 123 with uuid abc-def-ghi"
-   */
-  _extractUUIDFromTaskOutput(output) {
-    const match = output.match(/uuid ([a-f0-9-]+)/)
-    if (!match) {
-      throw this._createError(
-        'PARSE_ERROR',
-        'Failed to extract UUID from task output'
-      )
-    }
-    return match[1]
-  }
 }
 
 module.exports = JiraTaskwarriorBackend
