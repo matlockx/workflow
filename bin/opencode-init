@@ -158,7 +158,8 @@ Options:
   --backend=TYPE    Workflow backend: file (default), beads, or jira-taskwarrior
   --stack=PRESET    Stack preset: backend (includes infra skills)
   --skills=LIST     Comma-separated skills to copy (e.g., postgres,kafka,docker)
-  --lang=LANG       Language tooling: go, rust, node, python, or both
+  --lang=LANG       Language tooling: go, rust, node, python, both,
+                    or any custom language (e.g. swift, elixir)
   --with-startup    Add flachnetz/startup library (runs go get if go.mod exists)
   --scaffold[=NAME] Scaffold a Go service from template (default name: service)
   --help, -h        Show this help message
@@ -198,6 +199,9 @@ Language Tooling:
   node              Node.js / TypeScript tooling
   python            Python tooling
   both              Both Go and Rust tooling
+  <custom>          Any other language (e.g. swift, elixir, java)
+                    Stored in .agent/config.json; use /generate-lang-skills
+                    inside OpenCode to create custom skills for it
 
 Scaffolding:
   --scaffold        Creates a complete Go service from templates/go-service/
@@ -497,11 +501,25 @@ if [[ -n "$STACK" && "$STACK" != "backend" ]]; then
   exit 1
 fi
 
-# Validate lang
-if [[ -n "$LANG" && "$LANG" != "go" && "$LANG" != "rust" && "$LANG" != "node" && "$LANG" != "python" && "$LANG" != "both" ]]; then
-  log_error "Invalid lang: $LANG"
-  echo "Valid langs: go, rust, node, python, both"
-  exit 1
+# Validate lang — known langs get specific tooling; unknown langs get a warning
+# and a prompt to generate skills via /generate-lang-skills after init.
+# AIDEV-NOTE: We intentionally do NOT exit on unknown lang. Unknown langs are
+# stored in .agent/config.json so opencode-sync and /generate-lang-skills can
+# pick them up later.
+KNOWN_LANGS=("go" "rust" "node" "python" "both")
+LANG_IS_KNOWN=""
+if [[ -n "$LANG" ]]; then
+  for kl in "${KNOWN_LANGS[@]}"; do
+    if [[ "$LANG" == "$kl" ]]; then
+      LANG_IS_KNOWN="true"
+      break
+    fi
+  done
+  if [[ -z "$LANG_IS_KNOWN" ]]; then
+    log_warn "Unknown language: '$LANG' — no built-in tooling for this language."
+    log_warn "Your language will be stored in .agent/config.json."
+    log_warn "After init you can run /generate-lang-skills to create custom skills."
+  fi
 fi
 
 # ============================================
@@ -572,26 +590,28 @@ mkdir -p "$TARGET_DIR/.agent/agent"
 mkdir -p "$TARGET_DIR/.agent/skills/workflow-backend"
 mkdir -p "$TARGET_DIR/.agent/backends/$BACKEND"
 mkdir -p "$TARGET_DIR/.agent/lib"
+mkdir -p "$TARGET_DIR/.agent/templates"
 # specs/ and plans/ live in the project root (committed to git)
 mkdir -p "$TARGET_DIR/specs"
 mkdir -p "$TARGET_DIR/plans"
 touch "$TARGET_DIR/plans/.gitkeep"
 
 # Copy commands
-cp "$OPENCODE_ROOT/command/spec.md"         "$TARGET_DIR/.agent/command/"
-cp "$OPENCODE_ROOT/command/createtasks.md"  "$TARGET_DIR/.agent/command/"
-cp "$OPENCODE_ROOT/command/implement.md"    "$TARGET_DIR/.agent/command/"
-cp "$OPENCODE_ROOT/command/issue.md"        "$TARGET_DIR/.agent/command/"
-cp "$OPENCODE_ROOT/command/feature.md"      "$TARGET_DIR/.agent/command/"
-cp "$OPENCODE_ROOT/command/bug.md"          "$TARGET_DIR/.agent/command/"
-cp "$OPENCODE_ROOT/command/resume.md"       "$TARGET_DIR/.agent/command/"
-cp "$OPENCODE_ROOT/command/status.md"       "$TARGET_DIR/.agent/command/"
-cp "$OPENCODE_ROOT/command/plan.md"         "$TARGET_DIR/.agent/command/"
-cp "$OPENCODE_ROOT/command/git.md"          "$TARGET_DIR/.agent/command/"
-cp "$OPENCODE_ROOT/command/test.md"         "$TARGET_DIR/.agent/command/"
-cp "$OPENCODE_ROOT/command/codereview.md"   "$TARGET_DIR/.agent/command/"
-cp "$OPENCODE_ROOT/command/PR-summary.md"   "$TARGET_DIR/.agent/command/"
-log_success "Copied commands: issue, spec, createtasks, implement, feature, bug, resume, status, plan, git, test, codereview, PR-summary"
+cp "$OPENCODE_ROOT/command/spec.md"                  "$TARGET_DIR/.agent/command/"
+cp "$OPENCODE_ROOT/command/createtasks.md"           "$TARGET_DIR/.agent/command/"
+cp "$OPENCODE_ROOT/command/implement.md"             "$TARGET_DIR/.agent/command/"
+cp "$OPENCODE_ROOT/command/issue.md"                 "$TARGET_DIR/.agent/command/"
+cp "$OPENCODE_ROOT/command/feature.md"               "$TARGET_DIR/.agent/command/"
+cp "$OPENCODE_ROOT/command/bug.md"                   "$TARGET_DIR/.agent/command/"
+cp "$OPENCODE_ROOT/command/resume.md"                "$TARGET_DIR/.agent/command/"
+cp "$OPENCODE_ROOT/command/status.md"                "$TARGET_DIR/.agent/command/"
+cp "$OPENCODE_ROOT/command/plan.md"                  "$TARGET_DIR/.agent/command/"
+cp "$OPENCODE_ROOT/command/git.md"                   "$TARGET_DIR/.agent/command/"
+cp "$OPENCODE_ROOT/command/test.md"                  "$TARGET_DIR/.agent/command/"
+cp "$OPENCODE_ROOT/command/codereview.md"            "$TARGET_DIR/.agent/command/"
+cp "$OPENCODE_ROOT/command/PR-summary.md"            "$TARGET_DIR/.agent/command/"
+cp "$OPENCODE_ROOT/command/generate-lang-skills.md"  "$TARGET_DIR/.agent/command/"
+log_success "Copied commands: issue, spec, createtasks, implement, feature, bug, resume, status, plan, git, test, codereview, PR-summary, generate-lang-skills"
 
 # Copy agents
 cp "$OPENCODE_ROOT/agent/spec-mode.md"    "$TARGET_DIR/.agent/agent/"
@@ -611,11 +631,15 @@ cp "$OPENCODE_ROOT/backends/$BACKEND/index.js" "$TARGET_DIR/.agent/backends/$BAC
 cp "$OPENCODE_ROOT/backends/$BACKEND/README.md" "$TARGET_DIR/.agent/backends/$BACKEND/"
 log_success "Copied backend: $BACKEND"
 
-# Copy backend loader
+# Copy lib
 cp "$OPENCODE_ROOT/lib/backend-loader.js"  "$TARGET_DIR/.agent/lib/"
 cp "$OPENCODE_ROOT/lib/workflow-state.js"  "$TARGET_DIR/.agent/lib/"
 cp "$OPENCODE_ROOT/lib/plan-state.js"      "$TARGET_DIR/.agent/lib/"
 log_success "Copied lib: backend-loader, workflow-state, plan-state"
+
+# Copy templates used by commands
+cp "$OPENCODE_ROOT/templates/generate-lang-skills.md.tmpl" "$TARGET_DIR/.agent/templates/"
+log_success "Copied templates: generate-lang-skills"
 
 # Copy interface (for reference)
 cp "$OPENCODE_ROOT/backends/interface.ts" "$TARGET_DIR/.agent/backends/"
@@ -703,10 +727,19 @@ fi
 
 log_info "Generating .agent/config.json..."
 
+# Build optional language line to inject into config.json
+# AIDEV-NOTE: "language" is stored for both known and unknown langs so that
+# opencode-sync and /generate-lang-skills can read it later.
+LANG_LINE=""
+if [[ -n "$LANG" ]]; then
+  LANG_LINE="  \"language\": \"$LANG\","
+fi
+
 if [[ "$BACKEND" == "file" ]]; then
-  cat > "$TARGET_DIR/.agent/config.json" <<'EOF'
+  cat > "$TARGET_DIR/.agent/config.json" <<EOF
 {
-  "backend": {
+${LANG_LINE:+$LANG_LINE
+}  "backend": {
     "type": "file",
     "config": {}
   }
@@ -715,7 +748,8 @@ EOF
 elif [[ "$BACKEND" == "beads" ]]; then
   cat > "$TARGET_DIR/.agent/config.json" <<EOF
 {
-  "backend": {
+${LANG_LINE:+$LANG_LINE
+}  "backend": {
     "type": "beads",
     "config": {
       "workspaceDir": "$TARGET_DIR",
@@ -727,9 +761,10 @@ elif [[ "$BACKEND" == "beads" ]]; then
 EOF
   log_warn "Run 'bd init --stealth' in your project root before using the beads backend"
 elif [[ "$BACKEND" == "jira-taskwarrior" ]]; then
-  cat > "$TARGET_DIR/.agent/config.json" <<'EOF'
+  cat > "$TARGET_DIR/.agent/config.json" <<EOF
 {
-  "backend": {
+${LANG_LINE:+$LANG_LINE
+}  "backend": {
     "type": "jira-taskwarrior",
     "config": {
       "jiraSite": "YOUR_ORG.atlassian.net",
@@ -940,3 +975,47 @@ echo
 echo "Tip: Edit AGENTS.md to add project-specific context for the AI."
 echo "Documentation: $TARGET_DIR/.agent/backends/$BACKEND/README.md"
 echo
+
+# ============================================
+# Unknown language post-init prompt
+# ============================================
+
+# AIDEV-NOTE: When --lang=<custom> is given (e.g. swift, elixir), there are
+# no built-in skills. We prompt the user to either generate skills now via
+# /generate-lang-skills inside OpenCode, or skip and do it later.
+if [[ -n "$LANG" && -z "$LANG_IS_KNOWN" ]]; then
+  echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "${YELLOW}Unknown language: $LANG${NC}"
+  echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo
+  echo "No built-in skills exist for '$LANG', but OpenCode can generate them."
+  echo "The /generate-lang-skills command will create custom coding-standards"
+  echo "and debugger skills tailored to $LANG."
+  echo
+  echo "Options:"
+  echo "  [g] Generate skills now — open OpenCode and run /generate-lang-skills $LANG"
+  echo "  [s] Skip — I'll generate skills later with /generate-lang-skills $LANG"
+  echo "  [q] Quit"
+  echo
+  read -p "Choice [g/s/q]: " -n 1 -r LANG_CHOICE
+  echo
+  case "$LANG_CHOICE" in
+    g|G)
+      echo
+      log_info "Open OpenCode in $TARGET_DIR and run:"
+      echo
+      echo "  /generate-lang-skills $LANG"
+      echo
+      echo "This will generate .agent/skills/coding-standards/ and"
+      echo ".agent/agent/debugger-${LANG}.md customized for $LANG."
+      ;;
+    q|Q)
+      log_info "Exiting. Run /generate-lang-skills $LANG inside OpenCode when ready."
+      exit 0
+      ;;
+    *)
+      log_info "Skipped. Run /generate-lang-skills $LANG inside OpenCode when ready."
+      ;;
+  esac
+  echo
+fi

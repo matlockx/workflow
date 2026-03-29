@@ -1,0 +1,347 @@
+#!/usr/bin/env bash
+#
+# opencode-sync - Sync workflow files from the opencode repo into an initialized project
+#
+# Usage:
+#   opencode-sync [target-dir]
+#
+# Examples:
+#   opencode-sync                  # Sync into current directory
+#   opencode-sync ~/projects/myapp # Sync into specified directory
+#
+# What it does:
+#   - Updates .agent/command/*, .agent/agent/*, .agent/lib/*, .agent/backends/,
+#     and .agent/skills/ from the opencode source repo
+#   - Preserves .agent/config.json, .agent/state/, AGENTS.md, opencode.json
+#   - Re-runs language-agent detection based on config.json language setting
+#   - Does NOT overwrite AGENTS.md (project-specific, user-editable)
+#   - Does NOT touch .agent/state/ (runtime workflow data)
+#   - Does NOT change your backend config
+#
+# AIDEV-NOTE: This script is the "update" companion to opencode-init.
+# It refreshes workflow machinery while preserving all project-specific config.
+
+set -euo pipefail
+
+# ============================================
+# Configuration
+# ============================================
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+OPENCODE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+TARGET_DIR="."
+DRY_RUN=""
+VERBOSE=""
+
+# Colors (if terminal supports them)
+if [[ -t 1 ]]; then
+  RED='\033[0;31m'
+  GREEN='\033[0;32m'
+  YELLOW='\033[0;33m'
+  BLUE='\033[0;34m'
+  NC='\033[0m'
+else
+  RED=''; GREEN=''; YELLOW=''; BLUE=''; NC=''
+fi
+
+# ============================================
+# Helper Functions
+# ============================================
+
+log_info()    { echo -e "${BLUE}ℹ${NC} $1"; }
+log_success() { echo -e "${GREEN}✓${NC} $1"; }
+log_warn()    { echo -e "${YELLOW}⚠${NC} $1"; }
+log_error()   { echo -e "${RED}✗${NC} $1" >&2; }
+log_verbose() { [[ -n "$VERBOSE" ]] && echo -e "  ${NC}$1" || true; }
+
+usage() {
+  cat <<EOF
+Usage: opencode-sync [OPTIONS] [target-dir]
+
+Sync workflow files from the opencode repo into an already-initialized project.
+
+Options:
+  --dry-run     Show what would be updated without making changes
+  --verbose     Show each file being copied
+  --help, -h    Show this help message
+
+Arguments:
+  target-dir    Directory to sync into (default: current directory)
+
+What is updated:
+  .agent/command/      All slash commands (replaced)
+  .agent/agent/        Core agents: spec-mode, create-tasks, plan-mode,
+                       build, test-agent, code-reviewer (replaced)
+  .agent/lib/          backend-loader, workflow-state, plan-state (replaced)
+  .agent/backends/     Active backend index.js + README, interface.ts (replaced)
+  .agent/skills/       All currently installed skills (replaced)
+  Language agents      Synced if language is set in .agent/config.json
+
+What is preserved:
+  .agent/config.json   Your backend configuration
+  .agent/state/        Runtime workflow state (issues, tasks, specs)
+  AGENTS.md            Your project context (user-editable)
+  opencode.json        Your OpenCode provider/model config
+  specs/               Your spec documents
+  plans/               Your plan documents
+
+EOF
+  exit 0
+}
+
+# Copy a file if source exists; log result
+sync_file() {
+  local src="$1"
+  local dst="$2"
+  if [[ -f "$src" ]]; then
+    if [[ -n "$DRY_RUN" ]]; then
+      log_verbose "would copy: $dst"
+    else
+      mkdir -p "$(dirname "$dst")"
+      cp "$src" "$dst"
+      log_verbose "copied: $dst"
+    fi
+  else
+    log_warn "Source not found, skipping: $src"
+  fi
+}
+
+# Copy a directory's contents (non-recursive, one level)
+sync_dir_files() {
+  local src_dir="$1"
+  local dst_dir="$2"
+  if [[ ! -d "$src_dir" ]]; then
+    log_warn "Source directory not found: $src_dir"
+    return 0
+  fi
+  if [[ -z "$DRY_RUN" ]]; then
+    mkdir -p "$dst_dir"
+  fi
+  for f in "$src_dir"/*; do
+    [[ -f "$f" ]] || continue
+    local fname; fname="$(basename "$f")"
+    sync_file "$f" "$dst_dir/$fname"
+  done
+}
+
+# ============================================
+# Argument Parsing
+# ============================================
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run)     DRY_RUN="true"; shift ;;
+    --verbose|-v)  VERBOSE="true"; shift ;;
+    --help|-h)     usage ;;
+    -*)
+      log_error "Unknown option: $1"
+      echo "Run 'opencode-sync --help' for usage."
+      exit 1
+      ;;
+    *)
+      TARGET_DIR="$1"
+      shift
+      ;;
+  esac
+done
+
+# ============================================
+# Pre-flight Checks
+# ============================================
+
+if [[ ! -d "$TARGET_DIR" ]]; then
+  log_error "Target directory does not exist: $TARGET_DIR"
+  exit 1
+fi
+
+TARGET_DIR="$(cd "$TARGET_DIR" && pwd)"
+
+if [[ ! -f "$TARGET_DIR/.agent/config.json" ]]; then
+  log_error "No .agent/config.json found in: $TARGET_DIR"
+  log_info  "Run 'opencode-init' first to initialize the project."
+  exit 1
+fi
+
+# ============================================
+# Read config to determine backend and language
+# ============================================
+
+# AIDEV-NOTE: We use basic grep/sed to extract values from config.json
+# to avoid requiring jq or node on the host. The config schema is simple
+# enough that this is reliable.
+BACKEND=$(grep '"type"' "$TARGET_DIR/.agent/config.json" | head -1 | sed 's/.*"type"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+LANG=$(grep '"language"' "$TARGET_DIR/.agent/config.json" | head -1 | sed 's/.*"language"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' || true)
+
+if [[ -z "$BACKEND" ]]; then
+  log_error "Could not determine backend from .agent/config.json"
+  log_info  "Check that .agent/config.json has a valid \"type\" field."
+  exit 1
+fi
+
+log_info "Target:  $TARGET_DIR"
+log_info "Backend: $BACKEND"
+[[ -n "$LANG" ]] && log_info "Language: $LANG"
+[[ -n "$DRY_RUN" ]] && log_warn "Dry-run mode: no files will be written"
+echo
+
+# Validate backend directory exists
+if [[ ! -d "$OPENCODE_ROOT/backends/$BACKEND" ]]; then
+  log_error "Backend '$BACKEND' not found in opencode repo: $OPENCODE_ROOT/backends/"
+  log_info  "Available backends: $(ls "$OPENCODE_ROOT/backends/" | grep -v '^interface' | grep -v '\.ts$' | grep -v '\.js$' | tr '\n' ' ')"
+  exit 1
+fi
+
+# ============================================
+# Sync Commands
+# ============================================
+
+log_info "Syncing commands..."
+UPDATED_COMMANDS=0
+for cmd_src in "$OPENCODE_ROOT/command/"*.md; do
+  [[ -f "$cmd_src" ]] || continue
+  fname="$(basename "$cmd_src")"
+  dst="$TARGET_DIR/.agent/command/$fname"
+  # Only sync commands that are already installed (don't add new ones silently)
+  if [[ -f "$dst" ]]; then
+    sync_file "$cmd_src" "$dst"
+    UPDATED_COMMANDS=$((UPDATED_COMMANDS + 1))
+  else
+    log_verbose "skipping new command (not installed): $fname"
+  fi
+done
+log_success "Commands synced: $UPDATED_COMMANDS files"
+
+# ============================================
+# Sync Core Agents
+# ============================================
+
+log_info "Syncing core agents..."
+CORE_AGENTS=(
+  "spec-mode"
+  "create-tasks"
+  "plan-mode"
+  "build"
+  "test-agent"
+  "code-reviewer"
+)
+UPDATED_AGENTS=0
+for agent in "${CORE_AGENTS[@]}"; do
+  dst="$TARGET_DIR/.agent/agent/$agent.md"
+  if [[ -f "$dst" ]]; then
+    sync_file "$OPENCODE_ROOT/agent/$agent.md" "$dst"
+    UPDATED_AGENTS=$((UPDATED_AGENTS + 1))
+  else
+    log_verbose "skipping agent (not installed): $agent.md"
+  fi
+done
+log_success "Core agents synced: $UPDATED_AGENTS files"
+
+# ============================================
+# Sync Language Agents
+# ============================================
+
+if [[ -n "$LANG" ]]; then
+  log_info "Syncing language agents (lang=$LANG)..."
+  LANG_AGENTS=()
+  if [[ "$LANG" == "go" || "$LANG" == "both" ]]; then
+    LANG_AGENTS+=("debugger-go")
+  fi
+  if [[ "$LANG" == "rust" || "$LANG" == "both" ]]; then
+    LANG_AGENTS+=("debugger-rust")
+  fi
+  if [[ "$LANG" == "node" ]]; then
+    LANG_AGENTS+=("debugger-ts")
+  fi
+
+  UPDATED_LANG_AGENTS=0
+  for agent in "${LANG_AGENTS[@]}"; do
+    src="$OPENCODE_ROOT/agent/$agent.md"
+    dst="$TARGET_DIR/.agent/agent/$agent.md"
+    if [[ -f "$src" ]]; then
+      sync_file "$src" "$dst"
+      UPDATED_LANG_AGENTS=$((UPDATED_LANG_AGENTS + 1))
+    else
+      log_verbose "language agent not found in source: $agent.md"
+    fi
+  done
+  log_success "Language agents synced: $UPDATED_LANG_AGENTS files"
+fi
+
+# ============================================
+# Sync Lib
+# ============================================
+
+log_info "Syncing lib..."
+sync_file "$OPENCODE_ROOT/lib/backend-loader.js" "$TARGET_DIR/.agent/lib/backend-loader.js"
+sync_file "$OPENCODE_ROOT/lib/workflow-state.js"  "$TARGET_DIR/.agent/lib/workflow-state.js"
+sync_file "$OPENCODE_ROOT/lib/plan-state.js"      "$TARGET_DIR/.agent/lib/plan-state.js"
+log_success "Lib synced: backend-loader, workflow-state, plan-state"
+
+# ============================================
+# Sync Templates
+# ============================================
+
+log_info "Syncing templates..."
+sync_file "$OPENCODE_ROOT/templates/generate-lang-skills.md.tmpl" \
+          "$TARGET_DIR/.agent/templates/generate-lang-skills.md.tmpl"
+log_success "Templates synced"
+
+# ============================================
+# Sync Backend
+# ============================================
+
+log_info "Syncing backend: $BACKEND..."
+sync_file "$OPENCODE_ROOT/backends/$BACKEND/index.js"  "$TARGET_DIR/.agent/backends/$BACKEND/index.js"
+sync_file "$OPENCODE_ROOT/backends/$BACKEND/README.md" "$TARGET_DIR/.agent/backends/$BACKEND/README.md"
+sync_file "$OPENCODE_ROOT/backends/interface.ts"       "$TARGET_DIR/.agent/backends/interface.ts"
+log_success "Backend synced: $BACKEND"
+
+# ============================================
+# Sync Skills
+# ============================================
+
+log_info "Syncing skills..."
+UPDATED_SKILLS=0
+if [[ -d "$TARGET_DIR/.agent/skills" ]]; then
+  for installed_skill_dir in "$TARGET_DIR/.agent/skills"/*/; do
+    [[ -d "$installed_skill_dir" ]] || continue
+    skill_name="$(basename "$installed_skill_dir")"
+    src_skill="$OPENCODE_ROOT/skills/$skill_name/SKILL.md"
+    dst_skill="$TARGET_DIR/.agent/skills/$skill_name/SKILL.md"
+    if [[ -f "$src_skill" ]]; then
+      sync_file "$src_skill" "$dst_skill"
+      UPDATED_SKILLS=$((UPDATED_SKILLS + 1))
+    else
+      log_warn "Skill '$skill_name' installed but not found in source repo — skipping"
+    fi
+  done
+fi
+log_success "Skills synced: $UPDATED_SKILLS"
+
+# ============================================
+# Summary
+# ============================================
+
+echo
+if [[ -n "$DRY_RUN" ]]; then
+  echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "${YELLOW}Dry run complete — no files were changed${NC}"
+  echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+else
+  echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "${GREEN}✓ opencode-sync complete!${NC}"
+  echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+fi
+echo
+echo "Updated: commands ($UPDATED_COMMANDS), agents ($UPDATED_AGENTS), skills ($UPDATED_SKILLS)"
+echo
+echo "Preserved (not touched):"
+echo "  .agent/config.json   — your backend config"
+echo "  .agent/state/        — your workflow runtime state"
+echo "  AGENTS.md            — your project AI context"
+echo "  opencode.json        — your OpenCode config"
+echo "  specs/               — your spec documents"
+echo "  plans/               — your plan documents"
+echo
+echo "Tip: Run with --verbose to see each file updated."
+echo "Tip: Run with --dry-run first to preview changes."

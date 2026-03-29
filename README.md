@@ -178,6 +178,46 @@ opencode.json     OpenCode configuration ($schema, instructions, providers)
 AGENTS.md         AI assistant context (customize for your project)
 ```
 
+To pull in updates after the initial setup, use `opencode-sync` (see below).
+
+---
+
+## opencode-sync
+
+`bin/opencode-sync` refreshes workflow files in an already-initialized project without touching any project-specific config or state.
+
+```
+Usage: opencode-sync [OPTIONS] [target-dir]
+
+Options:
+  --dry-run     Show what would be updated without making changes
+  --verbose     Show each file being copied
+```
+
+What is updated:
+
+```
+.agent/command/      All slash commands
+.agent/agent/        Core agents (spec-mode, create-tasks, plan-mode, build,
+                     test-agent, code-reviewer) + any language agents
+.agent/lib/          backend-loader.js, workflow-state.js, plan-state.js
+.agent/backends/     Active backend implementation + interface.ts
+.agent/skills/       All currently installed skill packs
+```
+
+What is **never** touched:
+
+```
+.agent/config.json   Your backend configuration
+.agent/state/        Runtime workflow data (issues, specs, tasks)
+AGENTS.md            Your project AI context
+opencode.json        Your OpenCode provider/model config
+specs/               Your spec documents
+plans/               Your plan documents
+```
+
+Language agents (`debugger-go`, `debugger-rust`, `debugger-ts`) are synced if `"language"` is set in `.agent/config.json`. Only commands and agents that are already installed are updated — `opencode-sync` does not add new files.
+
 ---
 
 ## Repository layout
@@ -186,11 +226,13 @@ AGENTS.md         AI assistant context (customize for your project)
 agent/              agent definition files
 backends/
   file/             zero-dependency local backend
+  beads/            Beads local-first backend
   jira-taskwarrior/ Jira + Taskwarrior backend
   interface.ts      WorkflowBackend interface
 bin/
   opencode-init     project initializer
-  opencode-update   update workflow files in an existing project
+  opencode-sync     sync workflow files into an initialized project
+  opencode-update   update the opencode-init binary itself
 command/            slash command definitions
 lib/
   backend-loader.js runtime backend selection
@@ -243,6 +285,25 @@ Place your implementation in `backends/<name>/index.js` and register it in `lib/
 ```json
 { "backend": { "type": "<name>", "config": { ... } } }
 ```
+
+---
+
+## Credits & Acknowledgments
+
+This project is a fork of [opencode by Geert Theys](https://github.com/gtheys/opencode). A huge thanks to Geert for laying the groundwork — the original slash command structure, agent definitions, and workflow orchestration concepts all trace back to that repo.
+
+**What this fork adds on top:**
+
+- Backend-agnostic workflow engine (`file`, `beads`, `jira-taskwarrior`) with a common `WorkflowBackend` interface
+- Full slash command suite: `/plan`, `/feature`, `/bug`, `/resume`, `/status`, `/issue`, `/spec`, `/createtasks`, `/implement`, `/git`, `/test`, `/codereview`, `/PR-summary`
+- Cross-session workflow state persistence (`.agent/state/workflow.json`)
+- Epic auto-creation and issue-to-epic linking across all backends
+- `opencode-init` installer with language scaffolding, startup library detection, and multi-backend support
+- `opencode-sync` for keeping workflow files up to date in initialized projects
+- Separation of workflow config (`.agent/config.json`) from OpenCode native config (`opencode.json`) to comply with upstream schema validation
+- macOS bash 3.2 compatibility throughout all shell scripts
+
+If this project is useful to you, go give Geert's repo a star too.
 
 ---
 
