@@ -12,6 +12,10 @@ metadata:
 
 Reference for managing database schema migrations with golang-migrate.
 
+> **Preferred Approach**: For production Go services using [startup](../startup/SKILL.md),
+> use `startup_postgres.Migration()` or `DefaultMigration()` with sql-migrate format.
+> Migrations run automatically on service startup. See [startup skill](../startup/SKILL.md).
+
 ## Installation
 
 ```bash

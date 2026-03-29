@@ -7,6 +7,10 @@ description: PostgreSQL best practices for Go services, covering schema design, 
 
 Reference card for PostgreSQL development in Go services.
 
+> **Preferred Approach**: For production Go services, use the [startup](../startup/SKILL.md) library
+> which provides `PostgresOptions` with automatic connection pooling, metrics, and migrations.
+> See [startup skill](../startup/SKILL.md) for patterns.
+
 ## When to Activate
 
 - Designing database schemas

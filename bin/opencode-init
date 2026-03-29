@@ -10,10 +10,13 @@
 #   opencode-init ~/projects/myapp          # Initialize in specified directory
 #   opencode-init --backend=beads .         # Explicit backend selection
 #   opencode-init --stack=backend --lang=go # Backend stack with Go tooling
+#   opencode-init --with-startup            # Add flachnetz/startup library dependency
+#   opencode-init --scaffold=myservice      # Scaffold a Go service from template
 #
 # AIDEV-NOTE: This script copies the minimal workflow files needed to use
 # OpenCode's /spec, /createtasks, and /implement commands in a new project.
 # Phase E additions: --stack, --skills, --lang for platform engineering setup.
+# Phase F additions: --with-startup, --scaffold for Go service scaffolding.
 
 set -euo pipefail
 
@@ -30,6 +33,8 @@ TARGET_DIR="."
 STACK=""
 SKILLS=""
 LANG=""
+WITH_STARTUP=""
+SCAFFOLD=""
 
 # Available skills by category
 # AIDEV-NOTE: Update these arrays when adding new skills
@@ -108,6 +113,8 @@ Options:
   --stack=PRESET    Stack preset: backend (includes infra skills)
   --skills=LIST     Comma-separated skills to copy (e.g., postgres,kafka,docker)
   --lang=LANG       Language tooling: go, rust, or both
+  --with-startup    Add flachnetz/startup library (runs go get if go.mod exists)
+  --scaffold[=NAME] Scaffold a Go service from template (default name: service)
   --help, -h        Show this help message
   --list-skills     List all available skills
 
@@ -120,6 +127,9 @@ Examples:
   opencode-init --stack=backend --lang=go          # Backend + Go tooling
   opencode-init --skills=postgres,docker           # Only specific skills
   opencode-init --lang=rust                        # Only Rust debugger + coding standards
+  opencode-init --with-startup                     # Add startup library to existing go.mod
+  opencode-init --scaffold=myapi                   # Scaffold Go service named 'myapi'
+  opencode-init --scaffold --with-startup          # Scaffold with startup library
 
 Backends:
   beads             Local file-based workflow (recommended for solo/small teams)
@@ -134,6 +144,14 @@ Language Tooling:
   go                Go coding standards + debugger agent
   rust              Rust coding standards + debugger agent
   both              Both Go and Rust tooling
+
+Scaffolding:
+  --scaffold        Creates a complete Go service from templates/go-service/
+                    Uses flachnetz/startup for bootstrapping with:
+                    - Postgres connection with migrations
+                    - HTTP server with admin panel
+                    - Prometheus metrics
+                    - Graceful shutdown
 
 EOF
   exit 0
@@ -193,6 +211,123 @@ copy_agent() {
   fi
 }
 
+# AIDEV-NOTE: scaffold_service copies templates/go-service/ to target,
+# substituting {{.Module}} and {{.ServiceName}} placeholders.
+scaffold_service() {
+  local service_name="$1"
+  local template_src="$OPENCODE_ROOT/templates/go-service"
+  local service_dst="$TARGET_DIR"
+  
+  if [[ ! -d "$template_src" ]]; then
+    log_error "Template not found: $template_src"
+    return 1
+  fi
+  
+  # Detect module path from existing go.mod or derive from directory
+  local module_path
+  if [[ -f "$service_dst/go.mod" ]]; then
+    module_path=$(grep "^module " "$service_dst/go.mod" | awk '{print $2}')
+    log_info "Using existing module: $module_path"
+  else
+    # Use directory name as module path base
+    module_path="github.com/$(basename "$service_dst")"
+    log_info "Using derived module path: $module_path"
+  fi
+  
+  log_info "Scaffolding service '$service_name' from template..."
+  
+  # Create directory structure
+  mkdir -p "$service_dst/cmd/server"
+  mkdir -p "$service_dst/internal/handler"
+  mkdir -p "$service_dst/internal/repository"
+  mkdir -p "$service_dst/internal/service"
+  mkdir -p "$service_dst/sql"
+  
+  # Process template files with variable substitution
+  # Using sed for {{.Module}} and {{.ServiceName}} replacement
+  local files_to_process=(
+    "cmd/server/main.go"
+    "internal/handler/handler.go"
+    "internal/repository/repository.go"
+    "internal/service/service.go"
+  )
+  
+  for file in "${files_to_process[@]}"; do
+    if [[ -f "$template_src/$file" ]]; then
+      sed -e "s|{{\.Module}}|$module_path|g" \
+          -e "s|{{\.ServiceName}}|$service_name|g" \
+          "$template_src/$file" > "$service_dst/$file"
+      log_success "Created: $file"
+    fi
+  done
+  
+  # Copy non-template files directly
+  local files_to_copy=(
+    "sql/001_initial.sql"
+    "Dockerfile"
+    "docker-compose.yml"
+    "Makefile"
+    ".gitignore"
+  )
+  
+  for file in "${files_to_copy[@]}"; do
+    if [[ -f "$template_src/$file" ]]; then
+      # Ensure parent directory exists
+      mkdir -p "$(dirname "$service_dst/$file")"
+      cp "$template_src/$file" "$service_dst/$file"
+      log_success "Copied: $file"
+    fi
+  done
+  
+  # Process go.mod.tmpl if no go.mod exists
+  if [[ ! -f "$service_dst/go.mod" ]] && [[ -f "$template_src/go.mod.tmpl" ]]; then
+    sed -e "s|{{\.Module}}|$module_path|g" \
+        "$template_src/go.mod.tmpl" > "$service_dst/go.mod"
+    log_success "Created: go.mod"
+  fi
+  
+  # Copy README with substitution
+  if [[ -f "$template_src/README.md" ]]; then
+    sed -e "s|{{\.Module}}|$module_path|g" \
+        -e "s|{{\.ServiceName}}|$service_name|g" \
+        "$template_src/README.md" > "$service_dst/README.md"
+    log_success "Created: README.md"
+  fi
+  
+  log_success "Service scaffolded: $service_name"
+}
+
+# Add startup library to go.mod
+add_startup_library() {
+  if [[ ! -f "$TARGET_DIR/go.mod" ]]; then
+    log_warn "No go.mod found. Skipping --with-startup (run 'go mod init' first or use --scaffold)"
+    return 1
+  fi
+  
+  log_info "Adding flachnetz/startup library..."
+  
+  (cd "$TARGET_DIR" && go get github.com/flachnetz/startup/v2@latest)
+  
+  if [[ $? -eq 0 ]]; then
+    log_success "Added: github.com/flachnetz/startup/v2"
+    
+    # Also add common sub-packages
+    (cd "$TARGET_DIR" && go get \
+      github.com/flachnetz/startup/v2/startup_base@latest \
+      github.com/flachnetz/startup/v2/startup_http@latest \
+      github.com/flachnetz/startup/v2/startup_postgres@latest \
+      2>/dev/null) || true
+    
+    log_success "Added startup sub-packages (base, http, postgres)"
+  else
+    log_error "Failed to add startup library"
+    return 1
+  fi
+  
+  # Copy the startup skill
+  copy_skill "startup"
+}
+
 # ============================================
 # Argument Parsing
 # ============================================
@@ -230,6 +365,19 @@ while [[ $# -gt 0 ]]; do
     --lang)
       LANG="$2"
       shift 2
+      ;;
+    --with-startup)
+      WITH_STARTUP="true"
+      shift
+      ;;
+    --scaffold=*)
+      SCAFFOLD="${1#*=}"
+      shift
+      ;;
+    --scaffold)
+      # Default service name if not specified
+      SCAFFOLD="service"
+      shift
       ;;
     --list-skills)
       list_skills
@@ -278,6 +426,8 @@ log_info "Initializing OpenCode workflow with backend: ${BLUE}$BACKEND${NC}"
 [[ -n "$STACK" ]] && log_info "Stack preset: ${BLUE}$STACK${NC}"
 [[ -n "$LANG" ]] && log_info "Language tooling: ${BLUE}$LANG${NC}"
 [[ -n "$SKILLS" ]] && log_info "Additional skills: ${BLUE}$SKILLS${NC}"
+[[ -n "$SCAFFOLD" ]] && log_info "Scaffold service: ${BLUE}$SCAFFOLD${NC}"
+[[ -n "$WITH_STARTUP" ]] && log_info "With startup library: ${BLUE}yes${NC}"
 
 # Check target directory
 if [[ ! -d "$TARGET_DIR" ]]; then
@@ -310,6 +460,15 @@ elif [[ "$BACKEND" == "jira-taskwarrior" ]]; then
   fi
   if ! command -v acli &> /dev/null; then
     log_warn "Atlassian CLI (acli) not found. See: https://developer.atlassian.com/cloud/acli/"
+  fi
+fi
+
+# Check Go prerequisites for --with-startup and --scaffold
+if [[ -n "$WITH_STARTUP" || -n "$SCAFFOLD" ]]; then
+  if ! command -v go &> /dev/null; then
+    log_error "Go is required for --with-startup and --scaffold options"
+    log_info "Install Go from: https://go.dev/dl/"
+    exit 1
   fi
 fi
 
@@ -401,6 +560,22 @@ if [[ "$LANG" == "rust" || "$LANG" == "both" ]]; then
   for agent in "${RUST_AGENTS[@]}"; do
     copy_agent "$agent"
   done
+fi
+
+# ============================================
+# Scaffold Go Service
+# ============================================
+
+if [[ -n "$SCAFFOLD" ]]; then
+  scaffold_service "$SCAFFOLD"
+fi
+
+# ============================================
+# Add Startup Library
+# ============================================
+
+if [[ -n "$WITH_STARTUP" ]]; then
+  add_startup_library
 fi
 
 # ============================================
@@ -500,6 +675,8 @@ echo "Directory: $TARGET_DIR"
 echo "Backend:   $BACKEND"
 [[ -n "$STACK" ]] && echo "Stack:     $STACK"
 [[ -n "$LANG" ]] && echo "Language:  $LANG"
+[[ -n "$SCAFFOLD" ]] && echo "Scaffold:  $SCAFFOLD"
+[[ -n "$WITH_STARTUP" ]] && echo "Startup:   enabled"
 echo
 echo "Files created:"
 echo "  opencode.json              - Workflow configuration"
@@ -532,9 +709,36 @@ if [[ "$LANG" == "rust" || "$LANG" == "both" ]]; then
   echo "  agent/debugger-rust.md     - Rust debugger agent"
 fi
 
+if [[ -n "$SCAFFOLD" ]]; then
+  echo
+  echo "Scaffolded service '$SCAFFOLD':"
+  echo "  cmd/server/main.go         - Entry point with startup bootstrap"
+  echo "  internal/handler/          - HTTP handlers"
+  echo "  internal/repository/       - Database access"
+  echo "  internal/service/          - Business logic"
+  echo "  sql/                       - Database migrations"
+  echo "  Dockerfile                 - Multi-stage build"
+  echo "  docker-compose.yml         - Local development"
+  echo "  Makefile                   - Build targets"
+fi
+
+if [[ -n "$WITH_STARTUP" ]]; then
+  echo
+  echo "Startup library:"
+  echo "  skills/startup/            - Startup library patterns"
+  echo "  go.mod                     - Updated with startup deps"
+fi
+
 echo
 echo -e "${BLUE}Next steps:${NC}"
-if [[ "$BACKEND" == "beads" ]]; then
+if [[ -n "$SCAFFOLD" ]]; then
+  echo "  1. Initialize deps:    go mod tidy"
+  echo "  2. Start database:     docker-compose up -d postgres"
+  echo "  3. Run service:        make run"
+  echo "  4. View admin panel:   http://localhost:8080/admin"
+  echo
+  echo "Or use OpenCode workflow:"
+elif [[ "$BACKEND" == "beads" ]]; then
   echo "  1. Create an issue:    bd issue create \"Your feature description\""
   echo "  2. Write a spec:       /spec ISSUE-1"
   echo "  3. Create tasks:       /createtasks ISSUE-1"

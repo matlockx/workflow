@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: {{.ServiceName}}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  service:
+    build: .
+    ports:
+      - "3080:3080"
+    environment:
+      - STAGE=development
+    command:
+      - --postgres=postgres://postgres:postgres@postgres:5432/{{.ServiceName}}?sslmode=disable
+      - --http-address=:3080
+      - --verbose
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

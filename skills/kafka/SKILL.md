@@ -11,6 +11,10 @@ metadata:
 
 Reference for working with Apache Kafka in Go backend services.
 
+> **Preferred Approach**: For production Go services, use the [startup](../startup/SKILL.md) library
+> which provides `KafkaOptions` with CLI flag parsing and consumer setup.
+> See [startup skill](../startup/SKILL.md) for patterns.
+
 ## Popular Go Libraries
 
 ### Confluent Kafka Go (librdkafka wrapper)
