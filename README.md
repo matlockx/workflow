@@ -39,6 +39,76 @@ cd ~/projects/myapp
 
 ---
 
+## Agents and Modes
+
+This workflow system uses OpenCode's **agent** system to provide specialized AI assistants for different tasks.
+
+### How it works with OpenCode's built-in modes
+
+OpenCode has two built-in **primary agents** that you switch between with **Tab**:
+
+| Primary Agent | Purpose | Tool Access |
+|---------------|---------|-------------|
+| **Build** | Full development work | All tools enabled |
+| **Plan** | Analysis and planning | Read-only (no edits) |
+
+Our workflow agents are **subagents** — specialized assistants invoked by slash commands:
+
+| Subagent | Invoked by | Purpose |
+|----------|------------|---------|
+| `plan-mode` | `/plan` | Brainstorm features, create backlog |
+| `spec-mode` | `/spec`, `/feature` | Draft requirements and design |
+| `create-tasks` | `/createtasks`, `/feature` | Break spec into phased tasks |
+| `build` | `/implement`, `/feature` | Implement tasks with TDD |
+| `code-reviewer` | `/codereview`, `/feature` | Review code changes |
+| `test-agent` | `/test` | Run and fix tests |
+
+### Usage pattern
+
+```
+┌─────────────────────────────────────────────────────┐
+│  1. Use Tab to switch to Plan mode (read-only)     │
+│  2. Run /plan "improve onboarding" → plan-mode     │
+│  3. Switch to Build mode with Tab                   │
+│  4. Run /feature ISSUE-1 → spec-mode → create-tasks │
+│     → build → code-reviewer                         │
+└─────────────────────────────────────────────────────┘
+```
+
+Subagents run in **child sessions** and return results to your main conversation.
+
+### Model configuration
+
+Agents inherit the model from your OpenCode configuration. To use different models for different agents, configure them in your `opencode.json`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "anthropic/claude-sonnet-4-20250514",
+  "agent": {
+    "plan-mode": {
+      "model": "anthropic/claude-sonnet-4-20250514"
+    },
+    "spec-mode": {
+      "model": "anthropic/claude-sonnet-4-20250514"
+    },
+    "build": {
+      "model": "anthropic/claude-sonnet-4-20250514"
+    }
+  }
+}
+```
+
+The model ID format is `provider/model-id`. Common providers:
+- `anthropic/claude-sonnet-4-20250514`
+- `openai/gpt-4o`
+- `github-copilot/claude-sonnet-4`
+- `opencode/gpt-5.1-codex` (OpenCode Zen)
+
+Run `opencode models` to see available models for your configured providers.
+
+---
+
 ## Backends
 
 | Backend | Best for | Dependencies |
