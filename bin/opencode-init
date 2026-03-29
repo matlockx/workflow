@@ -6,15 +6,17 @@
 #   opencode-init [OPTIONS] [target-dir]
 #
 # Examples:
-#   opencode-init                           # Initialize in current directory with Beads
+#   opencode-init                           # Initialize in current directory with file backend
 #   opencode-init ~/projects/myapp          # Initialize in specified directory
-#   opencode-init --backend=beads .         # Explicit backend selection
+#   opencode-init --backend=jira-taskwarrior .  # Jira + Taskwarrior backend
 #   opencode-init --stack=backend --lang=go # Backend stack with Go tooling
 #   opencode-init --with-startup            # Add flachnetz/startup library dependency
 #   opencode-init --scaffold=myservice      # Scaffold a Go service from template
 #
 # AIDEV-NOTE: This script copies the minimal workflow files needed to use
-# OpenCode's /spec, /createtasks, and /implement commands in a new project.
+# OpenCode's /issue, /spec, /createtasks, and /implement commands in a new project.
+# All workflow machinery is placed under .agent/ (hidden, gitignored state) and
+# specs/ (committed, user-visible). opencode.json and AGENTS.md stay in the root.
 # Phase E additions: --stack, --skills, --lang for platform engineering setup.
 # Phase F additions: --with-startup, --scaffold for Go service scaffolding.
 
@@ -28,7 +30,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OPENCODE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Defaults
-BACKEND="beads"
+BACKEND="file"
 TARGET_DIR="."
 STACK=""
 SKILLS=""
@@ -65,6 +67,38 @@ GO_AGENTS=(
 
 RUST_AGENTS=(
   "debugger-rust"
+)
+
+# Build/test command defaults per language
+# AIDEV-NOTE: These are substituted into the generated AGENTS.md template.
+# Format: BUILD_CMD, TEST_CMD, LINT_CMD, SINGLE_TEST_CMD
+declare -A LANG_BUILD_CMD=(
+  ["go"]="go build ./..."
+  ["rust"]="cargo build"
+  ["node"]="npm run build"
+  ["python"]="python -m build"
+  ["default"]="<fill in your build command>"
+)
+declare -A LANG_TEST_CMD=(
+  ["go"]="go test ./..."
+  ["rust"]="cargo test"
+  ["node"]="npm test"
+  ["python"]="pytest"
+  ["default"]="<fill in your test command>"
+)
+declare -A LANG_LINT_CMD=(
+  ["go"]="golangci-lint run ./..."
+  ["rust"]="cargo clippy -- -D warnings"
+  ["node"]="npm run lint"
+  ["python"]="ruff check ."
+  ["default"]="<fill in your lint command>"
+)
+declare -A LANG_SINGLE_TEST_CMD=(
+  ["go"]="go test ./path/to/package/..."
+  ["rust"]="cargo test test_name"
+  ["node"]="npm test -- --testPathPattern=<pattern>"
+  ["python"]="pytest path/to/test_file.py"
+  ["default"]="<fill in your single-test command>"
 )
 
 # Colors (if terminal supports them)
@@ -109,10 +143,10 @@ Usage: opencode-init [OPTIONS] [target-dir]
 Initialize OpenCode workflow in a project directory.
 
 Options:
-  --backend=TYPE    Workflow backend: beads (default) or jira-taskwarrior
+  --backend=TYPE    Workflow backend: file (default) or jira-taskwarrior
   --stack=PRESET    Stack preset: backend (includes infra skills)
   --skills=LIST     Comma-separated skills to copy (e.g., postgres,kafka,docker)
-  --lang=LANG       Language tooling: go, rust, or both
+  --lang=LANG       Language tooling: go, rust, node, python, or both
   --with-startup    Add flachnetz/startup library (runs go get if go.mod exists)
   --scaffold[=NAME] Scaffold a Go service from template (default name: service)
   --help, -h        Show this help message
@@ -122,17 +156,19 @@ Arguments:
   target-dir        Directory to initialize (default: current directory)
 
 Examples:
-  opencode-init                                    # Init with Beads backend only
+  opencode-init                                    # Init with file backend only
   opencode-init --stack=backend                    # Init with all backend infra skills
   opencode-init --stack=backend --lang=go          # Backend + Go tooling
   opencode-init --skills=postgres,docker           # Only specific skills
   opencode-init --lang=rust                        # Only Rust debugger + coding standards
+  opencode-init --backend=jira-taskwarrior         # Jira + Taskwarrior backend
   opencode-init --with-startup                     # Add startup library to existing go.mod
   opencode-init --scaffold=myapi                   # Scaffold Go service named 'myapi'
   opencode-init --scaffold --with-startup          # Scaffold with startup library
 
 Backends:
-  beads             Local file-based workflow (recommended for solo/small teams)
+  file              Zero-dependency local workflow (default, recommended)
+                    Sequential IDs (ISSUE-1, ISSUE-2), state in .agent/state/
   jira-taskwarrior  Jira + Taskwarrior integration (for teams with Jira)
 
 Stack Presets:
@@ -143,6 +179,8 @@ Stack Presets:
 Language Tooling:
   go                Go coding standards + debugger agent
   rust              Rust coding standards + debugger agent
+  node              Node.js / TypeScript tooling
+  python            Python tooling
   both              Both Go and Rust tooling
 
 Scaffolding:
@@ -182,12 +220,12 @@ list_skills() {
   exit 0
 }
 
-# Copy a skill directory
+# Copy a skill directory into .agent/skills/
 copy_skill() {
   local skill_name="$1"
   local skill_src="$OPENCODE_ROOT/skills/$skill_name"
-  local skill_dst="$TARGET_DIR/skills/$skill_name"
-  
+  local skill_dst="$TARGET_DIR/.agent/skills/$skill_name"
+
   if [[ -d "$skill_src" ]]; then
     mkdir -p "$skill_dst"
     cp "$skill_src/SKILL.md" "$skill_dst/"
@@ -197,12 +235,12 @@ copy_skill() {
   fi
 }
 
-# Copy an agent file
+# Copy an agent file into .agent/agent/
 copy_agent() {
   local agent_name="$1"
   local agent_src="$OPENCODE_ROOT/agent/$agent_name.md"
-  local agent_dst="$TARGET_DIR/agent/$agent_name.md"
-  
+  local agent_dst="$TARGET_DIR/.agent/agent/$agent_name.md"
+
   if [[ -f "$agent_src" ]]; then
     cp "$agent_src" "$agent_dst"
     log_success "Copied agent: $agent_name"
@@ -217,12 +255,12 @@ scaffold_service() {
   local service_name="$1"
   local template_src="$OPENCODE_ROOT/templates/go-service"
   local service_dst="$TARGET_DIR"
-  
+
   if [[ ! -d "$template_src" ]]; then
     log_error "Template not found: $template_src"
     return 1
   fi
-  
+
   # Detect module path from existing go.mod or derive from directory
   local module_path
   if [[ -f "$service_dst/go.mod" ]]; then
@@ -233,16 +271,16 @@ scaffold_service() {
     module_path="github.com/$(basename "$service_dst")"
     log_info "Using derived module path: $module_path"
   fi
-  
+
   log_info "Scaffolding service '$service_name' from template..."
-  
+
   # Create directory structure
   mkdir -p "$service_dst/cmd/server"
   mkdir -p "$service_dst/internal/handler"
   mkdir -p "$service_dst/internal/repository"
   mkdir -p "$service_dst/internal/service"
   mkdir -p "$service_dst/sql"
-  
+
   # Process template files with variable substitution
   # Using sed for {{.Module}} and {{.ServiceName}} replacement
   local files_to_process=(
@@ -251,7 +289,7 @@ scaffold_service() {
     "internal/repository/repository.go"
     "internal/service/service.go"
   )
-  
+
   for file in "${files_to_process[@]}"; do
     if [[ -f "$template_src/$file" ]]; then
       sed -e "s|{{\.Module}}|$module_path|g" \
@@ -260,7 +298,7 @@ scaffold_service() {
       log_success "Created: $file"
     fi
   done
-  
+
   # Copy non-template files directly
   local files_to_copy=(
     "sql/001_initial.sql"
@@ -269,7 +307,7 @@ scaffold_service() {
     "Makefile"
     ".gitignore"
   )
-  
+
   for file in "${files_to_copy[@]}"; do
     if [[ -f "$template_src/$file" ]]; then
       # Ensure parent directory exists
@@ -278,14 +316,14 @@ scaffold_service() {
       log_success "Copied: $file"
     fi
   done
-  
+
   # Process go.mod.tmpl if no go.mod exists
   if [[ ! -f "$service_dst/go.mod" ]] && [[ -f "$template_src/go.mod.tmpl" ]]; then
     sed -e "s|{{\.Module}}|$module_path|g" \
         "$template_src/go.mod.tmpl" > "$service_dst/go.mod"
     log_success "Created: go.mod"
   fi
-  
+
   # Copy README with substitution
   if [[ -f "$template_src/README.md" ]]; then
     sed -e "s|{{\.Module}}|$module_path|g" \
@@ -293,7 +331,7 @@ scaffold_service() {
         "$template_src/README.md" > "$service_dst/README.md"
     log_success "Created: README.md"
   fi
-  
+
   log_success "Service scaffolded: $service_name"
 }
 
@@ -303,29 +341,60 @@ add_startup_library() {
     log_warn "No go.mod found. Skipping --with-startup (run 'go mod init' first or use --scaffold)"
     return 1
   fi
-  
+
   log_info "Adding flachnetz/startup library..."
-  
+
   (cd "$TARGET_DIR" && go get github.com/flachnetz/startup/v2@latest)
-  
+
   if [[ $? -eq 0 ]]; then
     log_success "Added: github.com/flachnetz/startup/v2"
-    
+
     # Also add common sub-packages
     (cd "$TARGET_DIR" && go get \
       github.com/flachnetz/startup/v2/startup_base@latest \
       github.com/flachnetz/startup/v2/startup_http@latest \
       github.com/flachnetz/startup/v2/startup_postgres@latest \
       2>/dev/null) || true
-    
+
     log_success "Added startup sub-packages (base, http, postgres)"
   else
     log_error "Failed to add startup library"
     return 1
   fi
-  
+
   # Copy the startup skill
   copy_skill "startup"
+}
+
+# AIDEV-NOTE: Generates AGENTS.md from the template by substituting
+# {{PROJECT_NAME}}, {{BUILD_CMD}}, {{TEST_CMD}}, {{LINT_CMD}}, {{SINGLE_TEST_CMD}}.
+# lang_key is one of: go, rust, node, python, default.
+generate_agents_md() {
+  local project_name="$1"
+  local lang_key="$2"
+  local template_src="$OPENCODE_ROOT/templates/AGENTS.md.tmpl"
+  local agents_md_dst="$TARGET_DIR/AGENTS.md"
+
+  if [[ ! -f "$template_src" ]]; then
+    log_warn "AGENTS.md template not found: $template_src — skipping generation"
+    return 0
+  fi
+
+  # Resolve commands for the given lang key, falling back to "default"
+  local build_cmd="${LANG_BUILD_CMD[$lang_key]:-${LANG_BUILD_CMD[default]}}"
+  local test_cmd="${LANG_TEST_CMD[$lang_key]:-${LANG_TEST_CMD[default]}}"
+  local lint_cmd="${LANG_LINT_CMD[$lang_key]:-${LANG_LINT_CMD[default]}}"
+  local single_test_cmd="${LANG_SINGLE_TEST_CMD[$lang_key]:-${LANG_SINGLE_TEST_CMD[default]}}"
+
+  sed \
+    -e "s|{{PROJECT_NAME}}|$project_name|g" \
+    -e "s|{{BUILD_CMD}}|$build_cmd|g" \
+    -e "s|{{TEST_CMD}}|$test_cmd|g" \
+    -e "s|{{LINT_CMD}}|$lint_cmd|g" \
+    -e "s|{{SINGLE_TEST_CMD}}|$single_test_cmd|g" \
+    "$template_src" > "$agents_md_dst"
+
+  log_success "Generated AGENTS.md (lang: $lang_key)"
 }
 
 # ============================================
@@ -398,9 +467,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Validate backend
-if [[ "$BACKEND" != "beads" && "$BACKEND" != "jira-taskwarrior" ]]; then
+if [[ "$BACKEND" != "file" && "$BACKEND" != "jira-taskwarrior" ]]; then
   log_error "Invalid backend: $BACKEND"
-  echo "Valid backends: beads, jira-taskwarrior"
+  echo "Valid backends: file, jira-taskwarrior"
   exit 1
 fi
 
@@ -412,9 +481,9 @@ if [[ -n "$STACK" && "$STACK" != "backend" ]]; then
 fi
 
 # Validate lang
-if [[ -n "$LANG" && "$LANG" != "go" && "$LANG" != "rust" && "$LANG" != "both" ]]; then
+if [[ -n "$LANG" && "$LANG" != "go" && "$LANG" != "rust" && "$LANG" != "node" && "$LANG" != "python" && "$LANG" != "both" ]]; then
   log_error "Invalid lang: $LANG"
-  echo "Valid langs: go, rust, both"
+  echo "Valid langs: go, rust, node, python, both"
   exit 1
 fi
 
@@ -450,11 +519,7 @@ if [[ -f "$TARGET_DIR/opencode.json" ]]; then
 fi
 
 # Check backend prerequisites
-if [[ "$BACKEND" == "beads" ]]; then
-  if ! command -v bd &> /dev/null; then
-    log_warn "Beads CLI (bd) not found. Install with: brew install beads-ai/tap/beads"
-  fi
-elif [[ "$BACKEND" == "jira-taskwarrior" ]]; then
+if [[ "$BACKEND" == "jira-taskwarrior" ]]; then
   if ! command -v task &> /dev/null; then
     log_warn "Taskwarrior (task) not found. Install with: brew install task"
   fi
@@ -473,44 +538,47 @@ if [[ -n "$WITH_STARTUP" || -n "$SCAFFOLD" ]]; then
 fi
 
 # ============================================
-# Copy Files
+# Copy Files into .agent/
 # ============================================
 
-log_info "Copying workflow files..."
+log_info "Copying workflow files into .agent/ ..."
 
-# Create directory structure
-mkdir -p "$TARGET_DIR/command"
-mkdir -p "$TARGET_DIR/agent"
-mkdir -p "$TARGET_DIR/skills/workflow-backend"
-mkdir -p "$TARGET_DIR/backends/$BACKEND"
-mkdir -p "$TARGET_DIR/lib"
+# Create .agent/ directory structure
+mkdir -p "$TARGET_DIR/.agent/command"
+mkdir -p "$TARGET_DIR/.agent/agent"
+mkdir -p "$TARGET_DIR/.agent/skills/workflow-backend"
+mkdir -p "$TARGET_DIR/.agent/backends/$BACKEND"
+mkdir -p "$TARGET_DIR/.agent/lib"
+# specs/ lives in the project root (committed to git)
+mkdir -p "$TARGET_DIR/specs"
 
 # Copy commands
-cp "$OPENCODE_ROOT/command/spec.md" "$TARGET_DIR/command/"
-cp "$OPENCODE_ROOT/command/createtasks.md" "$TARGET_DIR/command/"
-cp "$OPENCODE_ROOT/command/implement.md" "$TARGET_DIR/command/"
-log_success "Copied commands: spec, createtasks, implement"
+cp "$OPENCODE_ROOT/command/spec.md"         "$TARGET_DIR/.agent/command/"
+cp "$OPENCODE_ROOT/command/createtasks.md"  "$TARGET_DIR/.agent/command/"
+cp "$OPENCODE_ROOT/command/implement.md"    "$TARGET_DIR/.agent/command/"
+cp "$OPENCODE_ROOT/command/issue.md"        "$TARGET_DIR/.agent/command/"
+log_success "Copied commands: issue, spec, createtasks, implement"
 
 # Copy agents
-cp "$OPENCODE_ROOT/agent/spec-mode.md" "$TARGET_DIR/agent/"
-cp "$OPENCODE_ROOT/agent/create-tasks.md" "$TARGET_DIR/agent/"
+cp "$OPENCODE_ROOT/agent/spec-mode.md"    "$TARGET_DIR/.agent/agent/"
+cp "$OPENCODE_ROOT/agent/create-tasks.md" "$TARGET_DIR/.agent/agent/"
 log_success "Copied agents: spec-mode, create-tasks"
 
 # Copy workflow skill
-cp "$OPENCODE_ROOT/skills/workflow-backend/SKILL.md" "$TARGET_DIR/skills/workflow-backend/"
+cp "$OPENCODE_ROOT/skills/workflow-backend/SKILL.md" "$TARGET_DIR/.agent/skills/workflow-backend/"
 log_success "Copied skill: workflow-backend"
 
 # Copy backend
-cp "$OPENCODE_ROOT/backends/$BACKEND/index.js" "$TARGET_DIR/backends/$BACKEND/"
-cp "$OPENCODE_ROOT/backends/$BACKEND/README.md" "$TARGET_DIR/backends/$BACKEND/"
+cp "$OPENCODE_ROOT/backends/$BACKEND/index.js" "$TARGET_DIR/.agent/backends/$BACKEND/"
+cp "$OPENCODE_ROOT/backends/$BACKEND/README.md" "$TARGET_DIR/.agent/backends/$BACKEND/"
 log_success "Copied backend: $BACKEND"
 
 # Copy backend loader
-cp "$OPENCODE_ROOT/lib/backend-loader.js" "$TARGET_DIR/lib/"
+cp "$OPENCODE_ROOT/lib/backend-loader.js" "$TARGET_DIR/.agent/lib/"
 log_success "Copied lib: backend-loader"
 
 # Copy interface (for reference)
-cp "$OPENCODE_ROOT/backends/interface.ts" "$TARGET_DIR/backends/"
+cp "$OPENCODE_ROOT/backends/interface.ts" "$TARGET_DIR/.agent/backends/"
 log_success "Copied interface definition"
 
 # ============================================
@@ -579,18 +647,18 @@ if [[ -n "$WITH_STARTUP" ]]; then
 fi
 
 # ============================================
-# Generate opencode.json
+# Generate opencode.json (project root)
 # ============================================
 
 log_info "Generating opencode.json..."
 
-if [[ "$BACKEND" == "beads" ]]; then
+if [[ "$BACKEND" == "file" ]]; then
   cat > "$TARGET_DIR/opencode.json" <<'EOF'
 {
   "$schema": "https://opencode.ai/schemas/opencode.json",
   "workflow": {
     "backend": {
-      "type": "beads",
+      "type": "file",
       "config": {}
     }
   }
@@ -621,23 +689,29 @@ fi
 log_success "Generated opencode.json"
 
 # ============================================
-# Initialize Backend
+# Generate AGENTS.md (project root)
 # ============================================
 
-if [[ "$BACKEND" == "beads" ]]; then
-  if command -v bd &> /dev/null; then
-    if [[ ! -d "$TARGET_DIR/.beads" ]]; then
-      log_info "Initializing Beads workspace..."
-      (cd "$TARGET_DIR" && bd init)
-      log_success "Beads workspace initialized"
-    else
-      log_info "Beads workspace already exists"
-    fi
-  fi
+log_info "Generating AGENTS.md..."
+
+PROJECT_NAME="$(basename "$TARGET_DIR")"
+
+# Determine lang key for template substitution
+AGENTS_LANG_KEY="default"
+if [[ "$LANG" == "go" || "$LANG" == "both" ]]; then
+  AGENTS_LANG_KEY="go"
+elif [[ "$LANG" == "rust" ]]; then
+  AGENTS_LANG_KEY="rust"
+elif [[ "$LANG" == "node" ]]; then
+  AGENTS_LANG_KEY="node"
+elif [[ "$LANG" == "python" ]]; then
+  AGENTS_LANG_KEY="python"
 fi
 
+generate_agents_md "$PROJECT_NAME" "$AGENTS_LANG_KEY"
+
 # ============================================
-# Add to .gitignore
+# Update .gitignore
 # ============================================
 
 GITIGNORE="$TARGET_DIR/.gitignore"
@@ -647,8 +721,7 @@ if [[ -f "$GITIGNORE" ]]; then
     cat >> "$GITIGNORE" <<'EOF'
 
 # OpenCode
-.beads/db/          # Beads database (local state)
-notes/              # Spec notes (optional: remove if you want to track specs)
+.agent/state/       # workflow runtime state (issues, tasks, counters)
 EOF
     log_success "Updated .gitignore"
   fi
@@ -656,8 +729,7 @@ else
   log_info "Creating .gitignore..."
   cat > "$GITIGNORE" <<'EOF'
 # OpenCode
-.beads/db/          # Beads database (local state)
-notes/              # Spec notes (optional: remove if you want to track specs)
+.agent/state/       # workflow runtime state (issues, tasks, counters)
 EOF
   log_success "Created .gitignore"
 fi
@@ -679,34 +751,38 @@ echo "Backend:   $BACKEND"
 [[ -n "$WITH_STARTUP" ]] && echo "Startup:   enabled"
 echo
 echo "Files created:"
-echo "  opencode.json              - Workflow configuration"
-echo "  command/spec.md            - /spec command"
-echo "  command/createtasks.md     - /createtasks command"
-echo "  command/implement.md       - /implement command"
-echo "  agent/spec-mode.md         - Spec writing agent"
-echo "  agent/create-tasks.md      - Task creation agent"
-echo "  backends/$BACKEND/         - Backend implementation"
+echo "  opencode.json                  - Workflow configuration"
+echo "  AGENTS.md                      - AI assistant context (customize me!)"
+echo "  specs/                         - Spec documents (committed to git)"
+echo "  .agent/command/issue.md        - /issue command"
+echo "  .agent/command/spec.md         - /spec command"
+echo "  .agent/command/createtasks.md  - /createtasks command"
+echo "  .agent/command/implement.md    - /implement command"
+echo "  .agent/agent/spec-mode.md      - Spec writing agent"
+echo "  .agent/agent/create-tasks.md   - Task creation agent"
+echo "  .agent/backends/$BACKEND/      - Backend implementation"
+echo "  .agent/lib/backend-loader.js   - Backend loader utility"
 
 if [[ "$STACK" == "backend" ]]; then
   echo
-  echo "Backend stack skills:"
+  echo "Backend stack skills (.agent/skills/):"
   for skill in "${BACKEND_SKILLS[@]}"; do
-    echo "  skills/$skill/"
+    echo "  $skill/"
   done
 fi
 
 if [[ "$LANG" == "go" || "$LANG" == "both" ]]; then
   echo
   echo "Go tooling:"
-  echo "  skills/coding-standards/   - Go coding standards"
-  echo "  agent/debugger-go.md       - Go debugger agent"
+  echo "  .agent/skills/coding-standards/  - Go coding standards"
+  echo "  .agent/agent/debugger-go.md      - Go debugger agent"
 fi
 
 if [[ "$LANG" == "rust" || "$LANG" == "both" ]]; then
   echo
   echo "Rust tooling:"
-  echo "  skills/coding-standards/   - Rust coding standards"
-  echo "  agent/debugger-rust.md     - Rust debugger agent"
+  echo "  .agent/skills/coding-standards/  - Rust coding standards"
+  echo "  .agent/agent/debugger-rust.md    - Rust debugger agent"
 fi
 
 if [[ -n "$SCAFFOLD" ]]; then
@@ -725,7 +801,7 @@ fi
 if [[ -n "$WITH_STARTUP" ]]; then
   echo
   echo "Startup library:"
-  echo "  skills/startup/            - Startup library patterns"
+  echo "  .agent/skills/startup/     - Startup library patterns"
   echo "  go.mod                     - Updated with startup deps"
 fi
 
@@ -738,21 +814,14 @@ if [[ -n "$SCAFFOLD" ]]; then
   echo "  4. View admin panel:   http://localhost:8080/admin"
   echo
   echo "Or use OpenCode workflow:"
-elif [[ "$BACKEND" == "beads" ]]; then
-  echo "  1. Start a feature:    /issue \"Your feature description\""
-  echo "     (creates issue + starts spec in plan mode)"
-  echo "  2. Create tasks:       /createtasks ISSUE-1"
-  echo "  3. Start implementing: /implement ISSUE-1"
-  echo "     (auto-switches to build mode)"
 elif [[ "$BACKEND" == "jira-taskwarrior" ]]; then
   echo "  1. Edit opencode.json with your Jira site/project"
   echo "  2. Authenticate:       acli jira auth"
-  echo "  3. Start a feature:    /issue \"Your feature description\""
-  echo "     (creates Jira issue + starts spec in plan mode)"
-  echo "  4. Create tasks:       /createtasks PROJ-123"
-  echo "  5. Start implementing: /implement PROJ-123"
-  echo "     (auto-switches to build mode)"
 fi
+echo "  Start a feature:    /issue \"Your feature description\""
+echo "  Create tasks:       /createtasks ISSUE-1"
+echo "  Start implementing: /implement ISSUE-1"
 echo
-echo "Documentation: $OPENCODE_ROOT/backends/$BACKEND/README.md"
+echo "Tip: Edit AGENTS.md to add project-specific context for the AI."
+echo "Documentation: $TARGET_DIR/.agent/backends/$BACKEND/README.md"
 echo

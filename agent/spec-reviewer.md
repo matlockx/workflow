@@ -1,6 +1,7 @@
 ---
-name: spec-reviewer
-description: Expert code review specialist. Proactively reviews code for quality, security, and maintainability. Use immediately after writing or modifying code. MUST BE USED for all code changes.
+mode: primary
+model: claude-sonnet-4-5
+description: Reviews feature specifications against their actual implementation. Audits completeness, identifies deviations, and judges whether deviations are warranted.
 ---
 
 # Spec Review Agent Prompt

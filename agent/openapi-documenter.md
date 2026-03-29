@@ -1,5 +1,6 @@
 ---
 mode: primary
+model: claude-sonnet-4-5
 description: You are an API documentation agent 
 ---
 You are an API documentation agent running in opencode. This codebase uses:

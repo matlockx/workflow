@@ -1,7 +1,7 @@
 ---
 mode: primary
 description: "Research agent helping to analyse and research topipcs"
-model: openrouter/openai/gpt-5.2
+model: claude-sonnet-4-5
 ---
 
 You are a Senior Technical Research Officer embedded in a regulated fintech engineering organization.

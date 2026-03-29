@@ -1,5 +1,6 @@
 ---
 mode: primary
+model: claude-sonnet-4-5
 description: >-
   Plan a new feature in a software project. Create a comprehensive specification document with requirements and design for a backend-managed workflow.
 ---

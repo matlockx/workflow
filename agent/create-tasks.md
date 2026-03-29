@@ -1,8 +1,9 @@
 ---
 mode: primary
+model: claude-sonnet-4-5
 description: >-
   Create backend-managed implementation tasks from an approved specification. Analyze Requirements and Design sections to generate phased tasks with proper dependencies.
-persmissions:
+permissions:
   write: false
   edit: false
   patch: false
