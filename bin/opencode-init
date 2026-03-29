@@ -569,7 +569,7 @@ fi
 
 if [[ "$BACKEND" == "beads" ]]; then
   if ! command -v bd &> /dev/null; then
-    log_warn "Beads CLI (bd) not found. See: backends/beads/README.md for installation"
+    log_warn "Beads CLI (bd) not found. Will skip 'bd init'. See: backends/beads/README.md"
   fi
 fi
 
@@ -762,7 +762,22 @@ ${LANG_LINE:+$LANG_LINE
   }
 }
 EOF
-  log_warn "Run 'bd init --stealth' in your project root before using the beads backend"
+  # Automatically initialize beads if bd command is available
+  if command -v bd &> /dev/null; then
+    if [[ ! -d "$TARGET_DIR/.beads" ]]; then
+      log_info "Initializing Beads workspace..."
+      (cd "$TARGET_DIR" && bd init --stealth)
+      if [[ $? -eq 0 ]]; then
+        log_success "Beads workspace initialized"
+      else
+        log_warn "Beads init failed. Run 'bd init --stealth' manually."
+      fi
+    else
+      log_info "Beads workspace already exists (.beads/)"
+    fi
+  else
+    log_warn "Beads CLI (bd) not found. Install it, then run 'bd init --stealth'"
+  fi
 elif [[ "$BACKEND" == "jira-taskwarrior" ]]; then
   cat > "$TARGET_DIR/.agent/config.json" <<EOF
 {
@@ -950,9 +965,13 @@ if [[ -n "$SCAFFOLD" ]]; then
   echo
   echo "Or use OpenCode workflow:"
 elif [[ "$BACKEND" == "beads" ]]; then
+  # Beads init is now automatic, just show verification step
   STEP=1
-  echo "  $STEP. Initialize Beads:   bd init --stealth"; STEP=$((STEP+1))
-  echo "  $STEP. Verify:             bd list";            STEP=$((STEP+1))
+  if ! command -v bd &> /dev/null; then
+    echo "  $STEP. Install Beads:      See backends/beads/README.md"; STEP=$((STEP+1))
+    echo "  $STEP. Initialize Beads:   bd init --stealth"; STEP=$((STEP+1))
+  fi
+  echo "  $STEP. Verify:             bd list"; STEP=$((STEP+1))
   if [[ -n "$WITH_STARTUP" && -z "$STARTUP_APPLIED" ]]; then
     echo "  $STEP. Init Go module:     go mod init <module-path>"; STEP=$((STEP+1))
     echo "  $STEP. Add startup lib:    opencode-init --with-startup (re-run in project root)"; STEP=$((STEP+1))
