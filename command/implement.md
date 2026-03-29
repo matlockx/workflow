@@ -1,6 +1,7 @@
 ---
 description: Implement tasks from an approved spec using the configured workflow backend
 agent: build
+mode: build
 ---
 
 # Implement backend-managed tasks

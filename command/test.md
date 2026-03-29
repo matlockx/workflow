@@ -1,6 +1,7 @@
 ---
 description: Run tests with coverage
 agent: test-agent
+mode: build
 subtask: true
 ---
 

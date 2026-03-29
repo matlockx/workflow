@@ -739,17 +739,19 @@ if [[ -n "$SCAFFOLD" ]]; then
   echo
   echo "Or use OpenCode workflow:"
 elif [[ "$BACKEND" == "beads" ]]; then
-  echo "  1. Create an issue:    bd issue create \"Your feature description\""
-  echo "  2. Write a spec:       /spec ISSUE-1"
-  echo "  3. Create tasks:       /createtasks ISSUE-1"
-  echo "  4. Start implementing: /implement ISSUE-1"
+  echo "  1. Start a feature:    /issue \"Your feature description\""
+  echo "     (creates issue + starts spec in plan mode)"
+  echo "  2. Create tasks:       /createtasks ISSUE-1"
+  echo "  3. Start implementing: /implement ISSUE-1"
+  echo "     (auto-switches to build mode)"
 elif [[ "$BACKEND" == "jira-taskwarrior" ]]; then
   echo "  1. Edit opencode.json with your Jira site/project"
   echo "  2. Authenticate:       acli jira auth"
-  echo "  3. Create an issue in Jira, note the key (e.g., PROJ-123)"
-  echo "  4. Write a spec:       /spec PROJ-123"
-  echo "  5. Create tasks:       /createtasks PROJ-123"
-  echo "  6. Start implementing: /implement PROJ-123"
+  echo "  3. Start a feature:    /issue \"Your feature description\""
+  echo "     (creates Jira issue + starts spec in plan mode)"
+  echo "  4. Create tasks:       /createtasks PROJ-123"
+  echo "  5. Start implementing: /implement PROJ-123"
+  echo "     (auto-switches to build mode)"
 fi
 echo
 echo "Documentation: $OPENCODE_ROOT/backends/$BACKEND/README.md"

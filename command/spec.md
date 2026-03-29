@@ -1,6 +1,7 @@
 ---
 description: Create a spec from an issue using the configured workflow backend
 agent: spec-mode
+mode: plan
 ---
 
 # Create spec from issue

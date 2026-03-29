@@ -1,6 +1,7 @@
 ---
 description: Commit don't push
 agent: build
+mode: build
 model: github-copilot/claude-haiku-4.5
 subtask: true
 ---

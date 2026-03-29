@@ -1,6 +1,7 @@
 ---
 description: Create implementation tasks from an approved spec using the configured workflow backend
 agent: create-tasks
+mode: plan
 ---
 
 # Create implementation tasks from spec
