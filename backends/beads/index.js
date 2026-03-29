@@ -621,6 +621,29 @@ ${issue.description || '(Fill in requirements)'}
     return this._normalizeTask(updated)
   }
 
+  async linkIssueToEpic(issueId, epicId) {
+    // AIDEV-NOTE: Beads has no native Epic concept; Epic linking is metadata-only,
+    // consistent with the file backend. Child gets metadata.epicId; Epic gets
+    // metadata.childIssueIds updated. Both updates are best-effort.
+    await this._ensureWorkspace()
+
+    const child = await this.updateIssue(issueId, {
+      metadata: { epicId }
+    })
+
+    // Best-effort: update Epic's childIssueIds list
+    try {
+      const epic = await this.getIssue(epicId)
+      const existing = epic.metadata?.childIssueIds || []
+      const childIssueIds = [...new Set([...existing, issueId])]
+      await this.updateIssue(epicId, { metadata: { childIssueIds } })
+    } catch (err) {
+      // Non-fatal: Epic may not exist or update may fail
+    }
+
+    return child
+  }
+
   getWorkStates() {
     return ['new', 'draft', 'todo', 'inprogress', 'review', 'approved', 'rejected', 'done']
   }

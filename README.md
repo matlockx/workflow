@@ -44,6 +44,7 @@ cd ~/projects/myapp
 | Backend | Best for | Dependencies |
 |---------|----------|--------------|
 | `file` | Solo developers, simple projects, getting started | None |
+| `beads` | Individuals wanting lightweight local workflow | Beads (`bd`) CLI |
 | `jira-taskwarrior` | Teams using Jira | ACLI, Taskwarrior |
 
 ### File backend (default)
@@ -57,6 +58,27 @@ Zero dependencies. Issues and tasks stored as JSON files under `.agent/state/`. 
   }
 }
 ```
+
+### Beads backend
+
+Lightweight local-first task manager using the `bd` CLI. Issues and tasks stored locally; no external service required.
+
+```json
+{
+  "workflow": {
+    "backend": {
+      "type": "beads",
+      "config": {
+        "workspaceDir": "/path/to/project",
+        "beadsDir": "/path/to/project/.beads",
+        "lmmNotesRoot": "/path/to/project/notes"
+      }
+    }
+  }
+}
+```
+
+Run `bd init --stealth` in your project root before first use. See [`backends/beads/README.md`](backends/beads/README.md) for setup.
 
 ### Jira-Taskwarrior backend
 
@@ -133,7 +155,7 @@ At each gate you choose: `[c]ontinue  [s]kip  [a]uto-run  [q]uit`
 Usage: opencode-init [OPTIONS] [target-dir]
 
 Options:
-  --backend=TYPE    file (default) or jira-taskwarrior
+  --backend=TYPE    file (default), beads, or jira-taskwarrior
   --stack=backend   Copy all backend infra skills (postgres, kafka, docker, …)
   --skills=LIST     Comma-separated skills (e.g. postgres,kafka,docker)
   --lang=LANG       Language tooling: go, rust, node, python, both

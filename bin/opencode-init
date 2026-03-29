@@ -154,7 +154,7 @@ Usage: opencode-init [OPTIONS] [target-dir]
 Initialize OpenCode workflow in a project directory.
 
 Options:
-  --backend=TYPE    Workflow backend: file (default) or jira-taskwarrior
+  --backend=TYPE    Workflow backend: file (default), beads, or jira-taskwarrior
   --stack=PRESET    Stack preset: backend (includes infra skills)
   --skills=LIST     Comma-separated skills to copy (e.g., postgres,kafka,docker)
   --lang=LANG       Language tooling: go, rust, node, python, or both
@@ -181,6 +181,8 @@ Backends:
   file              Zero-dependency local workflow (default, recommended)
                     Sequential IDs (ISSUE-1, ISSUE-2), state in .agent/state/
                     Best for: solo developers, simple projects, getting started
+  beads             Beads (bd) local-first task manager
+                    Best for: individuals wanting lightweight local workflow
   jira-taskwarrior  Jira + Taskwarrior integration (for teams with Jira)
                     Best for: teams already using Jira, rich dependency tracking
 
@@ -480,9 +482,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Validate backend
-if [[ "$BACKEND" != "file" && "$BACKEND" != "jira-taskwarrior" ]]; then
+if [[ "$BACKEND" != "file" && "$BACKEND" != "beads" && "$BACKEND" != "jira-taskwarrior" ]]; then
   log_error "Invalid backend: $BACKEND"
-  echo "Valid backends: file, jira-taskwarrior"
+  echo "Valid backends: file, beads, jira-taskwarrior"
   exit 1
 fi
 
@@ -538,6 +540,12 @@ if [[ "$BACKEND" == "jira-taskwarrior" ]]; then
   fi
   if ! command -v acli &> /dev/null; then
     log_warn "Atlassian CLI (acli) not found. See: https://developer.atlassian.com/cloud/acli/"
+  fi
+fi
+
+if [[ "$BACKEND" == "beads" ]]; then
+  if ! command -v bd &> /dev/null; then
+    log_warn "Beads CLI (bd) not found. See: backends/beads/README.md for installation"
   fi
 fi
 
@@ -694,6 +702,23 @@ if [[ "$BACKEND" == "file" ]]; then
   }
 }
 EOF
+elif [[ "$BACKEND" == "beads" ]]; then
+  cat > "$TARGET_DIR/opencode.json" <<EOF
+{
+  "\$schema": "https://opencode.ai/schemas/opencode.json",
+  "workflow": {
+    "backend": {
+      "type": "beads",
+      "config": {
+        "workspaceDir": "$TARGET_DIR",
+        "beadsDir": "$TARGET_DIR/.beads",
+        "lmmNotesRoot": "$TARGET_DIR/notes"
+      }
+    }
+  }
+}
+EOF
+  log_warn "Run 'bd init --stealth' in your project root before using the beads backend"
 elif [[ "$BACKEND" == "jira-taskwarrior" ]]; then
   cat > "$TARGET_DIR/opencode.json" <<'EOF'
 {
@@ -860,6 +885,10 @@ if [[ -n "$SCAFFOLD" ]]; then
   echo "  4. View admin panel:   http://localhost:8080/admin"
   echo
   echo "Or use OpenCode workflow:"
+elif [[ "$BACKEND" == "beads" ]]; then
+  echo "  1. Initialize Beads:   bd init --stealth"
+  echo "  2. Verify:             bd list"
+  echo
 elif [[ "$BACKEND" == "jira-taskwarrior" ]]; then
   echo "  1. Edit opencode.json with your Jira site/project"
   echo "  2. Authenticate:       acli jira auth"
