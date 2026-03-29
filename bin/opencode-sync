@@ -10,7 +10,8 @@
 #   opencode-sync ~/projects/myapp # Sync into specified directory
 #
 # What it does:
-#   - Updates .agent/command/*, .agent/agent/*, .agent/lib/*, .agent/backends/,
+#   - Updates .opencode/commands/* (slash commands, per OpenCode spec)
+#   - Updates .agent/agent/*, .agent/lib/*, .agent/backends/,
 #     and .agent/skills/ from the opencode source repo
 #   - Preserves .agent/config.json, .agent/state/, AGENTS.md, opencode.json
 #   - Re-runs language-agent detection based on config.json language setting
@@ -69,7 +70,7 @@ Arguments:
   target-dir    Directory to sync into (default: current directory)
 
 What is updated:
-  .agent/command/      All slash commands (replaced)
+  .opencode/commands/  All slash commands (replaced)
   .agent/agent/        Core agents: spec-mode, create-tasks, plan-mode,
                        build, test-agent, code-reviewer (replaced)
   .agent/lib/          backend-loader, workflow-state, plan-state (replaced)
@@ -195,13 +196,13 @@ fi
 # Sync Commands
 # ============================================
 
-log_info "Syncing commands..."
-# Copy all commands from source — the full command/ dir is always installed
+log_info "Syncing commands to .opencode/commands/..."
+# Copy all commands from source — OpenCode expects them in .opencode/commands/
 UPDATED_COMMANDS=0
 for cmd_src in "$OPENCODE_ROOT/command/"*.md; do
   [[ -f "$cmd_src" ]] || continue
   fname="$(basename "$cmd_src")"
-  dst="$TARGET_DIR/.agent/command/$fname"
+  dst="$TARGET_DIR/.opencode/commands/$fname"
   if [[ -n "$DRY_RUN" ]]; then
     log_verbose "would copy: $dst"
   else

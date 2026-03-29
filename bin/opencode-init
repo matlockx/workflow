@@ -16,8 +16,10 @@
 # AIDEV-NOTE: This script copies the minimal workflow files needed to use
 # OpenCode's /issue, /spec, /createtasks, /implement, /feature, /bug,
 # /resume, /status, and /plan commands in a new project.
-# All workflow machinery is placed under .agent/ (hidden, gitignored state) and
-# specs/ (committed, user-visible). opencode.json and AGENTS.md stay in the root.
+# Commands go in .opencode/commands/ (per OpenCode spec).
+# Agents/skills/backends go in .agent/ (hidden, gitignored state).
+# specs/ and plans/ are committed, user-visible.
+# opencode.json and AGENTS.md stay in the root.
 # Phase 1 additions: /feature, /bug, /resume, /status + workflow-state.js
 # Phase 2 additions: /plan, plan-mode agent, plan-state.js
 # Phase E additions: --stack, --skills, --lang for platform engineering setup.
@@ -584,8 +586,9 @@ fi
 
 log_info "Copying workflow files into .agent/ ..."
 
-# Create .agent/ directory structure
-mkdir -p "$TARGET_DIR/.agent/command"
+# Create .agent/ directory structure (for workflow machinery)
+# Commands go in .opencode/commands/ per OpenCode spec
+mkdir -p "$TARGET_DIR/.opencode/commands"
 mkdir -p "$TARGET_DIR/.agent/agent"
 mkdir -p "$TARGET_DIR/.agent/skills/workflow-backend"
 mkdir -p "$TARGET_DIR/.agent/backends/$BACKEND"
@@ -596,9 +599,9 @@ mkdir -p "$TARGET_DIR/specs"
 mkdir -p "$TARGET_DIR/plans"
 touch "$TARGET_DIR/plans/.gitkeep"
 
-# Copy all commands (entire directory)
-cp "$OPENCODE_ROOT/command/"*.md "$TARGET_DIR/.agent/command/"
-log_success "Copied all commands ($(ls "$OPENCODE_ROOT/command/"*.md | wc -l | tr -d ' ') files)"
+# Copy all commands to .opencode/commands/ (OpenCode's expected location)
+cp "$OPENCODE_ROOT/command/"*.md "$TARGET_DIR/.opencode/commands/"
+log_success "Copied all commands to .opencode/commands/ ($(ls "$OPENCODE_ROOT/command/"*.md | wc -l | tr -d ' ') files)"
 
 # Copy core agents (selective — agent/ contains many project-specific extras)
 cp "$OPENCODE_ROOT/agent/spec-mode.md"     "$TARGET_DIR/.agent/agent/"
@@ -855,19 +858,19 @@ echo "  .agent/config.json             - Workflow backend configuration"
 echo "  AGENTS.md                      - AI assistant context (customize me!)"
 echo "  specs/                         - Spec documents (committed to git)"
 echo "  plans/                         - Backlog markdowns from /plan (committed to git)"
-echo "  .agent/command/plan.md         - /plan      brainstorm & bulk-create a backlog"
-echo "  .agent/command/feature.md      - /feature   full lifecycle orchestrator"
-echo "  .agent/command/bug.md          - /bug        alias for /feature --type=bug"
-echo "  .agent/command/resume.md       - /resume     pick up where you left off"
-echo "  .agent/command/status.md       - /status     view all active work items"
-echo "  .agent/command/issue.md        - /issue      create a new issue"
-echo "  .agent/command/spec.md         - /spec       draft & approve a spec"
-echo "  .agent/command/createtasks.md  - /createtasks   break spec into tasks"
-echo "  .agent/command/implement.md    - /implement     execute tasks"
-echo "  .agent/command/git.md          - /git        commit staged changes"
-echo "  .agent/command/test.md         - /test       run tests with coverage"
-echo "  .agent/command/codereview.md   - /codereview review the current diff"
-echo "  .agent/command/PR-summary.md   - /PR-summary write a PR description"
+echo "  .opencode/commands/plan.md     - /plan      brainstorm & bulk-create a backlog"
+echo "  .opencode/commands/feature.md  - /feature   full lifecycle orchestrator"
+echo "  .opencode/commands/bug.md      - /bug        alias for /feature --type=bug"
+echo "  .opencode/commands/resume.md   - /resume     pick up where you left off"
+echo "  .opencode/commands/status.md   - /status     view all active work items"
+echo "  .opencode/commands/issue.md    - /issue      create a new issue"
+echo "  .opencode/commands/spec.md     - /spec       draft & approve a spec"
+echo "  .opencode/commands/createtasks.md  - /createtasks   break spec into tasks"
+echo "  .opencode/commands/implement.md    - /implement     execute tasks"
+echo "  .opencode/commands/git.md      - /git        commit staged changes"
+echo "  .opencode/commands/test.md     - /test       run tests with coverage"
+echo "  .opencode/commands/codereview.md   - /codereview review the current diff"
+echo "  .opencode/commands/PR-summary.md   - /PR-summary write a PR description"
 echo "  .agent/agent/spec-mode.md      - Spec writing agent"
 echo "  .agent/agent/create-tasks.md   - Task creation agent"
 echo "  .agent/agent/plan-mode.md      - Planning / brainstorming agent"
