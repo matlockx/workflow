@@ -673,7 +673,8 @@ fi
 # ============================================
 
 if [[ -n "$SCAFFOLD" ]]; then
-  scaffold_service "$SCAFFOLD"
+  # AIDEV-NOTE: || true prevents set -e abort if template is missing.
+  scaffold_service "$SCAFFOLD" || true
 fi
 
 # ============================================
@@ -681,7 +682,10 @@ fi
 # ============================================
 
 if [[ -n "$WITH_STARTUP" ]]; then
-  add_startup_library
+  # AIDEV-NOTE: || true prevents set -e from aborting the script when
+  # add_startup_library returns 1 (e.g. no go.mod found). The function
+  # already emits a log_warn in that case; generation must continue.
+  add_startup_library || true
 fi
 
 # ============================================
