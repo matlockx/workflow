@@ -16,8 +16,9 @@
 # AIDEV-NOTE: This script copies the minimal workflow files needed to use
 # OpenCode's /issue, /spec, /createtasks, /implement, /feature, /bug,
 # /resume, /status, and /plan commands in a new project.
-# Commands go in .opencode/commands/ (per OpenCode spec).
-# Agents/skills/backends go in .agent/ (hidden, gitignored state).
+# All workflow files go in .agent/ with plural subdirectory names:
+# .agent/commands/, .agent/agents/, .agent/skills/.
+# A single symlink .opencode -> .agent makes everything discoverable by OpenCode.
 # specs/ and plans/ are committed, user-visible.
 # opencode.json and AGENTS.md stay in the root.
 # Phase 1 additions: /feature, /bug, /resume, /status + workflow-state.js
@@ -257,11 +258,12 @@ copy_skill() {
   fi
 }
 
-# Copy an agent file into .agent/agent/
+# Copy an agent file into .agent/agents/
+# AIDEV-NOTE: We use plural "agents" to match OpenCode's expected directory name
 copy_agent() {
   local agent_name="$1"
   local agent_src="$OPENCODE_ROOT/agent/$agent_name.md"
-  local agent_dst="$TARGET_DIR/.agent/agent/$agent_name.md"
+  local agent_dst="$TARGET_DIR/.agent/agents/$agent_name.md"
 
   if [[ -f "$agent_src" ]]; then
     cp "$agent_src" "$agent_dst"
@@ -587,10 +589,11 @@ fi
 log_info "Copying workflow files into .agent/ ..."
 
 # Create .agent/ directory structure (for workflow machinery)
-# Commands live in .agent/command/, symlinked from .opencode/commands/ for OpenCode
-mkdir -p "$TARGET_DIR/.agent/command"
-mkdir -p "$TARGET_DIR/.opencode/commands"
-mkdir -p "$TARGET_DIR/.agent/agent"
+# AIDEV-NOTE: We use plural directory names (commands/, agents/) to match
+# OpenCode's expected subdirectory names. A single .opencode -> .agent symlink
+# makes all workflow files discoverable by OpenCode.
+mkdir -p "$TARGET_DIR/.agent/commands"
+mkdir -p "$TARGET_DIR/.agent/agents"
 mkdir -p "$TARGET_DIR/.agent/skills/workflow-backend"
 mkdir -p "$TARGET_DIR/.agent/backends/$BACKEND"
 mkdir -p "$TARGET_DIR/.agent/lib"
@@ -600,24 +603,28 @@ mkdir -p "$TARGET_DIR/specs"
 mkdir -p "$TARGET_DIR/plans"
 touch "$TARGET_DIR/plans/.gitkeep"
 
-# Copy all commands to .agent/command/, then symlink to .opencode/commands/
-cp "$OPENCODE_ROOT/command/"*.md "$TARGET_DIR/.agent/command/"
-log_success "Copied all commands to .agent/command/ ($(ls "$OPENCODE_ROOT/command/"*.md | wc -l | tr -d ' ') files)"
+# Copy all commands to .agent/commands/
+cp "$OPENCODE_ROOT/command/"*.md "$TARGET_DIR/.agent/commands/"
+log_success "Copied all commands to .agent/commands/ ($(ls "$OPENCODE_ROOT/command/"*.md | wc -l | tr -d ' ') files)"
 
-# Create symlinks in .opencode/commands/ pointing to .agent/command/
-for cmd in "$TARGET_DIR/.agent/command/"*.md; do
-  fname="$(basename "$cmd")"
-  ln -sf "../.agent/command/$fname" "$TARGET_DIR/.opencode/commands/$fname"
-done
-log_success "Symlinked commands to .opencode/commands/"
+# Create single symlink: .opencode -> .agent
+# This makes OpenCode discover commands/, agents/, skills/ etc. automatically
+if [[ -L "$TARGET_DIR/.opencode" ]]; then
+  rm "$TARGET_DIR/.opencode"
+elif [[ -d "$TARGET_DIR/.opencode" ]]; then
+  # Remove old per-file symlink directory if exists
+  rm -rf "$TARGET_DIR/.opencode"
+fi
+ln -s .agent "$TARGET_DIR/.opencode"
+log_success "Created symlink: .opencode -> .agent"
 
 # Copy core agents (selective — agent/ contains many project-specific extras)
-cp "$OPENCODE_ROOT/agent/spec-mode.md"     "$TARGET_DIR/.agent/agent/"
-cp "$OPENCODE_ROOT/agent/create-tasks.md"  "$TARGET_DIR/.agent/agent/"
-cp "$OPENCODE_ROOT/agent/plan-mode.md"     "$TARGET_DIR/.agent/agent/"
-cp "$OPENCODE_ROOT/agent/build.md"         "$TARGET_DIR/.agent/agent/"
-cp "$OPENCODE_ROOT/agent/test-agent.md"    "$TARGET_DIR/.agent/agent/"
-cp "$OPENCODE_ROOT/agent/code-reviewer.md" "$TARGET_DIR/.agent/agent/"
+cp "$OPENCODE_ROOT/agent/spec-mode.md"     "$TARGET_DIR/.agent/agents/"
+cp "$OPENCODE_ROOT/agent/create-tasks.md"  "$TARGET_DIR/.agent/agents/"
+cp "$OPENCODE_ROOT/agent/plan-mode.md"     "$TARGET_DIR/.agent/agents/"
+cp "$OPENCODE_ROOT/agent/build.md"         "$TARGET_DIR/.agent/agents/"
+cp "$OPENCODE_ROOT/agent/test-agent.md"    "$TARGET_DIR/.agent/agents/"
+cp "$OPENCODE_ROOT/agent/code-reviewer.md" "$TARGET_DIR/.agent/agents/"
 log_success "Copied core agents (6 files)"
 
 # Copy workflow skill
@@ -866,25 +873,26 @@ echo "  .agent/config.json             - Workflow backend configuration"
 echo "  AGENTS.md                      - AI assistant context (customize me!)"
 echo "  specs/                         - Spec documents (committed to git)"
 echo "  plans/                         - Backlog markdowns from /plan (committed to git)"
-echo "  .opencode/commands/plan.md     - /plan      brainstorm & bulk-create a backlog"
-echo "  .opencode/commands/feature.md  - /feature   full lifecycle orchestrator"
-echo "  .opencode/commands/bug.md      - /bug        alias for /feature --type=bug"
-echo "  .opencode/commands/resume.md   - /resume     pick up where you left off"
-echo "  .opencode/commands/status.md   - /status     view all active work items"
-echo "  .opencode/commands/issue.md    - /issue      create a new issue"
-echo "  .opencode/commands/spec.md     - /spec       draft & approve a spec"
-echo "  .opencode/commands/createtasks.md  - /createtasks   break spec into tasks"
-echo "  .opencode/commands/implement.md    - /implement     execute tasks"
-echo "  .opencode/commands/git.md      - /git        commit staged changes"
-echo "  .opencode/commands/test.md     - /test       run tests with coverage"
-echo "  .opencode/commands/codereview.md   - /codereview review the current diff"
-echo "  .opencode/commands/PR-summary.md   - /PR-summary write a PR description"
-echo "  .agent/agent/spec-mode.md      - Spec writing agent"
-echo "  .agent/agent/create-tasks.md   - Task creation agent"
-echo "  .agent/agent/plan-mode.md      - Planning / brainstorming agent"
-echo "  .agent/agent/build.md          - Implementation / coding agent"
-echo "  .agent/agent/test-agent.md     - Test runner subagent"
-echo "  .agent/agent/code-reviewer.md  - Code review agent"
+echo "  .opencode -> .agent            - Symlink for OpenCode discovery"
+echo "  .agent/commands/plan.md        - /plan      brainstorm & bulk-create a backlog"
+echo "  .agent/commands/feature.md     - /feature   full lifecycle orchestrator"
+echo "  .agent/commands/bug.md         - /bug        alias for /feature --type=bug"
+echo "  .agent/commands/resume.md      - /resume     pick up where you left off"
+echo "  .agent/commands/status.md      - /status     view all active work items"
+echo "  .agent/commands/issue.md       - /issue      create a new issue"
+echo "  .agent/commands/spec.md        - /spec       draft & approve a spec"
+echo "  .agent/commands/createtasks.md - /createtasks   break spec into tasks"
+echo "  .agent/commands/implement.md   - /implement     execute tasks"
+echo "  .agent/commands/git.md         - /git        commit staged changes"
+echo "  .agent/commands/test.md        - /test       run tests with coverage"
+echo "  .agent/commands/codereview.md  - /codereview review the current diff"
+echo "  .agent/commands/PR-summary.md  - /PR-summary write a PR description"
+echo "  .agent/agents/spec-mode.md     - Spec writing agent"
+echo "  .agent/agents/create-tasks.md  - Task creation agent"
+echo "  .agent/agents/plan-mode.md     - Planning / brainstorming agent"
+echo "  .agent/agents/build.md         - Implementation / coding agent"
+echo "  .agent/agents/test-agent.md    - Test runner subagent"
+echo "  .agent/agents/code-reviewer.md - Code review agent"
 echo "  .agent/backends/$BACKEND/      - Backend implementation"
 echo "  .agent/lib/backend-loader.js   - Backend loader utility"
 echo "  .agent/lib/workflow-state.js   - Workflow state persistence"
@@ -902,14 +910,14 @@ if [[ "$LANG" == "go" || "$LANG" == "both" ]]; then
   echo
   echo "Go tooling:"
   echo "  .agent/skills/coding-standards/  - Go coding standards"
-  echo "  .agent/agent/debugger-go.md      - Go debugger agent"
+  echo "  .agent/agents/debugger-go.md     - Go debugger agent"
 fi
 
 if [[ "$LANG" == "rust" || "$LANG" == "both" ]]; then
   echo
   echo "Rust tooling:"
   echo "  .agent/skills/coding-standards/  - Rust coding standards"
-  echo "  .agent/agent/debugger-rust.md    - Rust debugger agent"
+  echo "  .agent/agents/debugger-rust.md   - Rust debugger agent"
 fi
 
 if [[ -n "$SCAFFOLD" ]]; then

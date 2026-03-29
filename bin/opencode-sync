@@ -10,9 +10,10 @@
 #   opencode-sync ~/projects/myapp # Sync into specified directory
 #
 # What it does:
-#   - Updates .opencode/commands/* (slash commands, per OpenCode spec)
-#   - Updates .agent/agent/*, .agent/lib/*, .agent/backends/,
+#   - Updates .agent/commands/* (slash commands)
+#   - Updates .agent/agents/*, .agent/lib/*, .agent/backends/,
 #     and .agent/skills/ from the opencode source repo
+#   - Ensures .opencode -> .agent symlink exists
 #   - Preserves .agent/config.json, .agent/state/, AGENTS.md, opencode.json
 #   - Re-runs language-agent detection based on config.json language setting
 #   - Does NOT overwrite AGENTS.md (project-specific, user-editable)
@@ -21,6 +22,7 @@
 #
 # AIDEV-NOTE: This script is the "update" companion to opencode-init.
 # It refreshes workflow machinery while preserving all project-specific config.
+# Uses plural directory names (commands/, agents/) and single .opencode -> .agent symlink.
 
 set -euo pipefail
 
@@ -70,9 +72,9 @@ Arguments:
   target-dir    Directory to sync into (default: current directory)
 
 What is updated:
-  .agent/command/      All slash commands (replaced)
-  .opencode/commands/  Symlinks to .agent/command/ (recreated)
-  .agent/agent/        Core agents: spec-mode, create-tasks, plan-mode,
+  .agent/commands/     All slash commands (replaced)
+  .opencode            Symlink to .agent (ensured)
+  .agent/agents/       Core agents: spec-mode, create-tasks, plan-mode,
                        build, test-agent, code-reviewer (replaced)
   .agent/lib/          backend-loader, workflow-state, plan-state (replaced)
   .agent/backends/     Active backend index.js + README, interface.ts (replaced)
@@ -197,24 +199,40 @@ fi
 # Sync Commands
 # ============================================
 
-# AIDEV-NOTE: Commands are stored in .agent/command/ and symlinked from
-# .opencode/commands/ for OpenCode discovery. This keeps workflow files
-# organized in .agent/ while satisfying OpenCode's command location requirement.
+# AIDEV-NOTE: Commands are stored in .agent/commands/ (plural). A single
+# .opencode -> .agent symlink makes them discoverable by OpenCode.
 
-log_info "Syncing commands to .agent/command/..."
+log_info "Syncing commands to .agent/commands/..."
 UPDATED_COMMANDS=0
 
-# Ensure directories exist
-if [[ -z "$DRY_RUN" ]]; then
-  mkdir -p "$TARGET_DIR/.agent/command"
-  mkdir -p "$TARGET_DIR/.opencode/commands"
+# Migrate from old singular to new plural if needed
+if [[ -d "$TARGET_DIR/.agent/command" && ! -d "$TARGET_DIR/.agent/commands" ]]; then
+  if [[ -z "$DRY_RUN" ]]; then
+    mv "$TARGET_DIR/.agent/command" "$TARGET_DIR/.agent/commands"
+    log_info "Migrated .agent/command/ to .agent/commands/"
+  else
+    log_verbose "would migrate .agent/command/ to .agent/commands/"
+  fi
+elif [[ -d "$TARGET_DIR/.agent/command" && -d "$TARGET_DIR/.agent/commands" ]]; then
+  # Both exist, remove old one
+  if [[ -z "$DRY_RUN" ]]; then
+    rm -rf "$TARGET_DIR/.agent/command"
+    log_info "Removed old .agent/command/ (migrated to .agent/commands/)"
+  else
+    log_verbose "would remove old .agent/command/"
+  fi
 fi
 
-# Copy commands to .agent/command/
+# Ensure directory exists
+if [[ -z "$DRY_RUN" ]]; then
+  mkdir -p "$TARGET_DIR/.agent/commands"
+fi
+
+# Copy commands to .agent/commands/
 for cmd_src in "$OPENCODE_ROOT/command/"*.md; do
   [[ -f "$cmd_src" ]] || continue
   fname="$(basename "$cmd_src")"
-  dst="$TARGET_DIR/.agent/command/$fname"
+  dst="$TARGET_DIR/.agent/commands/$fname"
   if [[ -n "$DRY_RUN" ]]; then
     log_verbose "would copy: $dst"
   else
@@ -224,20 +242,29 @@ for cmd_src in "$OPENCODE_ROOT/command/"*.md; do
   UPDATED_COMMANDS=$((UPDATED_COMMANDS + 1))
 done
 
-# Create/update symlinks from .opencode/commands/ -> .agent/command/
+# Ensure .opencode -> .agent symlink exists
 if [[ -z "$DRY_RUN" ]]; then
-  for cmd in "$TARGET_DIR/.agent/command/"*.md; do
-    [[ -f "$cmd" ]] || continue
-    fname="$(basename "$cmd")"
-    symlink="$TARGET_DIR/.opencode/commands/$fname"
-    # Remove existing file/symlink and recreate
-    rm -f "$symlink"
-    ln -s "../../.agent/command/$fname" "$symlink"
-    log_verbose "symlinked: $symlink -> ../../.agent/command/$fname"
-  done
-  log_success "Commands synced: $UPDATED_COMMANDS files (symlinked to .opencode/commands/)"
+  if [[ -L "$TARGET_DIR/.opencode" ]]; then
+    # Symlink exists, verify it points to .agent
+    link_target="$(readlink "$TARGET_DIR/.opencode")"
+    if [[ "$link_target" != ".agent" ]]; then
+      rm "$TARGET_DIR/.opencode"
+      ln -s .agent "$TARGET_DIR/.opencode"
+      log_verbose "fixed symlink: .opencode -> .agent"
+    fi
+  elif [[ -d "$TARGET_DIR/.opencode" ]]; then
+    # Old per-file symlink directory exists, replace with single symlink
+    rm -rf "$TARGET_DIR/.opencode"
+    ln -s .agent "$TARGET_DIR/.opencode"
+    log_verbose "replaced directory with symlink: .opencode -> .agent"
+  else
+    # No .opencode exists, create symlink
+    ln -s .agent "$TARGET_DIR/.opencode"
+    log_verbose "created symlink: .opencode -> .agent"
+  fi
+  log_success "Commands synced: $UPDATED_COMMANDS files"
 else
-  log_verbose "would create symlinks in .opencode/commands/"
+  log_verbose "would ensure .opencode -> .agent symlink"
   log_success "Commands would sync: $UPDATED_COMMANDS files"
 fi
 
@@ -247,12 +274,28 @@ fi
 
 # AIDEV-NOTE: agent/ in the source repo contains many project-specific extras
 # (arch-linux, api-documenter, etc.) that were never installed by opencode-init.
-# We only update agents already present in .agent/agent/ rather than blindly
-# copying everything.
+# We only update agents already present in .agent/agents/ rather than blindly
+# copying everything. Uses plural "agents/" to match OpenCode convention.
 log_info "Syncing agents..."
 UPDATED_AGENTS=0
-if [[ -d "$TARGET_DIR/.agent/agent" ]]; then
-  for installed_agent in "$TARGET_DIR/.agent/agent/"*.md; do
+
+# Check both old (singular) and new (plural) locations for migration
+AGENTS_DIR=""
+if [[ -d "$TARGET_DIR/.agent/agents" ]]; then
+  AGENTS_DIR="$TARGET_DIR/.agent/agents"
+elif [[ -d "$TARGET_DIR/.agent/agent" ]]; then
+  # Migrate from old singular to new plural
+  if [[ -z "$DRY_RUN" ]]; then
+    mv "$TARGET_DIR/.agent/agent" "$TARGET_DIR/.agent/agents"
+    log_info "Migrated .agent/agent/ to .agent/agents/"
+  else
+    log_verbose "would migrate .agent/agent/ to .agent/agents/"
+  fi
+  AGENTS_DIR="$TARGET_DIR/.agent/agents"
+fi
+
+if [[ -n "$AGENTS_DIR" && -d "$AGENTS_DIR" ]]; then
+  for installed_agent in "$AGENTS_DIR/"*.md; do
     [[ -f "$installed_agent" ]] || continue
     agent_name="$(basename "$installed_agent")"
     src_agent="$OPENCODE_ROOT/agent/$agent_name"
