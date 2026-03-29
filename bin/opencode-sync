@@ -196,86 +196,62 @@ fi
 # ============================================
 
 log_info "Syncing commands..."
+# Copy all commands from source — the full command/ dir is always installed
 UPDATED_COMMANDS=0
 for cmd_src in "$OPENCODE_ROOT/command/"*.md; do
   [[ -f "$cmd_src" ]] || continue
   fname="$(basename "$cmd_src")"
   dst="$TARGET_DIR/.agent/command/$fname"
-  # Only sync commands that are already installed (don't add new ones silently)
-  if [[ -f "$dst" ]]; then
-    sync_file "$cmd_src" "$dst"
-    UPDATED_COMMANDS=$((UPDATED_COMMANDS + 1))
+  if [[ -n "$DRY_RUN" ]]; then
+    log_verbose "would copy: $dst"
   else
-    log_verbose "skipping new command (not installed): $fname"
+    mkdir -p "$(dirname "$dst")"
+    cp "$cmd_src" "$dst"
+    log_verbose "copied: $dst"
   fi
+  UPDATED_COMMANDS=$((UPDATED_COMMANDS + 1))
 done
 log_success "Commands synced: $UPDATED_COMMANDS files"
 
 # ============================================
-# Sync Core Agents
+# Sync Agents (installed-only)
 # ============================================
 
-log_info "Syncing core agents..."
-CORE_AGENTS=(
-  "spec-mode"
-  "create-tasks"
-  "plan-mode"
-  "build"
-  "test-agent"
-  "code-reviewer"
-)
+# AIDEV-NOTE: agent/ in the source repo contains many project-specific extras
+# (arch-linux, api-documenter, etc.) that were never installed by opencode-init.
+# We only update agents already present in .agent/agent/ rather than blindly
+# copying everything.
+log_info "Syncing agents..."
 UPDATED_AGENTS=0
-for agent in "${CORE_AGENTS[@]}"; do
-  dst="$TARGET_DIR/.agent/agent/$agent.md"
-  if [[ -f "$dst" ]]; then
-    sync_file "$OPENCODE_ROOT/agent/$agent.md" "$dst"
-    UPDATED_AGENTS=$((UPDATED_AGENTS + 1))
-  else
-    log_verbose "skipping agent (not installed): $agent.md"
-  fi
-done
-log_success "Core agents synced: $UPDATED_AGENTS files"
-
-# ============================================
-# Sync Language Agents
-# ============================================
-
-if [[ -n "$LANG" ]]; then
-  log_info "Syncing language agents (lang=$LANG)..."
-  LANG_AGENTS=()
-  if [[ "$LANG" == "go" || "$LANG" == "both" ]]; then
-    LANG_AGENTS+=("debugger-go")
-  fi
-  if [[ "$LANG" == "rust" || "$LANG" == "both" ]]; then
-    LANG_AGENTS+=("debugger-rust")
-  fi
-  if [[ "$LANG" == "node" ]]; then
-    LANG_AGENTS+=("debugger-ts")
-  fi
-
-  UPDATED_LANG_AGENTS=0
-  for agent in "${LANG_AGENTS[@]}"; do
-    src="$OPENCODE_ROOT/agent/$agent.md"
-    dst="$TARGET_DIR/.agent/agent/$agent.md"
-    if [[ -f "$src" ]]; then
-      sync_file "$src" "$dst"
-      UPDATED_LANG_AGENTS=$((UPDATED_LANG_AGENTS + 1))
+if [[ -d "$TARGET_DIR/.agent/agent" ]]; then
+  for installed_agent in "$TARGET_DIR/.agent/agent/"*.md; do
+    [[ -f "$installed_agent" ]] || continue
+    agent_name="$(basename "$installed_agent")"
+    src_agent="$OPENCODE_ROOT/agent/$agent_name"
+    if [[ -f "$src_agent" ]]; then
+      sync_file "$src_agent" "$installed_agent"
+      UPDATED_AGENTS=$((UPDATED_AGENTS + 1))
     else
-      log_verbose "language agent not found in source: $agent.md"
+      log_verbose "agent '$agent_name' installed but not in source repo — skipping"
     fi
   done
-  log_success "Language agents synced: $UPDATED_LANG_AGENTS files"
 fi
+log_success "Agents synced: $UPDATED_AGENTS files"
 
 # ============================================
 # Sync Lib
 # ============================================
 
 log_info "Syncing lib..."
-sync_file "$OPENCODE_ROOT/lib/backend-loader.js" "$TARGET_DIR/.agent/lib/backend-loader.js"
-sync_file "$OPENCODE_ROOT/lib/workflow-state.js"  "$TARGET_DIR/.agent/lib/workflow-state.js"
-sync_file "$OPENCODE_ROOT/lib/plan-state.js"      "$TARGET_DIR/.agent/lib/plan-state.js"
-log_success "Lib synced: backend-loader, workflow-state, plan-state"
+# Copy all JS files from lib/ (excludes non-workflow data files like go-modernizers.json)
+UPDATED_LIB=0
+for lib_src in "$OPENCODE_ROOT/lib/"*.js; do
+  [[ -f "$lib_src" ]] || continue
+  fname="$(basename "$lib_src")"
+  sync_file "$lib_src" "$TARGET_DIR/.agent/lib/$fname"
+  UPDATED_LIB=$((UPDATED_LIB + 1))
+done
+log_success "Lib synced: $UPDATED_LIB JS files"
 
 # ============================================
 # Sync Templates

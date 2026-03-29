@@ -596,46 +596,31 @@ mkdir -p "$TARGET_DIR/specs"
 mkdir -p "$TARGET_DIR/plans"
 touch "$TARGET_DIR/plans/.gitkeep"
 
-# Copy commands
-cp "$OPENCODE_ROOT/command/spec.md"                  "$TARGET_DIR/.agent/command/"
-cp "$OPENCODE_ROOT/command/createtasks.md"           "$TARGET_DIR/.agent/command/"
-cp "$OPENCODE_ROOT/command/implement.md"             "$TARGET_DIR/.agent/command/"
-cp "$OPENCODE_ROOT/command/issue.md"                 "$TARGET_DIR/.agent/command/"
-cp "$OPENCODE_ROOT/command/feature.md"               "$TARGET_DIR/.agent/command/"
-cp "$OPENCODE_ROOT/command/bug.md"                   "$TARGET_DIR/.agent/command/"
-cp "$OPENCODE_ROOT/command/resume.md"                "$TARGET_DIR/.agent/command/"
-cp "$OPENCODE_ROOT/command/status.md"                "$TARGET_DIR/.agent/command/"
-cp "$OPENCODE_ROOT/command/plan.md"                  "$TARGET_DIR/.agent/command/"
-cp "$OPENCODE_ROOT/command/git.md"                   "$TARGET_DIR/.agent/command/"
-cp "$OPENCODE_ROOT/command/test.md"                  "$TARGET_DIR/.agent/command/"
-cp "$OPENCODE_ROOT/command/codereview.md"            "$TARGET_DIR/.agent/command/"
-cp "$OPENCODE_ROOT/command/PR-summary.md"            "$TARGET_DIR/.agent/command/"
-cp "$OPENCODE_ROOT/command/generate-lang-skills.md"  "$TARGET_DIR/.agent/command/"
-log_success "Copied commands: issue, spec, createtasks, implement, feature, bug, resume, status, plan, git, test, codereview, PR-summary, generate-lang-skills"
+# Copy all commands (entire directory)
+cp "$OPENCODE_ROOT/command/"*.md "$TARGET_DIR/.agent/command/"
+log_success "Copied all commands ($(ls "$OPENCODE_ROOT/command/"*.md | wc -l | tr -d ' ') files)"
 
-# Copy agents
-cp "$OPENCODE_ROOT/agent/spec-mode.md"    "$TARGET_DIR/.agent/agent/"
-cp "$OPENCODE_ROOT/agent/create-tasks.md" "$TARGET_DIR/.agent/agent/"
-cp "$OPENCODE_ROOT/agent/plan-mode.md"    "$TARGET_DIR/.agent/agent/"
-cp "$OPENCODE_ROOT/agent/build.md"        "$TARGET_DIR/.agent/agent/"
-cp "$OPENCODE_ROOT/agent/test-agent.md"   "$TARGET_DIR/.agent/agent/"
+# Copy core agents (selective — agent/ contains many project-specific extras)
+cp "$OPENCODE_ROOT/agent/spec-mode.md"     "$TARGET_DIR/.agent/agent/"
+cp "$OPENCODE_ROOT/agent/create-tasks.md"  "$TARGET_DIR/.agent/agent/"
+cp "$OPENCODE_ROOT/agent/plan-mode.md"     "$TARGET_DIR/.agent/agent/"
+cp "$OPENCODE_ROOT/agent/build.md"         "$TARGET_DIR/.agent/agent/"
+cp "$OPENCODE_ROOT/agent/test-agent.md"    "$TARGET_DIR/.agent/agent/"
 cp "$OPENCODE_ROOT/agent/code-reviewer.md" "$TARGET_DIR/.agent/agent/"
-log_success "Copied agents: spec-mode, create-tasks, plan-mode, build, test-agent, code-reviewer"
+log_success "Copied core agents (6 files)"
 
 # Copy workflow skill
 cp "$OPENCODE_ROOT/skills/workflow-backend/SKILL.md" "$TARGET_DIR/.agent/skills/workflow-backend/"
 log_success "Copied skill: workflow-backend"
 
 # Copy backend
-cp "$OPENCODE_ROOT/backends/$BACKEND/index.js" "$TARGET_DIR/.agent/backends/$BACKEND/"
+cp "$OPENCODE_ROOT/backends/$BACKEND/index.js"  "$TARGET_DIR/.agent/backends/$BACKEND/"
 cp "$OPENCODE_ROOT/backends/$BACKEND/README.md" "$TARGET_DIR/.agent/backends/$BACKEND/"
 log_success "Copied backend: $BACKEND"
 
-# Copy lib
-cp "$OPENCODE_ROOT/lib/backend-loader.js"  "$TARGET_DIR/.agent/lib/"
-cp "$OPENCODE_ROOT/lib/workflow-state.js"  "$TARGET_DIR/.agent/lib/"
-cp "$OPENCODE_ROOT/lib/plan-state.js"      "$TARGET_DIR/.agent/lib/"
-log_success "Copied lib: backend-loader, workflow-state, plan-state"
+# Copy lib JS files only (lib/ also contains non-workflow data files like go-modernizers.json)
+cp "$OPENCODE_ROOT/lib/"*.js "$TARGET_DIR/.agent/lib/"
+log_success "Copied lib ($(ls "$OPENCODE_ROOT/lib/"*.js | wc -l | tr -d ' ') JS files)"
 
 # Copy templates used by commands
 cp "$OPENCODE_ROOT/templates/generate-lang-skills.md.tmpl" "$TARGET_DIR/.agent/templates/"
