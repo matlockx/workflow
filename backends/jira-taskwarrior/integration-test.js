@@ -261,7 +261,7 @@ function makeBackend() {
     jiraSite: 'test.atlassian.net',
     jiraProject: 'INT',
     jiraEmail: 'tester@example.com',
-    lmmNotesRoot: '/tmp/integ-notes',
+    specsDir: '/tmp/integ-specs',
     repository: 'integration'
   })
 }

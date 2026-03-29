@@ -112,7 +112,7 @@ Add to your `opencode.json`:
         "jiraEmail": "you@example.com",
         "taskrcPath": "~/.taskrc",
         "taskDataLocation": "~/.task",
-        "lmmNotesRoot": "./notes",
+        "specsDir": "./specs",
         "repository": "my-project",
         "useBugwarrior": true,
         "bugwarriorConfig": "~/.config/bugwarrior/bugwarrior.toml"
@@ -128,7 +128,6 @@ Or use environment variables:
 export JIRA_SITE="your-site.atlassian.net"
 export JIRA_PROJECT="PROJ"
 export JIRA_EMAIL="you@example.com"
-export LLM_NOTES_ROOT="./notes"
 ```
 
 ## Usage
@@ -165,7 +164,7 @@ const spec = await backend.createSpec('PROJ-123')
 
 console.log(`Spec created: ${spec.filePath}`)
 // Creates:
-// - Spec file: ./notes/my-project/notes/specs/PROJ-123__issue-title.md
+// - Spec file: ./specs/PROJ-123__issue-title.md
 // - Task in Taskwarrior with +spec tag and jiraid:PROJ-123
 ```
 
@@ -381,8 +380,8 @@ If spec task exists but file is missing:
 task jiraid:PROJ-123 +spec export
 
 # Manually create spec file
-mkdir -p notes/repo/notes/specs
-touch notes/repo/notes/specs/PROJ-123__title.md
+mkdir -p specs
+touch specs/PROJ-123__title.md
 ```
 
 ### Task Dependency Issues

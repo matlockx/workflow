@@ -18,12 +18,13 @@ const execFileAsync = promisify(execFile)
 
 class BeadsBackend {
   constructor(config = {}) {
+    const projectRoot = config.workspaceDir || process.cwd()
     this.config = {
-      workspaceDir: config.workspaceDir || process.cwd(),
+      workspaceDir: projectRoot,
       beadsDir: config.beadsDir || process.env.BEADS_DIR,
       homeDir: config.homeDir || process.env.HOME,
-      lmmNotesRoot: config.lmmNotesRoot || process.env.LLM_NOTES_ROOT || './notes',
-      repository: config.repository || path.basename(process.cwd()),
+      specsDir: config.specsDir || path.join(projectRoot, 'specs'),
+      repository: config.repository || path.basename(projectRoot),
       defaultAssignee: config.defaultAssignee,
       ...config
     }
@@ -237,14 +238,8 @@ class BeadsBackend {
   }
 
   _buildSpecPath(issue) {
-    const specDir = path.join(
-      this.config.lmmNotesRoot,
-      this.config.repository,
-      'notes',
-      'specs'
-    )
     const fileName = `${issue.id}__${this._slugify(issue.summary)}.md`
-    return path.join(specDir, fileName)
+    return path.join(this.config.specsDir, fileName)
   }
 
   async listIssues(filter = {}) {

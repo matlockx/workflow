@@ -415,7 +415,7 @@ async function runTests() {
     jiraSite: 'test-site.atlassian.net',
     jiraProject: 'PROJ',
     jiraEmail: 'test@example.com',
-    lmmNotesRoot: '/tmp/test-notes',
+    specsDir: '/tmp/test-specs',
     repository: 'default'
   })
   

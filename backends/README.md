@@ -128,7 +128,7 @@ Required `opencode.json` config:
       "config": {
         "apiUrl": "https://...",
         "apiKey": "...",
-        "lmmNotesRoot": "$LLM_NOTES_ROOT"
+        "specsDir": "./specs"
       }
     }
   }
@@ -172,7 +172,7 @@ Create `backends/my-backend/README.md` with:
 1. All methods in `WorkflowBackend` interface
 2. Core work states (new, draft, todo, inprogress, review, approved, rejected, done)
 3. Error handling (throw `BackendError` with codes)
-4. Spec file management in `$LLM_NOTES_ROOT`
+4. Spec file management in `specsDir` (default: `./specs`)
 5. Linking between issues, specs, and tasks
 
 ### Should Implement 🔄

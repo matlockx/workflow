@@ -46,8 +46,8 @@ class JiraTaskwarriorBackend {
       taskrcPath: config.taskrcPath || process.env.TASKRC || '~/.taskrc',
       taskDataLocation: config.taskDataLocation || process.env.TASKDATA || '~/.task',
       
-      // Spec storage
-      lmmNotesRoot: config.lmmNotesRoot || process.env.LLM_NOTES_ROOT || './notes',
+      // Spec storage (simple specs/ dir in project root)
+      specsDir: config.specsDir || './specs',
       repository: config.repository || 'default',
       
       // Bugwarrior (optional)
@@ -59,7 +59,7 @@ class JiraTaskwarriorBackend {
 
     this.config.taskrcPath = this._expandHomePath(this.config.taskrcPath)
     this.config.taskDataLocation = this._expandHomePath(this.config.taskDataLocation)
-    this.config.lmmNotesRoot = this._expandHomePath(this.config.lmmNotesRoot)
+    this.config.specsDir = this._expandHomePath(this.config.specsDir)
     this.config.bugwarriorConfig = this._expandHomePath(this.config.bugwarriorConfig)
     
     // Validate required configuration
@@ -646,16 +646,10 @@ class JiraTaskwarriorBackend {
       const slug = this._slugify(issue.summary)
       const fileName = `${issueId}__${slug}.md`
       
-      const specDir = path.join(
-        this.config.lmmNotesRoot,
-        this.config.repository,
-        'notes',
-        'specs'
-      )
-      const specPath = path.join(specDir, fileName)
+      const specPath = path.join(this.config.specsDir, fileName)
       
       // Create spec directory if needed
-      await fsPromises.mkdir(specDir, { recursive: true })
+      await fsPromises.mkdir(this.config.specsDir, { recursive: true })
       
       // Generate spec content
       const content = this._generateSpecContent(issue)
@@ -717,13 +711,7 @@ class JiraTaskwarriorBackend {
       const issue = await this.getIssue(issueId)
       const slug = this._slugify(issue.summary)
       const fileName = `${issueId}__${slug}.md`
-      const specPath = path.join(
-        this.config.lmmNotesRoot,
-        this.config.repository,
-        'notes',
-        'specs',
-        fileName
-      )
+      const specPath = path.join(this.config.specsDir, fileName)
       
       // Check if file exists
       try {

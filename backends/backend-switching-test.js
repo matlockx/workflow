@@ -267,7 +267,7 @@ async function runTests() {
   await test('4.1: loads mock backend configured in opencode.json', async () => {
     const dir = makeConfigDir({
       type: 'mock',
-      config: { lmmNotesRoot: os.tmpdir() }
+      config: { specsDir: os.tmpdir() }
     })
     const backend = await withCwdAsync(dir, () => getBackend())
     assert(backend, 'Expected a backend instance')
@@ -301,7 +301,7 @@ async function runTests() {
   })
 
   await test('4.4: mock backend instance implements all required interface methods', async () => {
-    const dir = makeConfigDir({ type: 'mock', config: { lmmNotesRoot: os.tmpdir() } })
+    const dir = makeConfigDir({ type: 'mock', config: { specsDir: os.tmpdir() } })
     const backend = withCwd(dir, () => getBackend())
 
     const REQUIRED = [
@@ -322,7 +322,7 @@ async function runTests() {
   console.log('\n5. validateBackendConfig()')
 
   await test('5.1: valid mock config returns {valid: true}', () => {
-    const dir = makeConfigDir({ type: 'mock', config: { lmmNotesRoot: os.tmpdir() } })
+    const dir = makeConfigDir({ type: 'mock', config: { specsDir: os.tmpdir() } })
     const result = withCwd(dir, () => validateBackendConfig())
     assert(result.valid === true, `Expected valid, errors: ${result.errors.join(', ')}`)
     assert(Array.isArray(result.errors), 'Expected errors array')
@@ -364,7 +364,7 @@ async function runTests() {
   })
 
   await test('6.2: valid field is true for valid mock config', () => {
-    const dir = makeConfigDir({ type: 'mock', config: { lmmNotesRoot: os.tmpdir() } })
+    const dir = makeConfigDir({ type: 'mock', config: { specsDir: os.tmpdir() } })
     const info = withCwd(dir, () => getBackendInfo())
     assert(info.valid === true, `Expected valid, got: ${info.valid}`)
   })
@@ -383,7 +383,7 @@ async function runTests() {
   console.log('\n7. End-to-end: load mock backend and perform operations')
 
   await test('7.1: loaded mock backend can createIssue', async () => {
-    const dir = makeConfigDir({ type: 'mock', config: { lmmNotesRoot: os.tmpdir() } })
+    const dir = makeConfigDir({ type: 'mock', config: { specsDir: os.tmpdir() } })
     const backend = withCwd(dir, () => getBackend())
     const issue = await backend.createIssue({
       summary: 'Switching test issue',
@@ -394,7 +394,7 @@ async function runTests() {
   })
 
   await test('7.2: loaded mock backend respects --backend=mock override via parseBackendOverride', async () => {
-    const dir = makeConfigDir({ type: 'mock', config: { lmmNotesRoot: os.tmpdir() } })
+    const dir = makeConfigDir({ type: 'mock', config: { specsDir: os.tmpdir() } })
     const { backendType } = parseBackendOverride('--backend=mock')
     const backend = withCwd(dir, () => getBackend(backendType))
     const states = backend.getWorkStates()

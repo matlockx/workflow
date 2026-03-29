@@ -15,7 +15,7 @@ OpenCode uses Beads for:
 - ready-work detection
 - task state updates
 
-OpenCode still keeps specs as portable markdown files under `$LLM_NOTES_ROOT`.
+Specs are stored as markdown files in `specs/` directory (configurable via `specsDir`).
 
 ---
 
@@ -23,7 +23,6 @@ OpenCode still keeps specs as portable markdown files under `$LLM_NOTES_ROOT`.
 
 - `bd` installed and available in `PATH`
 - a writable Beads workspace
-- `LLM_NOTES_ROOT` configured
 
 Optional but recommended:
 
@@ -91,39 +90,18 @@ bd list --json --all
 
 ---
 
-## Step 3: Configure `LLM_NOTES_ROOT`
+## Step 3: Configure OpenCode
 
-Specs stay outside Beads in portable markdown files.
-
-```bash
-mkdir -p "$HOME/Code/llm-notes"
-echo 'export LLM_NOTES_ROOT="$HOME/Code/llm-notes"' >> ~/.zshrc
-source ~/.zshrc
-```
-
-Verify:
-
-```bash
-echo "$LLM_NOTES_ROOT"
-```
-
----
-
-## Step 4: Configure OpenCode
-
-Set the workflow backend in `opencode.json`:
+Set the workflow backend in `.agent/config.json`:
 
 ```json
 {
-  "workflow": {
-    "backend": {
-      "type": "beads",
-      "config": {
-        "workspaceDir": "/absolute/path/to/your/repo",
-        "beadsDir": "/absolute/path/to/your/repo/.beads",
-        "lmmNotesRoot": "$LLM_NOTES_ROOT",
-        "repository": "your-repo-name"
-      }
+  "backend": {
+    "type": "beads",
+    "config": {
+      "workspaceDir": "/absolute/path/to/your/repo",
+      "beadsDir": "/absolute/path/to/your/repo/.beads",
+      "specsDir": "./specs"
     }
   }
 }
@@ -133,14 +111,13 @@ Set the workflow backend in `opencode.json`:
 
 - `workspaceDir`: repo root where Beads commands should run
 - `beadsDir`: path to the `.beads` workspace
-- `lmmNotesRoot`: portable notes/spec root
-- `repository`: repo slug used for spec file paths
+- `specsDir`: directory for spec markdown files (default: `./specs`)
 - `homeDir`: optional explicit `HOME` override for Beads execution
 - `defaultAssignee`: optional assignee for issue creation
 
 ---
 
-## Step 5: Verify the Backend Runtime
+## Step 4: Verify the Backend Runtime
 
 From the Beads workspace root:
 
@@ -165,7 +142,7 @@ This matters because `bd list` / `bd ready` can return misleading empty results 
 
 ---
 
-## Step 6: Use OpenCode Commands
+## Step 5: Use OpenCode Commands
 
 Once configured, the generic workflow commands work with Beads:
 

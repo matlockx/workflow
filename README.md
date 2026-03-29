@@ -140,7 +140,7 @@ Lightweight local-first task manager using the `bd` CLI. Issues and tasks stored
     "config": {
       "workspaceDir": "/path/to/project",
       "beadsDir": "/path/to/project/.beads",
-      "lmmNotesRoot": "/path/to/project/notes"
+      "specsDir": "./specs"
     }
   }
 }
@@ -163,7 +163,7 @@ Uses Atlassian CLI (ACLI) for Jira and Taskwarrior for local task execution.
       "jiraEmail": "you@example.com",
       "taskrcPath": "~/.taskrc",
       "taskDataLocation": "~/.task",
-      "lmmNotesRoot": "./notes"
+      "specsDir": "./specs"
     }
   }
 }

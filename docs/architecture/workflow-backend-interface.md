@@ -40,7 +40,7 @@ The `WorkflowBackend` interface provides a unified API for interacting with diff
 
 **What**: Technical specifications derived from issues
 
-**Storage**: Markdown files in `$LLM_NOTES_ROOT/<repo>/notes/specs/`
+**Storage**: Markdown files in `specsDir` (default: `./specs`)
 
 **Properties**:
 - Linked to parent issue (via issue ID)
@@ -139,7 +139,7 @@ export interface WorkflowBackend {
    * 
    * This method:
    * - Reads issue context from backend
-   * - Creates spec markdown file in $LLM_NOTES_ROOT
+   * - Creates spec markdown file in specsDir (default: ./specs)
    * - Creates spec task/entry in backend
    * - Links spec to issue
    * 
@@ -402,7 +402,7 @@ All backends **must** implement:
 1. ✅ All methods in the `WorkflowBackend` interface
 2. ✅ Core work states (`new`, `draft`, `todo`, `inprogress`, `review`, `approved`, `rejected`, `done`)
 3. ✅ Error handling (throw `BackendError` with appropriate codes)
-4. ✅ Spec file management in `$LLM_NOTES_ROOT`
+4. ✅ Spec file management in `specsDir`
 5. ✅ Linking between issues, specs, and tasks
 
 ### Should Implement
@@ -481,20 +481,18 @@ Phases are containers for tasks. Phase state typically mirrors the aggregate sta
 
 ## Configuration
 
-Each backend must support configuration via `opencode.json`:
+Each backend must support configuration via `.agent/config.json`:
 
 ```json
 {
-  "workflow": {
-    "backend": {
-      "type": "your-backend-name",
-      "config": {
-        // Backend-specific configuration
-        "apiUrl": "https://...",
-        "credentials": "...",
-        "lmmNotesRoot": "$LLM_NOTES_ROOT",
-        // ... other config
-      }
+  "backend": {
+    "type": "your-backend-name",
+    "config": {
+      // Backend-specific configuration
+      "apiUrl": "https://...",
+      "credentials": "...",
+      "specsDir": "./specs"
+      // ... other config
     }
   }
 }
@@ -504,7 +502,7 @@ Each backend must support configuration via `opencode.json`:
 
 All backends must support:
 
-- `lmmNotesRoot`: Path to spec storage directory
+- `specsDir`: Path to spec storage directory (default: `./specs`)
 
 ### Backend-Specific Config
 
@@ -682,7 +680,7 @@ class MyBackend {
   
   _getSpecPath(issueId, summary) {
     // Generate portable spec path
-    // Format: $LLM_NOTES_ROOT/<repo>/notes/specs/<ISSUEKEY>__<slug>.md
+    // Format: specsDir/<ISSUEKEY>__<slug>.md
   }
   
   _writeSpecFile(path, issue) {

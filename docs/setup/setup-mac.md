@@ -61,52 +61,32 @@ pip3 install -r requirements.txt
 
 ## Step 3: Configure Environment
 
-### Set LLM Notes Root
+### Create Specs Directory
 
-This is where specs will be stored:
+Specs are stored in `specs/` within your project root:
 
 ```bash
-# Create directory
-mkdir -p ~/Code/llm-notes
-
-# Add to shell profile
-echo 'export LLM_NOTES_ROOT="$HOME/Code/llm-notes"' >> ~/.zshrc
-
-# Reload shell
-source ~/.zshrc
-
-# Verify
-echo $LLM_NOTES_ROOT
-# Output: /Users/yourname/Code/llm-notes
+# The specs directory is created automatically by opencode-init,
+# but you can create it manually if needed
+mkdir -p specs
 ```
-
-**Note**: You can use any directory you prefer. Each developer can have different paths.
 
 ### Create OpenCode Configuration
 
-Create `opencode.json` in your project root:
+Create `.agent/config.json` in your project root:
 
 ```json
 {
-  "$schema": "https://opencode.ai/config.json",
-  "workflow": {
-    "backend": {
-      "type": "jira-taskwarrior",  // or "beads" or "custom"
-      "config": {
-        // Backend-specific config (see backend setup guide)
-      }
-    }
-  },
-  "provider": {
-    // Your LLM provider config
-  },
-  "agent": {
-    "general": {
-      "model": "github-copilot/claude-sonnet-4.5"
+  "backend": {
+    "type": "jira-taskwarrior",
+    "config": {
+      "specsDir": "./specs"
     }
   }
 }
 ```
+
+Or use `opencode-init` to generate this automatically.
 
 ---
 
@@ -256,7 +236,7 @@ opencode --version
 /spec TEST-123  # Replace with your test issue ID
 
 # Verify spec file created
-ls $LLM_NOTES_ROOT/*/notes/specs/
+ls specs/
 ```
 
 ---
@@ -281,7 +261,7 @@ echo $SHELL
 
 All shell commands in OpenCode docs are tested on macOS and use portable syntax:
 
-- ✅ **Environment variables**: `$HOME`, `$LLM_NOTES_ROOT` work in both shells
+- ✅ **Environment variables**: `$HOME` works in both shells
 - ✅ **Tilde expansion**: `~/.config` works in both shells  
 - ✅ **Here-docs**: `cat << EOF` syntax works in both shells
 - ✅ **Command substitution**: `$(command)` works in both shells
@@ -335,21 +315,17 @@ source ~/.zshrc
 # Or use sudo for specific commands (not recommended)
 ```
 
-### Issue: $LLM_NOTES_ROOT not found
+### Issue: Spec files not found
 
-**Cause**: Environment variable not set or not persisted
+**Cause**: `specsDir` not configured or directory doesn't exist
 
 **Fix**:
 ```bash
-# Check if set
-echo $LLM_NOTES_ROOT
+# Create the specs directory
+mkdir -p specs
 
-# If empty, add to shell profile
-echo 'export LLM_NOTES_ROOT="$HOME/Code/llm-notes"' >> ~/.zshrc
-source ~/.zshrc
-
-# Verify again
-echo $LLM_NOTES_ROOT
+# Verify .agent/config.json has specsDir configured
+cat .agent/config.json
 ```
 
 ### Issue: Python pip3 not found
@@ -422,18 +398,14 @@ Recommended directory structure on Mac:
 
 ```
 ~/Code/
-├── llm-notes/              # $LLM_NOTES_ROOT
-│   ├── project1/
-│   │   └── notes/
-│   │       └── specs/
-│   ├── project2/
-│   │   └── notes/
-│   │       └── specs/
-│   └── ...
 ├── opencode/               # This repo
 └── your-projects/          # Your actual codebases
     ├── project1/
+    │   ├── specs/          # Spec files live here
+    │   └── ...
     ├── project2/
+    │   ├── specs/
+    │   └── ...
     └── ...
 ```
 
@@ -481,18 +453,7 @@ source ~/.zshrc
 
 ### 3. Setup Git for Specs
 
-Initialize git in your llm-notes directory:
-
-```bash
-cd $LLM_NOTES_ROOT
-git init
-git add .
-git commit -m "Initial commit: spec repository"
-
-# Optional: push to remote
-git remote add origin git@github.com:your-username/llm-notes.git
-git push -u origin main
-```
+Specs live inside your project repo by default (`specs/` directory), so they're automatically version-controlled with your project. No separate git setup is needed.
 
 ### 4. Install Visual Studio Code (Optional)
 
@@ -506,7 +467,7 @@ brew install --cask visual-studio-code
 # Select: "Install 'code' command in PATH"
 
 # Now you can open specs easily
-code $LLM_NOTES_ROOT
+code specs/
 ```
 
 ---

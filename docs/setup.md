@@ -23,17 +23,9 @@ This is a concrete, copy/pasteable setup that gets the whole flow working end-to
 
 All shell commands in this guide use portable syntax compatible with both bash and zsh.
 
-### Directory convention (portable specs)
+### Directory convention (specs)
 
-All devs must have *some* local checkout of `llm-notes`, but the location can differ.
-
-Set this once in your shell profile (`~/.zshrc` on macOS by default, or `~/.bashrc` if you use bash):
-
-```bash
-export LLM_NOTES_ROOT="$HOME/Code/llm-notes"
-```
-
-(Each developer can set it to any path they want.)
+Specs are stored in the `specs/` directory within your project root (configurable via `specsDir` in `.agent/config.json`). The `opencode-init` script creates this directory automatically.
 
 ---
 
@@ -233,23 +225,21 @@ Labels to add:
 Given an issue from the configured backend:
 
 * Creates or resolves a backend-tracked spec entry
-* Creates a spec file in `llm-notes`
-* Stores or links the portable spec path through backend metadata
+* Creates a spec file in `specs/`
+* Stores or links the spec path through backend metadata
 
-### Spec annotation format (portable)
-
-**Never use absolute paths.** Use paths relative to `$LLM_NOTES_ROOT`.
+### Spec annotation format
 
 Example annotation:
 
 ```text
-Spec(repo=project1): project1/notes/specs/IN-1423__read-migration.md
+Spec: specs/IN-1423__read-migration.md
 ```
 
 ### Spec file location
 
 ```text
-$LLM_NOTES_ROOT/project1/notes/specs/IN-1423__read-migration.md
+specs/IN-1423__read-migration.md
 ```
 
 ### Spec file naming
@@ -377,5 +367,5 @@ task +review
 ✅ Jira tasks appear: `task +jira`
 ✅ Assignee visible: `task +jira columns:id,description,jira_assignee`
 ✅ Spec tasks are local: `task +spec`
-✅ Specs are portable: annotations are relative to `$LLM_NOTES_ROOT`
+✅ Specs are portable: stored in project `specs/` directory
 ✅ Build tasks are gated: `depends:<spec-uuid>` so `task ready` enforces flow

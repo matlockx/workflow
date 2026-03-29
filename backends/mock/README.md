@@ -41,7 +41,7 @@ Add to `opencode.json`:
     "backend": {
       "type": "mock",
       "config": {
-        "lmmNotesRoot": "$LLM_NOTES_ROOT",
+        "specsDir": "./specs",
         "autoGenerateSpecs": true,
         "initialIssues": [
           {
@@ -58,7 +58,7 @@ Add to `opencode.json`:
 
 ### Configuration Options
 
-- **`lmmNotesRoot`** (required): Path to spec storage directory
+- **`specsDir`** (optional, default: `./specs`): Path to spec storage directory
 - **`autoGenerateSpecs`** (optional, default: `true`): Auto-generate spec content
 - **`initialIssues`** (optional): Pre-populate with sample issues
 
@@ -72,7 +72,7 @@ Add to `opencode.json`:
 const MockBackend = require('./backends/mock')
 
 const backend = new MockBackend({
-  lmmNotesRoot: process.env.LLM_NOTES_ROOT || './notes',
+  specsDir: './specs',
   autoGenerateSpecs: true
 })
 
@@ -162,7 +162,7 @@ describe('Workflow Tests', () => {
   
   beforeEach(() => {
     backend = new MockBackend({
-      lmmNotesRoot: './test-notes'
+      specsDir: './test-specs'
     })
   })
   

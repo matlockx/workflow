@@ -49,17 +49,14 @@ This deprecated alias will be maintained for **backward compatibility** but may 
 
 ## Configuration
 
-Make sure your `opencode.json` has a workflow backend configured:
+Make sure your `.agent/config.json` has a workflow backend configured:
 
 ```json
 {
-  "workflow": {
-    "backend": {
-      "type": "jira-taskwarrior",
-      "config": {
-        "repository": "your-repo-name",
-        "lmmNotesRoot": "/path/to/notes"
-      }
+  "backend": {
+    "type": "jira-taskwarrior",
+    "config": {
+      "specsDir": "./specs"
     }
   }
 }

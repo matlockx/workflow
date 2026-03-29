@@ -236,7 +236,7 @@ Status: Complete except for one external-environment validation blocker (`5.5.1`
 
 - ✅ **5.3.1**: Review all absolute path references
 - ✅ **5.3.2**: Replace hardcoded `/home/` paths with `~` or env vars
-- ✅ **5.3.3**: Test `$LLM_NOTES_ROOT` resolution on macOS
+- ✅ **5.3.3**: Test spec path resolution on macOS (previously `$LLM_NOTES_ROOT`, now `specsDir`)
 
 ### 5.4: Shell Compatibility
 

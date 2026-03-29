@@ -77,9 +77,9 @@ This guide helps users migrate from the original [matlockx/opencode](https://git
 
 #### 1. Spec Storage
 
-**No change**: Specs still stored in `$LLM_NOTES_ROOT/<repo>/notes/specs/`
+**Simplified**: Specs now stored directly in `specs/` directory (configurable via `specsDir`).
 
-**Benefit**: Specs remain portable across backends.
+**Benefit**: Simpler path structure, no external `$LLM_NOTES_ROOT` required.
 
 #### 2. State Model
 
@@ -105,8 +105,8 @@ This guide helps users migrate from the original [matlockx/opencode](https://git
 # Backup taskwarrior data
 cp -r ~/.task ~/.task.backup
 
-# Backup specs
-cp -r $LLM_NOTES_ROOT $LLM_NOTES_ROOT.backup
+# Backup specs (if you have existing specs)
+cp -r specs specs.backup
 
 # Backup git history
 cd /path/to/opencode
@@ -129,52 +129,27 @@ git checkout -b workflow-agnostic fork/main
 
 ### Step 3: Configure Backend
 
-Create or update `opencode.json`:
+Create or update `.agent/config.json`:
 
 ```json
 {
-  "$schema": "https://opencode.ai/config.json",
-  "workflow": {
-    "backend": {
-      "type": "jira-taskwarrior",
-      "config": {
-        "jiraSite": "your-org.atlassian.net",
-        "jiraProject": "PROJ",
-        "jiraEmail": "you@example.com",
-        "taskrcPath": "~/.taskrc",
-        "taskDataLocation": "~/.task",
-        "lmmNotesRoot": "$LLM_NOTES_ROOT",
-        "repository": "your-repo"
-      }
+  "backend": {
+    "type": "jira-taskwarrior",
+    "config": {
+      "jiraSite": "your-org.atlassian.net",
+      "jiraProject": "PROJ",
+      "jiraEmail": "you@example.com",
+      "taskrcPath": "~/.taskrc",
+      "taskDataLocation": "~/.task",
+      "specsDir": "./specs"
     }
-  },
-  "provider": {
-    // Your existing provider config
-  },
-  "agent": {
-    // Your existing agent config
   }
 }
 ```
 
-**Important**: The `workflow.backend` section is new. Add it to your existing config.
+**Important**: Backend config is in `.agent/config.json`, separate from `opencode.json`.
 
-### Step 4: Update Environment Variables
-
-Ensure `$LLM_NOTES_ROOT` is set:
-
-```bash
-# Add to ~/.zshrc (macOS default) or ~/.bashrc
-export LLM_NOTES_ROOT="$HOME/Code/llm-notes"
-```
-
-Reload your shell:
-
-```bash
-source ~/.zshrc  # or source ~/.bashrc if you use bash
-```
-
-### Step 5: Test Your Workflow
+### Step 4: Test Your Workflow
 
 Test the existing workflow still works:
 
@@ -189,7 +164,7 @@ task +jira list
 /specjira JIRA-123
 ```
 
-### Step 6: Update Your Scripts
+### Step 5: Update Your Scripts
 
 If you have custom scripts or aliases:
 
@@ -203,7 +178,7 @@ alias spec='opencode run /specjira'
 alias spec='opencode run /spec'
 ```
 
-### Step 7: Update Agent Prompts (If Customized)
+### Step 6: Update Agent Prompts (If Customized)
 
 If you've customized agent prompts, update references:
 
@@ -319,20 +294,25 @@ Your specs remain unchanged (they're just markdown files).
 
 ### Issue: Spec files not found
 
-**Cause**: `$LLM_NOTES_ROOT` not set or pointing to wrong location.
+**Cause**: `specsDir` not configured or pointing to wrong location.
 
-**Fix**:
+**Fix**: Ensure `.agent/config.json` has `specsDir` configured:
+
+```json
+{
+  "backend": {
+    "type": "jira-taskwarrior",
+    "config": {
+      "specsDir": "./specs"
+    }
+  }
+}
+```
+
+Then create the specs directory if needed:
 
 ```bash
-# Check if set
-echo $LLM_NOTES_ROOT
-
-# Set it
-export LLM_NOTES_ROOT="$HOME/Code/llm-notes"
-
-# Add to shell profile
-echo 'export LLM_NOTES_ROOT="$HOME/Code/llm-notes"' >> ~/.zshrc
-source ~/.zshrc
+mkdir -p specs
 ```
 
 ### Issue: Taskwarrior commands fail

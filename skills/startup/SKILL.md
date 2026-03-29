@@ -702,6 +702,57 @@ func TestHandler(t *testing.T) {
 
 ---
 
+## HTTP Framework Selection
+
+**IMPORTANT: When building a new REST/HTTP service, always ask the user which HTTP framework they prefer before writing any routing code.**
+
+The startup library's `HTTPOptions.Serve` uses `httprouter` internally for its routing callback, but the actual HTTP framework choice for the application layer is a separate decision. The Go HTTP ecosystem is mature and moving — the right choice depends on project needs.
+
+### Present these options to the user
+
+| Framework | Best for | Notes |
+|-----------|----------|-------|
+| `net/http` (stdlib) | Simple services, minimal deps | Go 1.22+ has pattern-based routing with `http.NewServeMux()`. No external dependency. |
+| `github.com/go-chi/chi/v5` | REST APIs, middleware-heavy | Compatible with `net/http`, composable middleware, lightweight. Popular in production. |
+| `github.com/julienschmidt/httprouter` | Performance-critical routing | What startup library uses internally. Fast radix-tree router. |
+| `github.com/labstack/echo/v4` | Full-featured API framework | Built-in validation, binding, middleware. Heavier but productive. |
+| `github.com/gin-gonic/gin` | Familiar to many teams | Large ecosystem, good docs. Uses httprouter under the hood. |
+
+### Integration with startup library
+
+Regardless of framework choice, the startup library's `HTTPOptions.Serve` expects a `Routing` callback that returns an `http.Handler`. All frameworks above implement `http.Handler`, so they all integrate cleanly:
+
+```go
+// With chi
+opts.HTTP.Serve(startup_http.Config{
+    Name: "my-service",
+    Routing: func(router *httprouter.Router) http.Handler {
+        r := chi.NewRouter()
+        r.Use(middleware.Logger)
+        r.Get("/api/users", listUsers)
+        return r  // chi.Router implements http.Handler
+    },
+})
+
+// With stdlib (Go 1.22+)
+opts.HTTP.Serve(startup_http.Config{
+    Name: "my-service",
+    Routing: func(router *httprouter.Router) http.Handler {
+        mux := http.NewServeMux()
+        mux.HandleFunc("GET /api/users", listUsers)
+        return mux
+    },
+})
+```
+
+Note: When using an alternative framework, the `*httprouter.Router` parameter from the callback is typically ignored — the startup library provides it, but you return your own handler.
+
+### When the user has no preference
+
+If the user doesn't have a preference, recommend `chi` for REST APIs (lightweight, stdlib-compatible, great middleware) or stdlib `net/http` for simple services with few routes.
+
+---
+
 ## AIDEV-NOTE: startup library integration
 
 This skill documents the flachnetz/startup library patterns as the preferred approach

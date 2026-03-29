@@ -20,7 +20,7 @@ const path = require('path')
 class MockBackend {
   constructor(config = {}) {
     this.config = {
-      lmmNotesRoot: config.lmmNotesRoot || process.env.LLM_NOTES_ROOT || './notes',
+      specsDir: config.specsDir || './specs',
       autoGenerateSpecs: config.autoGenerateSpecs !== false,
       initialIssues: config.initialIssues || [],
       ...config
@@ -161,13 +161,10 @@ class MockBackend {
     const slug = this._slugify(issue.summary)
     const fileName = `${issueId}__${slug}.md`
     
-    // Determine repository name (mock: use 'default')
-    const repo = 'default'
-    const specDir = path.join(this.config.lmmNotesRoot, repo, 'notes', 'specs')
-    const specPath = path.join(specDir, fileName)
+    const specPath = path.join(this.config.specsDir, fileName)
     
     // Create spec directory if needed
-    await fs.mkdir(specDir, { recursive: true })
+    await fs.mkdir(this.config.specsDir, { recursive: true })
     
     // Generate spec content
     const content = this._generateSpecContent(issue)

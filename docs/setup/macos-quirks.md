@@ -128,19 +128,6 @@ chsh -s /bin/bash
 
 ## Environment Variables
 
-### $LLM_NOTES_ROOT
-
-**Works**: ✅ Resolves correctly on macOS
-
-**Test Results**:
-```bash
-export LLM_NOTES_ROOT="$HOME/Code/llm-notes"
-echo $LLM_NOTES_ROOT
-# Output: /Users/yourname/Code/llm-notes
-```
-
-**Compatibility**: Identical behavior to Linux.
-
 ### Tilde Expansion
 
 **Works**: ✅ `~` expands to home directory in both zsh and bash

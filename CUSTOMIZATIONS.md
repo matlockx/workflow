@@ -69,18 +69,19 @@ This document tracks all significant changes, decisions, and customizations made
 
 ---
 
-### Spec Storage: Backend-Agnostic Portable Files
+### Spec Storage: Simple Local Directory
 
-**Choice**: Keep specs in `$LLM_NOTES_ROOT`, managed by backend
+**Choice**: Keep specs in `specsDir` (default: `./specs`)
 
 **Rationale**:
 - Specs are valuable artifacts, should be portable
+- Simple path structure, no external environment variables needed
 - Different backends can use same spec format
 - Enables cross-team collaboration (different workflows, same specs)
 - Version control friendly (markdown in git)
 
 **Implementation**:
-- `$LLM_NOTES_ROOT/<repo>/notes/specs/<ISSUEKEY>__<slug>.md`
+- `specs/<ISSUEKEY>__<slug>.md`
 - YAML frontmatter for metadata
 - Backends store spec path in task metadata (links, not ownership)
 
@@ -129,26 +130,24 @@ This document tracks all significant changes, decisions, and customizations made
 
 ### Backend Configuration: Detailed JSON Config
 
-**Choice**: Structured config in `opencode.json`
+**Choice**: Structured config in `.agent/config.json`
 
 **Format**:
 ```json
 {
-  "workflow": {
-    "backend": {
-      "type": "jira-taskwarrior",
-      "config": {
-        "jiraUrl": "https://your-org.atlassian.net",
-        "taskwarriorPath": "task",
-        "lmmNotesRoot": "$LLM_NOTES_ROOT"
-      }
+  "backend": {
+    "type": "jira-taskwarrior",
+    "config": {
+      "jiraUrl": "https://your-org.atlassian.net",
+      "taskwarriorPath": "task",
+      "specsDir": "./specs"
     }
   }
 }
 ```
 
 **Rationale**:
-- Follows existing provider pattern in opencode.json
+- Backend config separate from opencode.json
 - Backend-specific configuration isolated
 - Easy to validate and document
 - Supports multiple backend instances (future)
@@ -411,7 +410,7 @@ When working on this codebase:
 | 2026-03-28 | Phase 5 | Shared setup and migration docs updated for macOS-first guidance and shell compatibility |
 | 2026-03-28 | Phase 5 | Fixed broken Jira-Taskwarrior setup links and updated macOS Homebrew PATH guidance |
 | 2026-03-28 | Phase 5 | Completed comprehensive tool installation documentation (Taskwarrior, Bugwarrior, ACLI) for macOS |
-| 2026-03-28 | Phase 5 | Verified all path handling uses portable patterns (~/,  $HOME, $LLM_NOTES_ROOT) - no hardcoded Linux paths |
+| 2026-03-28 | Phase 5 | Verified all path handling uses portable patterns (~/, $HOME) - no hardcoded Linux paths |
 | 2026-03-28 | Phase 5 | Verified shell compatibility (zsh/bash) and documented GNU vs BSD command differences - all commands portable |
 | 2026-03-28 | Phase 5 | Completed full Beads backend E2E test on macOS (Apple Silicon) - all tests passed, no quirks detected |
 | 2026-03-28 | Phase 5 | Created comprehensive macOS quirks documentation - jira-taskwarrior test deferred (requires external tools) |

@@ -219,7 +219,7 @@ export interface WorkflowBackend {
    * 
    * This method:
    * - Reads issue context from backend
-   * - Creates spec markdown file in $LLM_NOTES_ROOT
+   * - Creates spec markdown file in specsDir (default: ./specs)
    * - Creates spec task/entry in backend
    * - Links spec to issue
    * 

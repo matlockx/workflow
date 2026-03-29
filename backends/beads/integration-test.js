@@ -77,7 +77,7 @@ const BeadsBackend = require('./index.js')
 function makeBackend() {
   return new BeadsBackend({
     workspaceDir,
-    lmmNotesRoot: notesDir,
+    specsDir: notesDir,
     repository: 'integration-test'
   })
 }

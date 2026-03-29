@@ -9,7 +9,7 @@
 #   opencode-init                           # Initialize in current directory with file backend
 #   opencode-init ~/projects/myapp          # Initialize in specified directory
 #   opencode-init --backend=jira-taskwarrior .  # Jira + Taskwarrior backend
-#   opencode-init --stack=backend --lang=go # Backend stack with Go tooling
+#   opencode-init --lang=go                 # Go language tooling
 #   opencode-init --with-startup            # Add flachnetz/startup library dependency
 #   opencode-init --scaffold=myservice      # Scaffold a Go service from template
 #
@@ -19,11 +19,12 @@
 # All workflow files go in .agent/ with plural subdirectory names:
 # .agent/commands/, .agent/agents/, .agent/skills/.
 # A single symlink .opencode -> .agent makes everything discoverable by OpenCode.
+# All skills are copied unconditionally — they are small markdown reference docs
+# loaded on demand by the AI via description-based matching. Zero cost to having them all.
 # specs/ and plans/ are committed, user-visible.
 # opencode.json and AGENTS.md stay in the root.
 # Phase 1 additions: /feature, /bug, /resume, /status + workflow-state.js
 # Phase 2 additions: /plan, plan-mode agent, plan-state.js
-# Phase E additions: --stack, --skills, --lang for platform engineering setup.
 # Phase F additions: --with-startup, --scaffold for Go service scaffolding.
 
 set -euo pipefail
@@ -38,36 +39,12 @@ OPENCODE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Defaults
 BACKEND="file"
 TARGET_DIR="."
-STACK=""
-SKILLS=""
 LANG=""
 WITH_STARTUP=""
 STARTUP_APPLIED=""   # set to "true" only if add_startup_library succeeds
 SCAFFOLD=""
 
-# Available skills by category
-# AIDEV-NOTE: Update these arrays when adding new skills
-BACKEND_SKILLS=(
-  "postgres"
-  "kafka"
-  "docker"
-  "kubernetes"
-  "helm"
-  "argocd"
-  "migrations"
-  "observability"
-  "cicd"
-  "grpc"
-)
-
-GO_SKILLS=(
-  "coding-standards"
-)
-
-RUST_SKILLS=(
-  "coding-standards"
-)
-
+# Language-specific agents (not skills — skills are all copied unconditionally)
 GO_AGENTS=(
   "debugger-go"
 )
@@ -159,8 +136,6 @@ Initialize OpenCode workflow in a project directory.
 
 Options:
   --backend=TYPE    Workflow backend: file (default), beads, or jira-taskwarrior
-  --stack=PRESET    Stack preset: backend (includes infra skills)
-  --skills=LIST     Comma-separated skills to copy (e.g., postgres,kafka,docker)
   --lang=LANG       Language tooling: go, rust, node, python, both,
                     or any custom language (e.g. swift, elixir)
   --with-startup    Add flachnetz/startup library (runs go get if go.mod exists)
@@ -173,10 +148,8 @@ Arguments:
 
 Examples:
   opencode-init                                    # Init with file backend only
-  opencode-init --stack=backend                    # Init with all backend infra skills
-  opencode-init --stack=backend --lang=go          # Backend + Go tooling
-  opencode-init --skills=postgres,docker           # Only specific skills
-  opencode-init --lang=rust                        # Only Rust debugger + coding standards
+  opencode-init --lang=go                          # Init with Go tooling
+  opencode-init --lang=rust                        # Init with Rust tooling
   opencode-init --backend=jira-taskwarrior         # Jira + Taskwarrior backend
   opencode-init --with-startup                     # Add startup library to existing go.mod
   opencode-init --scaffold=myapi                   # Scaffold Go service named 'myapi'
@@ -190,11 +163,6 @@ Backends:
                     Best for: individuals wanting lightweight local workflow
   jira-taskwarrior  Jira + Taskwarrior integration (for teams with Jira)
                     Best for: teams already using Jira, rich dependency tracking
-
-Stack Presets:
-  backend           All backend infrastructure skills:
-                    postgres, kafka, docker, kubernetes, helm, argocd,
-                    migrations, observability, cicd, grpc
 
 Language Tooling:
   go                Go coding standards + debugger agent
@@ -219,27 +187,17 @@ EOF
 }
 
 list_skills() {
-  echo "Available skills:"
+  echo "Available skills (all are copied during init):"
   echo
-  echo "Backend Infrastructure:"
-  for skill in "${BACKEND_SKILLS[@]}"; do
-    echo "  - $skill"
-  done
-  echo
-  echo "Language-specific (included via --lang):"
-  echo "  Go:   coding-standards, debugger-go agent"
-  echo "  Rust: coding-standards, debugger-rust agent"
-  echo
-  echo "Other skills in repository:"
   for skill_path in "$OPENCODE_ROOT"/skills/*/SKILL.md; do
     skill_name=$(basename "$(dirname "$skill_path")")
-    # Skip if already listed
-    if [[ ! " ${BACKEND_SKILLS[*]} " =~ " ${skill_name} " ]] && \
-       [[ "$skill_name" != "coding-standards" ]] && \
-       [[ "$skill_name" != "workflow-backend" ]]; then
-      echo "  - $skill_name"
-    fi
+    # Read the description from the SKILL.md frontmatter if possible
+    echo "  - $skill_name"
   done
+  echo
+  echo "Language-specific agents (included via --lang):"
+  echo "  Go:   debugger-go agent"
+  echo "  Rust: debugger-rust agent"
   exit 0
 }
 
@@ -436,22 +394,6 @@ while [[ $# -gt 0 ]]; do
       BACKEND="$2"
       shift 2
       ;;
-    --stack=*)
-      STACK="${1#*=}"
-      shift
-      ;;
-    --stack)
-      STACK="$2"
-      shift 2
-      ;;
-    --skills=*)
-      SKILLS="${1#*=}"
-      shift
-      ;;
-    --skills)
-      SKILLS="$2"
-      shift 2
-      ;;
     --lang=*)
       LANG="${1#*=}"
       shift
@@ -498,13 +440,6 @@ if [[ "$BACKEND" != "file" && "$BACKEND" != "beads" && "$BACKEND" != "jira-taskw
   exit 1
 fi
 
-# Validate stack
-if [[ -n "$STACK" && "$STACK" != "backend" ]]; then
-  log_error "Invalid stack: $STACK"
-  echo "Valid stacks: backend"
-  exit 1
-fi
-
 # Validate lang — known langs get specific tooling; unknown langs get a warning
 # and a prompt to generate skills via /generate-lang-skills after init.
 # AIDEV-NOTE: We intentionally do NOT exit on unknown lang. Unknown langs are
@@ -531,9 +466,7 @@ fi
 # ============================================
 
 log_info "Initializing OpenCode workflow with backend: ${BLUE}$BACKEND${NC}"
-[[ -n "$STACK" ]] && log_info "Stack preset: ${BLUE}$STACK${NC}"
 [[ -n "$LANG" ]] && log_info "Language tooling: ${BLUE}$LANG${NC}"
-[[ -n "$SKILLS" ]] && log_info "Additional skills: ${BLUE}$SKILLS${NC}"
 [[ -n "$SCAFFOLD" ]] && log_info "Scaffold service: ${BLUE}$SCAFFOLD${NC}"
 [[ -n "$WITH_STARTUP" ]] && log_info "With startup library: ${BLUE}yes${NC}"
 
@@ -594,7 +527,7 @@ log_info "Copying workflow files into .agent/ ..."
 # makes all workflow files discoverable by OpenCode.
 mkdir -p "$TARGET_DIR/.agent/commands"
 mkdir -p "$TARGET_DIR/.agent/agents"
-mkdir -p "$TARGET_DIR/.agent/skills/workflow-backend"
+mkdir -p "$TARGET_DIR/.agent/skills"
 mkdir -p "$TARGET_DIR/.agent/backends/$BACKEND"
 mkdir -p "$TARGET_DIR/.agent/lib"
 mkdir -p "$TARGET_DIR/.agent/templates"
@@ -627,9 +560,25 @@ cp "$OPENCODE_ROOT/agent/test-agent.md"    "$TARGET_DIR/.agent/agents/"
 cp "$OPENCODE_ROOT/agent/code-reviewer.md" "$TARGET_DIR/.agent/agents/"
 log_success "Copied core agents (6 files)"
 
-# Copy workflow skill
-cp "$OPENCODE_ROOT/skills/workflow-backend/SKILL.md" "$TARGET_DIR/.agent/skills/workflow-backend/"
-log_success "Copied skill: workflow-backend"
+# Copy all skills
+# AIDEV-NOTE: Skills are small markdown reference docs loaded on demand by the
+# AI via the skill tool's description-based matching. There is no cost to having
+# all skills present — they only activate when contextually relevant. Gating
+# skills behind --stack or --lang flags led to projects missing skills they needed
+# later (e.g. adding postgres to a project that wasn't init'd with --stack=backend).
+log_info "Copying all skills..."
+SKILL_COUNT=0
+for skill_dir in "$OPENCODE_ROOT/skills"/*/; do
+  [[ -d "$skill_dir" ]] || continue
+  skill_name="$(basename "$skill_dir")"
+  skill_src="$skill_dir/SKILL.md"
+  if [[ -f "$skill_src" ]]; then
+    mkdir -p "$TARGET_DIR/.agent/skills/$skill_name"
+    cp "$skill_src" "$TARGET_DIR/.agent/skills/$skill_name/"
+    SKILL_COUNT=$((SKILL_COUNT + 1))
+  fi
+done
+log_success "Copied all skills ($SKILL_COUNT)"
 
 # Copy backend
 cp "$OPENCODE_ROOT/backends/$BACKEND/index.js"  "$TARGET_DIR/.agent/backends/$BACKEND/"
@@ -649,49 +598,21 @@ cp "$OPENCODE_ROOT/backends/interface.ts" "$TARGET_DIR/.agent/backends/"
 log_success "Copied interface definition"
 
 # ============================================
-# Copy Stack Skills
+# Copy Language-Specific Agents
 # ============================================
-
-if [[ "$STACK" == "backend" ]]; then
-  log_info "Copying backend stack skills..."
-  for skill in "${BACKEND_SKILLS[@]}"; do
-    copy_skill "$skill"
-  done
-fi
-
-# ============================================
-# Copy Individual Skills
-# ============================================
-
-if [[ -n "$SKILLS" ]]; then
-  log_info "Copying selected skills..."
-  IFS=',' read -ra SKILL_ARRAY <<< "$SKILLS"
-  for skill in "${SKILL_ARRAY[@]}"; do
-    # Trim whitespace
-    skill=$(echo "$skill" | xargs)
-    copy_skill "$skill"
-  done
-fi
-
-# ============================================
-# Copy Language Tooling
-# ============================================
+# AIDEV-NOTE: Skills are already fully copied above. Only language-specific
+# agents (debugger-go, debugger-rust) are gated by --lang, since they are
+# project-type-specific prompt files, not generic reference material.
 
 if [[ "$LANG" == "go" || "$LANG" == "both" ]]; then
-  log_info "Copying Go tooling..."
-  for skill in "${GO_SKILLS[@]}"; do
-    copy_skill "$skill"
-  done
+  log_info "Copying Go agents..."
   for agent in "${GO_AGENTS[@]}"; do
     copy_agent "$agent"
   done
 fi
 
 if [[ "$LANG" == "rust" || "$LANG" == "both" ]]; then
-  log_info "Copying Rust tooling..."
-  for skill in "${RUST_SKILLS[@]}"; do
-    copy_skill "$skill"
-  done
+  log_info "Copying Rust agents..."
   for agent in "${RUST_AGENTS[@]}"; do
     copy_agent "$agent"
   done
@@ -757,7 +678,7 @@ ${LANG_LINE:+$LANG_LINE
     "config": {
       "workspaceDir": "$TARGET_DIR",
       "beadsDir": "$TARGET_DIR/.beads",
-      "lmmNotesRoot": "$TARGET_DIR/notes"
+      "specsDir": "./specs"
     }
   }
 }
@@ -790,7 +711,7 @@ ${LANG_LINE:+$LANG_LINE
       "jiraEmail": "your.email@example.com",
       "taskrcPath": "~/.taskrc",
       "taskDataLocation": "~/.task",
-      "lmmNotesRoot": "./notes"
+      "specsDir": "./specs"
     }
   }
 }
@@ -877,7 +798,6 @@ echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━
 echo
 echo "Directory: $TARGET_DIR"
 echo "Backend:   $BACKEND"
-[[ -n "$STACK" ]] && echo "Stack:     $STACK"
 [[ -n "$LANG" ]] && echo "Language:  $LANG"
 [[ -n "$SCAFFOLD" ]] && echo "Scaffold:  $SCAFFOLD"
 [[ -n "$WITH_STARTUP" ]] && echo "Startup:   enabled"
@@ -913,25 +833,17 @@ echo "  .agent/lib/backend-loader.js   - Backend loader utility"
 echo "  .agent/lib/workflow-state.js   - Workflow state persistence"
 echo "  .agent/lib/plan-state.js       - Plan state persistence"
 
-if [[ "$STACK" == "backend" ]]; then
-  echo
-  echo "Backend stack skills (.agent/skills/):"
-  for skill in "${BACKEND_SKILLS[@]}"; do
-    echo "  $skill/"
-  done
-fi
+echo "  .agent/skills/               - All skills ($SKILL_COUNT) loaded on demand by AI"
 
 if [[ "$LANG" == "go" || "$LANG" == "both" ]]; then
   echo
-  echo "Go tooling:"
-  echo "  .agent/skills/coding-standards/  - Go coding standards"
+  echo "Go agents:"
   echo "  .agent/agents/debugger-go.md     - Go debugger agent"
 fi
 
 if [[ "$LANG" == "rust" || "$LANG" == "both" ]]; then
   echo
-  echo "Rust tooling:"
-  echo "  .agent/skills/coding-standards/  - Rust coding standards"
+  echo "Rust agents:"
   echo "  .agent/agents/debugger-rust.md   - Rust debugger agent"
 fi
 

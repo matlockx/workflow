@@ -565,7 +565,7 @@ async function main() {
   try {
     // --- Mock backend ---
     const MockBackend = require('./mock/index.js')
-    const mockBackend = new MockBackend({ lmmNotesRoot: tmpDir })
+    const mockBackend = new MockBackend({ specsDir: tmpDir })
     await runContractTests(mockBackend, 'mock backend')
 
     // --- Beads backend ---
@@ -592,7 +592,7 @@ async function main() {
     if (beadsAvailable) {
       const beadsBackend = new BeadsBackend({
         workspaceDir: beadsWorkspace,
-        lmmNotesRoot: tmpDir,
+        specsDir: tmpDir,
         repository: 'contract-test'
       })
       await runContractTests(beadsBackend, 'beads backend')

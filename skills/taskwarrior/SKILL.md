@@ -275,7 +275,7 @@ The `export` command returns JSON array. Key fields:
     "work_state": "todo",
     "jiraid": "IMP-7070",
     "annotations": [
-      {"description": "Spec(repo=account-api): notes/specs/IMP-7070.md"}
+      {"description": "Spec: specs/IMP-7070.md"}
     ]
   }
 ]
@@ -385,13 +385,11 @@ Spec file location is stored in task annotations. Parse with these patterns:
 
 | Pattern | Example |
 |---------|---------|
-| `Spec(repo=<repo>): <path>` | `Spec(repo=account-api): notes/specs/IMP-7070.md` |
-| `Spec: <path>` | `Spec: notes/specs/IMP-7070.md` |
+| `Spec: <path>` | `Spec: specs/IMP-7070.md` |
 
 **Resolution:**
 
-1. If `$LLM_NOTES_ROOT` is set: `$LLM_NOTES_ROOT/<path>`
-2. Otherwise: `<path>` relative to git root
+1. `<path>` relative to project root (i.e. `specsDir` config)
 
 ---
 

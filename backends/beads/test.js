@@ -6,7 +6,7 @@ function createBackend() {
     workspaceDir: '/tmp/workspace',
     beadsDir: '/tmp/workspace/.beads',
     homeDir: '/tmp/home',
-    lmmNotesRoot: '/tmp/notes',
+    specsDir: '/tmp/specs',
     repository: 'opencode-test'
   })
 }
