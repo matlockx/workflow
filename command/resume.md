@@ -1,5 +1,5 @@
 ---
-description: Resume a previously started /feature or /bug workflow from where it left off
+description: Resume a previously started /feature or /fix workflow from where it left off
 agent: spec-mode
 mode: plan
 ---

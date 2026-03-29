@@ -14,7 +14,7 @@
 #   opencode-init --scaffold=myservice      # Scaffold a Go service from template
 #
 # AIDEV-NOTE: This script copies the minimal workflow files needed to use
-# OpenCode's /issue, /spec, /createtasks, /implement, /feature, /bug,
+# OpenCode's /issue, /spec, /createtasks, /implement, /feature, /fix,
 # /resume, /status, and /plan commands in a new project.
 # All workflow files go in .agent/ with plural subdirectory names:
 # .agent/commands/, .agent/agents/, .agent/skills/.
@@ -23,7 +23,7 @@
 # loaded on demand by the AI via description-based matching. Zero cost to having them all.
 # specs/ and plans/ are committed, user-visible.
 # opencode.json and AGENTS.md stay in the root.
-# Phase 1 additions: /feature, /bug, /resume, /status + workflow-state.js
+# Phase 1 additions: /feature, /fix, /resume, /status + workflow-state.js
 # Phase 2 additions: /plan, plan-mode agent, plan-state.js
 # Phase F additions: --with-startup, --scaffold for Go service scaffolding.
 
@@ -824,7 +824,7 @@ echo "  plans/                         - Backlog markdowns from /plan (committed
 echo "  .opencode -> .agent            - Symlink for OpenCode discovery"
 echo "  .agent/commands/plan.md        - /plan      brainstorm & bulk-create a backlog"
 echo "  .agent/commands/feature.md     - /feature   full lifecycle orchestrator"
-echo "  .agent/commands/bug.md         - /bug        alias for /feature --type=bug"
+echo "  .agent/commands/fix.md         - /fix        alias for /feature --type=fix"
 echo "  .agent/commands/resume.md      - /resume     pick up where you left off"
 echo "  .agent/commands/status.md      - /status     view all active work items"
 echo "  .agent/commands/issue.md       - /issue      create a new issue"
@@ -910,7 +910,7 @@ fi
 echo "  Full lifecycle (recommended):"
 echo "    /plan    \"improve onboarding\"  Brainstorm & bulk-create a backlog"
 echo "    /feature ISSUE-1               Start issue → spec → tasks → implement"
-echo "    /bug     ISSUE-2               Same flow, tuned for bug fixes"
+echo "    /fix     ISSUE-2               Same flow, tuned for bug fixes"
 echo "    /resume  ISSUE-1               Pick up where you left off"
 echo "    /status                        View all active work items"
 echo

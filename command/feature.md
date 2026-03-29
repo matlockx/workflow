@@ -12,8 +12,8 @@ sessions.
 
 ## Input
 
-- `$ARGUMENTS`: issue ID, optionally with `--type=bug` or `--backend=<type>`
-  - Examples: `ISSUE-3`, `IN-1234 --type=bug`, `MOCK-1 --backend=mock`
+- `$ARGUMENTS`: issue ID, optionally with `--type=fix` or `--backend=<type>`
+  - Examples: `ISSUE-3`, `IN-1234 --type=fix`, `MOCK-1 --backend=mock`
 
 ---
 
@@ -38,7 +38,7 @@ sessions.
 2. **Validate input**
    - If no `issueId` is supplied, print usage and stop:
      ```
-     Usage: /feature <issueId> [--type=bug] [--backend=<type>]
+      Usage: /feature <issueId> [--type=fix] [--backend=<type>]
      ```
 
 3. **Load the backend**

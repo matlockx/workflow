@@ -204,7 +204,7 @@ Switch the active agent to **plan-mode** for this session.
 
 1. Build the final `backlog` array from the prioritized proposals:
    - Preserve all proposal fields.
-   - `type`: infer from proposal content (`bug`, `task`, or default `feature`).
+   - `type`: infer from proposal content (`fix`, `task`, or default `feature`).
    - `labels`: derive from any thematic groupings the agent identified.
 2. Instruct the plan-mode agent to render the backlog table and ask for
    sign-off.

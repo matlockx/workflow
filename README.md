@@ -8,7 +8,7 @@ A pluggable, agent-assisted development workflow for OpenCode. Covers the full l
 
 - **`/plan`** — brainstorm features, prioritize a backlog, bulk-create issues (with optional Epic)
 - **`/feature`** — full lifecycle orchestrator: issue → spec → tasks → implement → review
-- **`/bug`** — same flow, tuned for bug fixes
+- **`/fix`** — same flow, tuned for bug fixes
 - **`/resume`** — pick up any in-progress work item across sessions
 - **`/status`** — dashboard of all active work items and their stages
 - Step-by-step commands: `/issue`, `/spec`, `/createtasks`, `/implement`
@@ -365,7 +365,7 @@ This project is a fork of [opencode by Geert Theys](https://github.com/gtheys/op
 **What this fork adds on top:**
 
 - Backend-agnostic workflow engine (`file`, `beads`, `jira-taskwarrior`) with a common `WorkflowBackend` interface
-- Full slash command suite: `/plan`, `/feature`, `/bug`, `/resume`, `/status`, `/issue`, `/spec`, `/createtasks`, `/implement`, `/git`, `/test`, `/codereview`, `/PR-summary`
+- Full slash command suite: `/plan`, `/feature`, `/fix`, `/resume`, `/status`, `/issue`, `/spec`, `/createtasks`, `/implement`, `/git`, `/test`, `/codereview`, `/PR-summary`
 - Cross-session workflow state persistence (`.agent/state/workflow.json`)
 - Epic auto-creation and issue-to-epic linking across all backends
 - `opencode-init` installer with language scaffolding, startup library detection, and multi-backend support

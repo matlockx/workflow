@@ -1,12 +1,12 @@
 ---
-description: Alias for /feature --type=bug — drive a bug fix through the full lifecycle
+description: Alias for /feature --type=fix — drive a bug fix through the full lifecycle
 agent: spec-mode
 mode: plan
 ---
 
-# /bug — Bug fix lifecycle alias
+# /fix — Bug fix lifecycle alias
 
-This command is a thin alias for `/feature` with `--type=bug` pre-set.
+This command is a thin alias for `/feature` with `--type=fix` pre-set.
 All orchestration logic lives in `command/feature.md`.
 
 ## Input
@@ -26,23 +26,23 @@ All orchestration logic lives in `command/feature.md`.
 2. **Validate input**
    - If no issue ID is found in `cleanedArguments`, print usage and stop:
      ```
-     Usage: /bug <issueId> [--backend=<type>]
+     Usage: /fix <issueId> [--backend=<type>]
      ```
 
-3. **Delegate to /feature with type=bug**
+3. **Delegate to /feature with type=fix**
 
    Invoke the full `/feature` workflow exactly as if the user had run:
    ```
-   /feature <issueId> --type=bug [--backend=<type>]
+   /feature <issueId> --type=fix [--backend=<type>]
    ```
 
    Follow every step in `command/feature.md` from Bootstrap onward,
-   with `workType` pre-set to `'bug'`.
+   with `workType` pre-set to `'fix'`.
 
 ## Notes
 
 - The `type` field is stored on the work item in `workflow.json` and shown in
-  `/status` output so the user can distinguish bugs from features at a glance.
+  `/status` output so the user can distinguish fixes from features at a glance.
 - Bug fix specs should emphasise **root cause analysis** and **regression test**
   sections rather than a full design document. When drafting the spec, keep the
   requirements section focused on reproducing the bug and the design section on
