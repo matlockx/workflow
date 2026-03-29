@@ -587,7 +587,8 @@ fi
 log_info "Copying workflow files into .agent/ ..."
 
 # Create .agent/ directory structure (for workflow machinery)
-# Commands go in .opencode/commands/ per OpenCode spec
+# Commands live in .agent/command/, symlinked from .opencode/commands/ for OpenCode
+mkdir -p "$TARGET_DIR/.agent/command"
 mkdir -p "$TARGET_DIR/.opencode/commands"
 mkdir -p "$TARGET_DIR/.agent/agent"
 mkdir -p "$TARGET_DIR/.agent/skills/workflow-backend"
@@ -599,9 +600,16 @@ mkdir -p "$TARGET_DIR/specs"
 mkdir -p "$TARGET_DIR/plans"
 touch "$TARGET_DIR/plans/.gitkeep"
 
-# Copy all commands to .opencode/commands/ (OpenCode's expected location)
-cp "$OPENCODE_ROOT/command/"*.md "$TARGET_DIR/.opencode/commands/"
-log_success "Copied all commands to .opencode/commands/ ($(ls "$OPENCODE_ROOT/command/"*.md | wc -l | tr -d ' ') files)"
+# Copy all commands to .agent/command/, then symlink to .opencode/commands/
+cp "$OPENCODE_ROOT/command/"*.md "$TARGET_DIR/.agent/command/"
+log_success "Copied all commands to .agent/command/ ($(ls "$OPENCODE_ROOT/command/"*.md | wc -l | tr -d ' ') files)"
+
+# Create symlinks in .opencode/commands/ pointing to .agent/command/
+for cmd in "$TARGET_DIR/.agent/command/"*.md; do
+  fname="$(basename "$cmd")"
+  ln -sf "../.agent/command/$fname" "$TARGET_DIR/.opencode/commands/$fname"
+done
+log_success "Symlinked commands to .opencode/commands/"
 
 # Copy core agents (selective — agent/ contains many project-specific extras)
 cp "$OPENCODE_ROOT/agent/spec-mode.md"     "$TARGET_DIR/.agent/agent/"

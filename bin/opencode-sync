@@ -70,7 +70,8 @@ Arguments:
   target-dir    Directory to sync into (default: current directory)
 
 What is updated:
-  .opencode/commands/  All slash commands (replaced)
+  .agent/command/      All slash commands (replaced)
+  .opencode/commands/  Symlinks to .agent/command/ (recreated)
   .agent/agent/        Core agents: spec-mode, create-tasks, plan-mode,
                        build, test-agent, code-reviewer (replaced)
   .agent/lib/          backend-loader, workflow-state, plan-state (replaced)
@@ -196,23 +197,49 @@ fi
 # Sync Commands
 # ============================================
 
-log_info "Syncing commands to .opencode/commands/..."
-# Copy all commands from source — OpenCode expects them in .opencode/commands/
+# AIDEV-NOTE: Commands are stored in .agent/command/ and symlinked from
+# .opencode/commands/ for OpenCode discovery. This keeps workflow files
+# organized in .agent/ while satisfying OpenCode's command location requirement.
+
+log_info "Syncing commands to .agent/command/..."
 UPDATED_COMMANDS=0
+
+# Ensure directories exist
+if [[ -z "$DRY_RUN" ]]; then
+  mkdir -p "$TARGET_DIR/.agent/command"
+  mkdir -p "$TARGET_DIR/.opencode/commands"
+fi
+
+# Copy commands to .agent/command/
 for cmd_src in "$OPENCODE_ROOT/command/"*.md; do
   [[ -f "$cmd_src" ]] || continue
   fname="$(basename "$cmd_src")"
-  dst="$TARGET_DIR/.opencode/commands/$fname"
+  dst="$TARGET_DIR/.agent/command/$fname"
   if [[ -n "$DRY_RUN" ]]; then
     log_verbose "would copy: $dst"
   else
-    mkdir -p "$(dirname "$dst")"
     cp "$cmd_src" "$dst"
     log_verbose "copied: $dst"
   fi
   UPDATED_COMMANDS=$((UPDATED_COMMANDS + 1))
 done
-log_success "Commands synced: $UPDATED_COMMANDS files"
+
+# Create/update symlinks from .opencode/commands/ -> .agent/command/
+if [[ -z "$DRY_RUN" ]]; then
+  for cmd in "$TARGET_DIR/.agent/command/"*.md; do
+    [[ -f "$cmd" ]] || continue
+    fname="$(basename "$cmd")"
+    symlink="$TARGET_DIR/.opencode/commands/$fname"
+    # Remove existing file/symlink and recreate
+    rm -f "$symlink"
+    ln -s "../../.agent/command/$fname" "$symlink"
+    log_verbose "symlinked: $symlink -> ../../.agent/command/$fname"
+  done
+  log_success "Commands synced: $UPDATED_COMMANDS files (symlinked to .opencode/commands/)"
+else
+  log_verbose "would create symlinks in .opencode/commands/"
+  log_success "Commands would sync: $UPDATED_COMMANDS files"
+fi
 
 # ============================================
 # Sync Agents (installed-only)
