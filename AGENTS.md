@@ -15,6 +15,32 @@ When unsure about implementation details, ALWAYS ask the developer.
 | G-2 | Follow lint/style configs (`pyproject.toml`, `.prettierrc`, `.pre-commit-config.yaml`). Use the project's configured linter, if available, instead of manually re-formatting code. | ❌ Re-format code to any other style.                                                                                                                 |
 | G-3 | For changes >300 LOC or >3 files, **ask for confirmation**.                                                                                                                        | ❌ Refactor large modules without human guidance.                                                                                                     |
 | G-4 | Stay within the current task context. Inform the dev if it'd be better to start afresh.                                                                                            | ❌ Continue work from a prior prompt after "new task" – start a fresh session.                                                                        |
+| G-5 | **Update README/docs** whenever you change behavior, add features, or modify CLI flags.                                                                                            | ❌ Leave documentation out of sync with code changes.                                                                                                 |
+
+---
+
+## Documentation Requirements
+
+**Every code change that affects user-facing behavior must include documentation updates.**
+
+### What requires doc updates
+
+- New commands, flags, or CLI options → update README usage section
+- Changed behavior or defaults → update relevant README sections
+- New files/directories added to the project structure → update directory layout in README
+- New configuration options → update config examples in README
+- Bug fixes that change observable behavior → note in changelog if present
+
+### Documentation files to check
+
+- `README.md` — primary user-facing documentation
+- `AGENTS.md` — AI assistant context (this file, update if workflow changes)
+- Inline `AIDEV-NOTE:` comments — update when associated code changes
+- `backends/*/README.md` — backend-specific documentation
+
+### Commit discipline for docs
+
+When committing changes, docs should be part of the **same commit** as the code change, not a follow-up. This keeps the repo in a consistent state at every commit.
 
 ---
 
