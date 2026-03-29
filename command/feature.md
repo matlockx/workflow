@@ -12,8 +12,8 @@ sessions.
 
 ## Input
 
-- `$ARGUMENTS`: issue ID, optionally with `--type=fix` or `--backend=<type>`
-  - Examples: `ISSUE-3`, `IN-1234 --type=fix`, `MOCK-1 --backend=mock`
+- `$ARGUMENTS`: issue ID, optionally with `--type=fix`, `--backend=<type>`, or `--yolo`
+  - Examples: `ISSUE-3`, `IN-1234 --type=fix`, `MOCK-1 --backend=mock`, `ISSUE-3 --yolo`
 
 ---
 
@@ -32,13 +32,17 @@ sessions.
    let workType = 'feature'
    const typeFlag = tokens.find(t => t.startsWith('--type='))
    if (typeFlag) workType = typeFlag.replace('--type=', '')
+
+   // Detect --yolo flag
+   const yoloMode = tokens.some(t => t === '--yolo')
+
    const issueId = tokens.filter(t => !t.startsWith('--'))[0]
    ```
 
 2. **Validate input**
    - If no `issueId` is supplied, print usage and stop:
      ```
-      Usage: /feature <issueId> [--type=fix] [--backend=<type>]
+      Usage: /feature <issueId> [--type=fix] [--backend=<type>] [--yolo]
      ```
 
 3. **Load the backend**
@@ -58,11 +62,19 @@ sessions.
    let item = wf.getActiveItem(issueId)
 
    if (!item) {
-     item = wf.createWorkItem({ issueId, type: workType, title })
+     item = wf.createWorkItem({ issueId, type: workType, title, yolo: yoloMode })
+   } else if (yoloMode && !item.yolo) {
+     // Upgrade an existing item to yolo mode if flag is passed
+     wf.updateWorkItem(issueId, { yolo: true })
+     item.yolo = true
    }
    ```
    - If `item` already exists and `item.stage === 'done'`, report the issue is
      complete and stop.
+   - If `yoloMode` is active, print:
+     ```
+     ⚡ YOLO mode — skipping all approval gates, executing end-to-end.
+     ```
 
 6. **Show current position**
    ```
@@ -76,7 +88,17 @@ sessions.
 
 ## Interaction Protocol
 
-At every pause point, show exactly:
+At every pause point, check `item.yolo` first:
+
+- **If `item.yolo` is true (YOLO mode):** skip the prompt entirely and
+  auto-continue through every step. Do not pause for requirements review,
+  design review, task creation confirmation, task implementation confirmation,
+  phase review, or PR creation. Execute everything end-to-end and only stop
+  when the feature is complete or an unrecoverable error occurs.
+  Tests should still be run — if they fail, fix them and continue rather
+  than stopping to ask.
+
+- **If `item.yolo` is false (normal mode):** show exactly:
 
 ```
 [c]ontinue  [s]kip  [a]uto-run  [q]uit
@@ -101,8 +123,9 @@ Switch the active agent to **spec-mode** for this stage.
 
 ### spec / drafting
 
-1. Pause — show: `Ready to draft the spec for ${issueId}?`
-2. On **c/a**: invoke the spec workflow inline:
+1. Pause — unless YOLO mode, show: `Ready to draft the spec for ${issueId}?`
+   In YOLO mode, proceed immediately.
+2. On **c/a** (or auto in YOLO): invoke the spec workflow inline:
    - Call `backend.getSpec(issueId)` to check for an existing spec.
    - If none exists, call `backend.createSpec(issueId)`.
    - Write the spec file following the `/spec` command's steps 5–6
@@ -115,26 +138,28 @@ Switch the active agent to **spec-mode** for this stage.
 
 ### spec / requirements-review
 
-1. Pause — show:
+1. Pause — unless YOLO mode, show:
    ```
    Please review the requirements above.
    Are they accurate and complete?
 
    [c]ontinue to Design  [s]kip  [a]uto-run  [q]uit
    ```
-2. On **c/a**: write the Design section of the spec.
+   In YOLO mode, auto-approve requirements and proceed immediately.
+2. On **c/a** (or auto in YOLO): write the Design section of the spec.
 3. Advance: `wf.advanceSubstage(issueId)` → `design-review`.
 
 ### spec / design-review
 
-1. Pause — show:
+1. Pause — unless YOLO mode, show:
    ```
    Please review the design above.
    Is it accurate and complete?
 
    [c]ontinue to approval  [s]kip  [a]uto-run  [q]uit
    ```
-2. On **c/a**:
+   In YOLO mode, auto-approve design and proceed immediately.
+2. On **c/a** (or auto in YOLO):
    - Update spec frontmatter: `work_state: approved`, `approvedAt: <ISO8601>`.
    - Call `backend.approveSpec(spec.id)`.
 3. Advance: `wf.advanceSubstage(issueId)` → `approved`.
@@ -157,8 +182,9 @@ Switch the active agent to **create-tasks** for this stage.
 
 ### tasks / pending
 
-1. Pause — show: `Ready to break the spec into implementation tasks?`
-2. On **c/a**: invoke the create-tasks workflow:
+1. Pause — unless YOLO mode, show: `Ready to break the spec into implementation tasks?`
+   In YOLO mode, proceed immediately.
+2. On **c/a** (or auto in YOLO): invoke the create-tasks workflow:
    - Call `backend.getSpec(issueId)` and verify state is `approved`.
    - Check `backend.getTasks({ issueId, tags: ['impl'] })` for existing tasks.
    - If none, call `backend.createTasks(spec.id)` then let the create-tasks
@@ -193,13 +219,16 @@ After each **phase** completes (all its tasks reach `done`):
 
 ### implement / phase-review
 
-1. Pause — show:
+1. Pause — unless YOLO mode, show:
    ```
    Phase complete. Please run tests and review the code.
 
    [c]ontinue (approve phase)  [s]kip  [a]uto-run  [q]uit
    ```
-2. On **c/a**:
+   In YOLO mode, run tests automatically. If tests pass, auto-approve and
+   continue. If tests fail, attempt to fix them and re-run. Only stop on
+   unrecoverable errors.
+2. On **c/a** (or auto in YOLO):
    - Call `backend.updateTaskState(phase.id, 'approved')`.
    - Advance: `wf.advanceSubstage(issueId)` → `phase-approved`.
 
@@ -223,13 +252,14 @@ After each **phase** completes (all its tasks reach `done`):
 
 ### review / pending
 
-1. Pause — show:
+1. Pause — unless YOLO mode, show:
    ```
    Implementation complete. Ready to create a PR and finish the review?
 
    [c]ontinue  [s]kip  [a]uto-run  [q]uit
    ```
-2. On **c/a**:
+   In YOLO mode, auto-create the PR and finish.
+2. On **c/a** (or auto in YOLO):
    - Suggest running `/git` or `gh pr create` to open a pull request.
    - Optionally invoke `/PR-summary` if available.
 3. Advance: `wf.advanceSubstage(issueId)` → `done`.
@@ -276,3 +306,12 @@ It never duplicates content that the backend already owns.
 
 State is written after **every** substage transition so a quit at any point
 results in a clean resume point.
+
+## AIDEV-NOTE: yolo mode design
+
+The `--yolo` flag sets `item.yolo = true` on the work item in `workflow.json`.
+This persists across sessions so `/resume` inherits it automatically. In YOLO
+mode, all pause points auto-continue — the AI executes the entire lifecycle
+(spec → tasks → implement → review) without stopping for human approval.
+Tests are still run; failures are fixed rather than reported. The only hard
+stop is an unrecoverable error (backend unavailable, etc.).

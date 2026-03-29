@@ -12,8 +12,8 @@ active items.
 
 ## Input
 
-- `$ARGUMENTS`: optional issue ID, optionally with `--backend=<type>`
-  - Examples: `ISSUE-3`, `IN-9821`, *(empty — show picker)*
+- `$ARGUMENTS`: optional issue ID, optionally with `--backend=<type>` or `--yolo`
+  - Examples: `ISSUE-3`, `IN-9821`, `ISSUE-3 --yolo`, *(empty — show picker)*
 
 ---
 
@@ -26,7 +26,9 @@ active items.
    const wf = require('./lib/workflow-state.js')
 
    const { backendType, cleanedArguments } = parseBackendOverride($ARGUMENTS)
-   const issueId = cleanedArguments.trim().split(/\s+/).filter(t => !t.startsWith('--'))[0] || null
+   const tokens = cleanedArguments.trim().split(/\s+/).filter(Boolean)
+   const yoloFlag = tokens.some(t => t === '--yolo')
+   const issueId = tokens.filter(t => !t.startsWith('--'))[0] || null
    ```
 
 2. **Load active items**
@@ -81,6 +83,13 @@ active items.
 
    ```js
    const item = wf.getActiveItem(issueId)
+
+   // Upgrade to YOLO mode if --yolo flag is passed
+   if (yoloFlag && !item.yolo) {
+     wf.updateWorkItem(issueId, { yolo: true })
+     item.yolo = true
+   }
+
    const next = wf.getNextStep(item)
    const skips = wf.formatSkips(item)
    ```
@@ -92,6 +101,11 @@ active items.
    Stage:    spec › design-review
    Next:     Review design
    ══════════════════════════════════════════
+   ```
+
+   If `item.yolo` is true, also print:
+   ```
+   ⚡ YOLO mode — skipping all approval gates, executing end-to-end.
    ```
 
    If there are skipped steps, append:
@@ -119,3 +133,7 @@ active items.
 prints a summary, and then falls into the exact same stage/substage logic that
 `/feature` uses. There is no separate "resume mode"; the stage machine in
 `feature.md` is stateless and reads position from `workflow.json` every time.
+
+YOLO mode is persisted on the work item (`item.yolo`) so `/resume` inherits
+it automatically. Passing `--yolo` on `/resume` upgrades a normal workflow
+to YOLO mode for the remainder of its lifecycle.

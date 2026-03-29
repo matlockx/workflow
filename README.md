@@ -190,6 +190,22 @@ Drives you through every stage with pause points:
 
 At each gate you choose: `[c]ontinue  [s]kip  [a]uto-run  [q]uit`
 
+#### YOLO mode
+
+```
+/feature ISSUE-1 --yolo
+/fix     ISSUE-2 --yolo
+/resume  ISSUE-1 --yolo
+```
+
+Skip **all** approval gates — the AI executes the entire lifecycle end-to-end
+without stopping for human review. Tests are still run; failures are fixed
+automatically rather than reported. Only unrecoverable errors cause a stop.
+
+The flag is persisted on the work item in `workflow.json`, so `/resume`
+inherits it automatically. You can also upgrade a running workflow to YOLO
+mode mid-flight with `/resume ISSUE-1 --yolo`.
+
 ### Option B — Step by step
 
 ```bash

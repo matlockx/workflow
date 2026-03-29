@@ -71,29 +71,37 @@ Execute implementation tasks for an issue sequentially using the configured work
      - task description
      - dependency summary
      - spec path
-   - Ask: `Ready to implement? (yes/no/edit)`
-   - If `no`, stop and tell the user they can resume with `/implement <issueId>`.
-   - If `edit`, incorporate the user guidance and re-present the task.
-   - If `yes`, implement the task following the approved spec.
+   - **YOLO mode check:** If the work item has `yolo: true` in `workflow.json`,
+     skip the prompt and auto-implement immediately. Do not ask for confirmation.
+   - **Normal mode:** Ask: `Ready to implement? (yes/no/edit)`
+     - If `no`, stop and tell the user they can resume with `/implement <issueId>`.
+     - If `edit`, incorporate the user guidance and re-present the task.
+     - If `yes`, implement the task following the approved spec.
 
 8. **Mark the task complete**
-   - After implementation, summarize what changed and ask: `Mark as completed? (yes/no/edit)`
-   - If `no`, stop and leave the task unchanged.
-   - If `edit`, continue implementation work.
-   - If `yes`, call `backend.updateTaskState(task.id, 'done')`.
+   - After implementation, summarize what changed.
+   - **YOLO mode:** Auto-mark as completed without prompting. Call
+     `backend.updateTaskState(task.id, 'done')` immediately.
+   - **Normal mode:** Ask: `Mark as completed? (yes/no/edit)`
+     - If `no`, stop and leave the task unchanged.
+     - If `edit`, continue implementation work.
+     - If `yes`, call `backend.updateTaskState(task.id, 'done')`.
    - Then return to Step 6 to find the next ready task in the same phase.
 
 9. **Move the phase into review**
    - When all tasks in the phase are complete, call `backend.updateTaskState(phase.id, 'review')`.
    - Report that the phase is complete and awaiting validation.
-   - Ask the user to run tests and complete a commit before the phase is approved.
-   - If you can run tests in the current session, do so.
-   - If tests fail, stop and keep the phase in `review`.
+   - **YOLO mode:** Run tests automatically. If tests pass, proceed directly
+     to phase approval (Step 10) without stopping. If tests fail, attempt to
+     fix them and re-run. Only stop on unrecoverable errors.
+   - **Normal mode:** Ask the user to run tests and complete a commit before
+     the phase is approved. If you can run tests in the current session, do so.
+     If tests fail, stop and keep the phase in `review`.
 
 10. **Approve the phase after validation**
-   - Once tests and commit/review steps are complete, call `backend.updateTaskState(phase.id, 'approved')`.
-   - Report that the phase is approved.
-   - Then return to Step 4 to continue with the next phase if one exists.
+    - Once tests and commit/review steps are complete, call `backend.updateTaskState(phase.id, 'approved')`.
+    - Report that the phase is approved.
+    - Then return to Step 4 to continue with the next phase if one exists.
 
 ## Implementation protocol
 
@@ -125,6 +133,9 @@ Execute implementation tasks for an issue sequentially using the configured work
 - Resumability comes from backend task states, not command-local memory.
 - Use backend task dependency data to determine readiness.
 - Support optional command-time backend selection via `--backend=<type>`.
+- YOLO mode is read from the work item's `yolo` field in `workflow.json`,
+  set by `/feature --yolo`. When active, all prompts (ready to implement,
+  mark complete, phase review) are auto-approved.
 
 ## Notes
 

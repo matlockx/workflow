@@ -11,8 +11,8 @@ All orchestration logic lives in `command/feature.md`.
 
 ## Input
 
-- `$ARGUMENTS`: issue ID, optionally with `--backend=<type>`
-  - Examples: `ISSUE-5`, `IN-9821 --backend=jira-taskwarrior`
+- `$ARGUMENTS`: issue ID, optionally with `--backend=<type>` or `--yolo`
+  - Examples: `ISSUE-5`, `IN-9821 --backend=jira-taskwarrior`, `ISSUE-5 --yolo`
 
 ## Steps
 
@@ -26,18 +26,19 @@ All orchestration logic lives in `command/feature.md`.
 2. **Validate input**
    - If no issue ID is found in `cleanedArguments`, print usage and stop:
      ```
-     Usage: /fix <issueId> [--backend=<type>]
+     Usage: /fix <issueId> [--backend=<type>] [--yolo]
      ```
 
 3. **Delegate to /feature with type=fix**
 
    Invoke the full `/feature` workflow exactly as if the user had run:
    ```
-   /feature <issueId> --type=fix [--backend=<type>]
+   /feature <issueId> --type=fix [--backend=<type>] [--yolo]
    ```
 
    Follow every step in `command/feature.md` from Bootstrap onward,
-   with `workType` pre-set to `'fix'`.
+   with `workType` pre-set to `'fix'`. Pass through the `--yolo` flag
+   if present.
 
 ## Notes
 

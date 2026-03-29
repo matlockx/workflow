@@ -914,6 +914,11 @@ echo "    /fix     ISSUE-2               Same flow, tuned for bug fixes"
 echo "    /resume  ISSUE-1               Pick up where you left off"
 echo "    /status                        View all active work items"
 echo
+echo "  YOLO mode (skip all approval gates, execute end-to-end):"
+echo "    /feature ISSUE-1 --yolo        Full lifecycle, no stops"
+echo "    /fix     ISSUE-2 --yolo        Bug fix lifecycle, no stops"
+echo "    /resume  ISSUE-1 --yolo        Upgrade running workflow to YOLO"
+echo
 echo "  Step-by-step:"
 echo "    /issue \"description\"       Create a new issue"
 echo "    /spec  ISSUE-1             Draft and approve a spec"
