@@ -39,6 +39,7 @@ STACK=""
 SKILLS=""
 LANG=""
 WITH_STARTUP=""
+STARTUP_APPLIED=""   # set to "true" only if add_startup_library succeeds
 SCAFFOLD=""
 
 # Available skills by category
@@ -379,6 +380,7 @@ add_startup_library() {
 
   # Copy the startup skill
   copy_skill "startup"
+  STARTUP_APPLIED="true"
 }
 
 # AIDEV-NOTE: Generates AGENTS.md from the template by substituting
@@ -523,8 +525,8 @@ TARGET_DIR="$(cd "$TARGET_DIR" && pwd)"
 log_info "Target directory: $TARGET_DIR"
 
 # Check if already initialized
-if [[ -f "$TARGET_DIR/opencode.json" ]]; then
-  log_warn "opencode.json already exists in target directory"
+if [[ -f "$TARGET_DIR/.agent/config.json" ]]; then
+  log_warn ".agent/config.json already exists in target directory"
   read -p "Overwrite? [y/N] " -n 1 -r
   echo
   if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -692,58 +694,76 @@ fi
 # Generate opencode.json (project root)
 # ============================================
 
-log_info "Generating opencode.json..."
+# ============================================
+# Generate .agent/config.json (workflow backend config)
+# ============================================
+# AIDEV-NOTE: Backend config lives in .agent/config.json, NOT opencode.json.
+# The upstream OpenCode binary rejects unknown top-level keys in opencode.json,
+# so we keep workflow config separate.
+
+log_info "Generating .agent/config.json..."
 
 if [[ "$BACKEND" == "file" ]]; then
-  cat > "$TARGET_DIR/opencode.json" <<'EOF'
+  cat > "$TARGET_DIR/.agent/config.json" <<'EOF'
 {
-  "$schema": "https://opencode.ai/schemas/opencode.json",
-  "workflow": {
-    "backend": {
-      "type": "file",
-      "config": {}
-    }
+  "backend": {
+    "type": "file",
+    "config": {}
   }
 }
 EOF
 elif [[ "$BACKEND" == "beads" ]]; then
-  cat > "$TARGET_DIR/opencode.json" <<EOF
+  cat > "$TARGET_DIR/.agent/config.json" <<EOF
 {
-  "\$schema": "https://opencode.ai/schemas/opencode.json",
-  "workflow": {
-    "backend": {
-      "type": "beads",
-      "config": {
-        "workspaceDir": "$TARGET_DIR",
-        "beadsDir": "$TARGET_DIR/.beads",
-        "lmmNotesRoot": "$TARGET_DIR/notes"
-      }
+  "backend": {
+    "type": "beads",
+    "config": {
+      "workspaceDir": "$TARGET_DIR",
+      "beadsDir": "$TARGET_DIR/.beads",
+      "lmmNotesRoot": "$TARGET_DIR/notes"
     }
   }
 }
 EOF
   log_warn "Run 'bd init --stealth' in your project root before using the beads backend"
 elif [[ "$BACKEND" == "jira-taskwarrior" ]]; then
-  cat > "$TARGET_DIR/opencode.json" <<'EOF'
+  cat > "$TARGET_DIR/.agent/config.json" <<'EOF'
 {
-  "$schema": "https://opencode.ai/schemas/opencode.json",
-  "workflow": {
-    "backend": {
-      "type": "jira-taskwarrior",
-      "config": {
-        "jiraSite": "YOUR_ORG.atlassian.net",
-        "jiraProject": "YOUR_PROJECT_KEY",
-        "jiraEmail": "your.email@example.com",
-        "taskrcPath": "~/.taskrc",
-        "taskDataLocation": "~/.task",
-        "lmmNotesRoot": "./notes"
-      }
+  "backend": {
+    "type": "jira-taskwarrior",
+    "config": {
+      "jiraSite": "YOUR_ORG.atlassian.net",
+      "jiraProject": "YOUR_PROJECT_KEY",
+      "jiraEmail": "your.email@example.com",
+      "taskrcPath": "~/.taskrc",
+      "taskDataLocation": "~/.task",
+      "lmmNotesRoot": "./notes"
     }
   }
 }
 EOF
-  log_warn "Edit opencode.json to configure your Jira site and project"
+  log_warn "Edit .agent/config.json to configure your Jira site and project"
 fi
+
+log_success "Generated .agent/config.json"
+
+# ============================================
+# Generate opencode.json (project root)
+# ============================================
+# AIDEV-NOTE: opencode.json only contains keys the upstream OpenCode binary
+# accepts ($schema, provider, agent, instructions, permission, mcp).
+# Workflow/backend config is in .agent/config.json instead.
+
+log_info "Generating opencode.json..."
+
+cat > "$TARGET_DIR/opencode.json" <<'EOF'
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "AGENTS.md"
+  ]
+}
+EOF
 
 log_success "Generated opencode.json"
 
@@ -810,7 +830,8 @@ echo "Backend:   $BACKEND"
 [[ -n "$WITH_STARTUP" ]] && echo "Startup:   enabled"
 echo
 echo "Files created:"
-echo "  opencode.json                  - Workflow configuration"
+echo "  opencode.json                  - OpenCode configuration (instructions, providers)"
+echo "  .agent/config.json             - Workflow backend configuration"
 echo "  AGENTS.md                      - AI assistant context (customize me!)"
 echo "  specs/                         - Spec documents (committed to git)"
 echo "  plans/                         - Backlog markdowns from /plan (committed to git)"
@@ -873,7 +894,7 @@ if [[ -n "$SCAFFOLD" ]]; then
   echo "  Makefile                   - Build targets"
 fi
 
-if [[ -n "$WITH_STARTUP" ]]; then
+if [[ -n "$STARTUP_APPLIED" ]]; then
   echo
   echo "Startup library:"
   echo "  .agent/skills/startup/     - Startup library patterns"
@@ -890,11 +911,16 @@ if [[ -n "$SCAFFOLD" ]]; then
   echo
   echo "Or use OpenCode workflow:"
 elif [[ "$BACKEND" == "beads" ]]; then
-  echo "  1. Initialize Beads:   bd init --stealth"
-  echo "  2. Verify:             bd list"
+  STEP=1
+  echo "  $STEP. Initialize Beads:   bd init --stealth"; STEP=$((STEP+1))
+  echo "  $STEP. Verify:             bd list";            STEP=$((STEP+1))
+  if [[ -n "$WITH_STARTUP" && -z "$STARTUP_APPLIED" ]]; then
+    echo "  $STEP. Init Go module:     go mod init <module-path>"; STEP=$((STEP+1))
+    echo "  $STEP. Add startup lib:    opencode-init --with-startup (re-run in project root)"; STEP=$((STEP+1))
+  fi
   echo
 elif [[ "$BACKEND" == "jira-taskwarrior" ]]; then
-  echo "  1. Edit opencode.json with your Jira site/project"
+  echo "  1. Edit .agent/config.json with your Jira site/project"
   echo "  2. Authenticate:       acli jira auth"
   echo
 fi

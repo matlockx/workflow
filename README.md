@@ -51,11 +51,10 @@ cd ~/projects/myapp
 
 Zero dependencies. Issues and tasks stored as JSON files under `.agent/state/`. Sequential IDs: `ISSUE-1`, `ISSUE-2`, …
 
+`.agent/config.json`:
 ```json
 {
-  "workflow": {
-    "backend": { "type": "file", "config": {} }
-  }
+  "backend": { "type": "file", "config": {} }
 }
 ```
 
@@ -63,16 +62,15 @@ Zero dependencies. Issues and tasks stored as JSON files under `.agent/state/`. 
 
 Lightweight local-first task manager using the `bd` CLI. Issues and tasks stored locally; no external service required.
 
+`.agent/config.json`:
 ```json
 {
-  "workflow": {
-    "backend": {
-      "type": "beads",
-      "config": {
-        "workspaceDir": "/path/to/project",
-        "beadsDir": "/path/to/project/.beads",
-        "lmmNotesRoot": "/path/to/project/notes"
-      }
+  "backend": {
+    "type": "beads",
+    "config": {
+      "workspaceDir": "/path/to/project",
+      "beadsDir": "/path/to/project/.beads",
+      "lmmNotesRoot": "/path/to/project/notes"
     }
   }
 }
@@ -84,19 +82,18 @@ Run `bd init --stealth` in your project root before first use. See [`backends/be
 
 Uses Atlassian CLI (ACLI) for Jira and Taskwarrior for local task execution.
 
+`.agent/config.json`:
 ```json
 {
-  "workflow": {
-    "backend": {
-      "type": "jira-taskwarrior",
-      "config": {
-        "jiraSite": "your-org.atlassian.net",
-        "jiraProject": "PROJ",
-        "jiraEmail": "you@example.com",
-        "taskrcPath": "~/.taskrc",
-        "taskDataLocation": "~/.task",
-        "lmmNotesRoot": "./notes"
-      }
+  "backend": {
+    "type": "jira-taskwarrior",
+    "config": {
+      "jiraSite": "your-org.atlassian.net",
+      "jiraProject": "PROJ",
+      "jiraEmail": "you@example.com",
+      "taskrcPath": "~/.taskrc",
+      "taskDataLocation": "~/.task",
+      "lmmNotesRoot": "./notes"
     }
   }
 }
@@ -173,10 +170,11 @@ What gets installed into `.agent/`:
                   test-agent, code-reviewer
   backends/       chosen backend implementation + interface.ts
   lib/            backend-loader.js, workflow-state.js, plan-state.js
+  config.json     workflow backend configuration
   skills/         workflow-backend (always), plus any --stack/--skills/--lang extras
 specs/            spec documents (committed to git)
 plans/            backlog markdowns from /plan (committed to git)
-opencode.json     workflow configuration
+opencode.json     OpenCode configuration ($schema, instructions, providers)
 AGENTS.md         AI assistant context (customize for your project)
 ```
 
@@ -240,7 +238,11 @@ interface WorkflowBackend {
 }
 ```
 
-Place your implementation in `backends/<name>/index.js` and register it in `lib/backend-loader.js`.
+Place your implementation in `backends/<name>/index.js` and register it in `lib/backend-loader.js`. Then configure it in `.agent/config.json`:
+
+```json
+{ "backend": { "type": "<name>", "config": { ... } } }
+```
 
 ---
 
