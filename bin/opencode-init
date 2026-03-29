@@ -243,15 +243,28 @@ scaffold_service() {
     return 1
   fi
 
-  # Detect module path from existing go.mod or derive from directory
+  # Detect module path from existing go.mod or ask the user
+  # AIDEV-NOTE: We never guess the GitHub username from the local OS user —
+  # local username (e.g. "martin") often differs from the GitHub handle
+  # (e.g. "matlockx"). Always ask.
   local module_path
   if [[ -f "$service_dst/go.mod" ]]; then
     module_path=$(grep "^module " "$service_dst/go.mod" | awk '{print $2}')
     log_info "Using existing module: $module_path"
   else
-    # Use directory name as module path base
-    module_path="github.com/$(basename "$service_dst")"
-    log_info "Using derived module path: $module_path"
+    local dir_name; dir_name="$(basename "$service_dst")"
+    local suggested="github.com/<your-username>/$dir_name"
+    echo
+    log_info "No go.mod found. Please enter the Go module path."
+    log_info "Example: github.com/matlockx/$dir_name"
+    echo
+    read -p "Module path [$suggested]: " module_path
+    module_path="${module_path:-}"
+    if [[ -z "$module_path" ]]; then
+      log_error "Module path is required for scaffolding. Aborting scaffold."
+      return 1
+    fi
+    log_info "Using module path: $module_path"
   fi
 
   log_info "Scaffolding service '$service_name' from template..."
