@@ -74,35 +74,43 @@ RUST_AGENTS=(
 
 # Build/test command defaults per language
 # AIDEV-NOTE: These are substituted into the generated AGENTS.md template.
-# Format: BUILD_CMD, TEST_CMD, LINT_CMD, SINGLE_TEST_CMD
-declare -A LANG_BUILD_CMD=(
-  ["go"]="go build ./..."
-  ["rust"]="cargo build"
-  ["node"]="npm run build"
-  ["python"]="python -m build"
-  ["default"]="<fill in your build command>"
-)
-declare -A LANG_TEST_CMD=(
-  ["go"]="go test ./..."
-  ["rust"]="cargo test"
-  ["node"]="npm test"
-  ["python"]="pytest"
-  ["default"]="<fill in your test command>"
-)
-declare -A LANG_LINT_CMD=(
-  ["go"]="golangci-lint run ./..."
-  ["rust"]="cargo clippy -- -D warnings"
-  ["node"]="npm run lint"
-  ["python"]="ruff check ."
-  ["default"]="<fill in your lint command>"
-)
-declare -A LANG_SINGLE_TEST_CMD=(
-  ["go"]="go test ./path/to/package/..."
-  ["rust"]="cargo test test_name"
-  ["node"]="npm test -- --testPathPattern=<pattern>"
-  ["python"]="pytest path/to/test_file.py"
-  ["default"]="<fill in your single-test command>"
-)
+# Implemented as functions (not associative arrays) for bash 3.2 compatibility (macOS).
+lang_build_cmd() {
+  case "$1" in
+    go)      echo "go build ./..." ;;
+    rust)    echo "cargo build" ;;
+    node)    echo "npm run build" ;;
+    python)  echo "python -m build" ;;
+    *)       echo "<fill in your build command>" ;;
+  esac
+}
+lang_test_cmd() {
+  case "$1" in
+    go)      echo "go test ./..." ;;
+    rust)    echo "cargo test" ;;
+    node)    echo "npm test" ;;
+    python)  echo "pytest" ;;
+    *)       echo "<fill in your test command>" ;;
+  esac
+}
+lang_lint_cmd() {
+  case "$1" in
+    go)      echo "golangci-lint run ./..." ;;
+    rust)    echo "cargo clippy -- -D warnings" ;;
+    node)    echo "npm run lint" ;;
+    python)  echo "ruff check ." ;;
+    *)       echo "<fill in your lint command>" ;;
+  esac
+}
+lang_single_test_cmd() {
+  case "$1" in
+    go)      echo "go test ./path/to/package/..." ;;
+    rust)    echo "cargo test test_name" ;;
+    node)    echo "npm test -- --testPathPattern=<pattern>" ;;
+    python)  echo "pytest path/to/test_file.py" ;;
+    *)       echo "<fill in your single-test command>" ;;
+  esac
+}
 
 # Colors (if terminal supports them)
 if [[ -t 1 ]]; then
@@ -386,10 +394,10 @@ generate_agents_md() {
   fi
 
   # Resolve commands for the given lang key, falling back to "default"
-  local build_cmd="${LANG_BUILD_CMD[$lang_key]:-${LANG_BUILD_CMD[default]}}"
-  local test_cmd="${LANG_TEST_CMD[$lang_key]:-${LANG_TEST_CMD[default]}}"
-  local lint_cmd="${LANG_LINT_CMD[$lang_key]:-${LANG_LINT_CMD[default]}}"
-  local single_test_cmd="${LANG_SINGLE_TEST_CMD[$lang_key]:-${LANG_SINGLE_TEST_CMD[default]}}"
+  local build_cmd; build_cmd="$(lang_build_cmd "$lang_key")"
+  local test_cmd;  test_cmd="$(lang_test_cmd  "$lang_key")"
+  local lint_cmd;  lint_cmd="$(lang_lint_cmd  "$lang_key")"
+  local single_test_cmd; single_test_cmd="$(lang_single_test_cmd "$lang_key")"
 
   sed \
     -e "s|{{PROJECT_NAME}}|$project_name|g" \
