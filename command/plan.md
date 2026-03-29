@@ -15,6 +15,7 @@ pause and resume.
 - `$ARGUMENTS`: A topic, goal, or problem statement — free text.
   - Examples: `/plan "improve onboarding experience"`, `/plan auth overhaul`
   - Optional flags: `--resume=<plan-id>` to continue an existing plan
+  - Optional flags: `--list` to show past plans and stop
   - Optional flags: `--backend=<type>` to override the configured backend
 
 ---
@@ -26,7 +27,22 @@ const { parseBackendOverride } = require('./lib/backend-loader.js')
 const ps = require('./lib/plan-state.js')
 
 const { backendType, cleanedArguments } = parseBackendOverride($ARGUMENTS)
-const tokens = cleanedArguments.trim().split(/\s+/)
+const tokens = cleanedArguments.trim().split(/\s+/).filter(Boolean)
+
+// Check for --list flag
+if (tokens.includes('--list')) {
+  const plans = ps.listPlans()
+  if (plans.length === 0) {
+    console.log('No plans found. Start one with: /plan <topic>')
+  } else {
+    console.log('Plans:\n')
+    for (const p of plans) {
+      console.log('  ' + ps.formatPlanSummary(p))
+    }
+    console.log('\nResume one with: /plan --resume=<plan-id>')
+  }
+  // Stop here
+}
 
 // Check for --resume flag
 const resumeFlag = tokens.find(t => t.startsWith('--resume='))
@@ -36,15 +52,19 @@ const planId = resumeFlag ? resumeFlag.replace('--resume=', '') : null
 const topic = tokens.filter(t => !t.startsWith('--')).join(' ').replace(/^["']|["']$/g, '')
 ```
 
+**If `--list` is provided:** print the plan list as shown above and stop.
+
 **If `--resume` is provided:**
 - Load the plan with `ps.getPlan(planId)`.
-- If not found, stop and show: `Plan ${planId} not found. Run /plan <topic> to start a new one.`
+- If not found, stop and show: `Plan ${planId} not found. Run /plan --list to see available plans.`
 - Jump to the phase matching `plan.stage` (see phase map below).
 
 **If starting fresh:**
 - If no `topic` is provided, show usage and stop:
   ```
   Usage: /plan <topic> [--backend=<type>]
+         /plan --resume=<plan-id>
+         /plan --list
   Example: /plan "improve onboarding experience"
   ```
 - Load the backend:

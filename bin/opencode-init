@@ -554,8 +554,10 @@ mkdir -p "$TARGET_DIR/.agent/agent"
 mkdir -p "$TARGET_DIR/.agent/skills/workflow-backend"
 mkdir -p "$TARGET_DIR/.agent/backends/$BACKEND"
 mkdir -p "$TARGET_DIR/.agent/lib"
-# specs/ lives in the project root (committed to git)
+# specs/ and plans/ live in the project root (committed to git)
 mkdir -p "$TARGET_DIR/specs"
+mkdir -p "$TARGET_DIR/plans"
+touch "$TARGET_DIR/plans/.gitkeep"
 
 # Copy commands
 cp "$OPENCODE_ROOT/command/spec.md"         "$TARGET_DIR/.agent/command/"
