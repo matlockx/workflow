@@ -1,76 +1,66 @@
-# Agentic Workflow Framework
+# OpenCode Agentic Workflow Framework
 
-**OpenCode × Pluggable Workflow Backends**
-
-A workflow-agnostic framework for agent-assisted software development that lets you use your preferred issue tracker, task manager, and workflow methodology.
+A pluggable, agent-assisted development workflow for OpenCode. Covers the full lifecycle — from brainstorming to merged PR — while keeping humans in control at every approval gate.
 
 ---
 
-## 🎯 What This Is
+## What it does
 
-An **end-to-end, agent-assisted development workflow** that:
+- **`/plan`** — brainstorm features, prioritize a backlog, bulk-create issues (with optional Epic)
+- **`/feature`** — full lifecycle orchestrator: issue → spec → tasks → implement → review
+- **`/bug`** — same flow, tuned for bug fixes
+- **`/resume`** — pick up any in-progress work item across sessions
+- **`/status`** — dashboard of all active work items and their stages
+- Step-by-step commands: `/issue`, `/spec`, `/createtasks`, `/implement`
+- Utility commands: `/git`, `/test`, `/codereview`, `/PR-summary`
 
-- ✅ **Works with your existing tools** (Jira, Beads, GitHub Issues, or custom)
-- ✅ **Treats specs as first-class artifacts** (version controlled, reviewable)
-- ✅ **Lets agents accelerate work** without removing human control
-- ✅ **Works across multiple repos and developer machines**
-- ✅ **Supports multiple workflows** via pluggable backends
-
-Originally designed for fintech/regulated environments, now **fully workflow-agnostic**.
-
----
-
-## 🏗️ Architecture
-
-```
-┌──────────────────────────────────────────────────────┐
-│              OpenCode Commands                        │
-│   /spec, /createtasks, /implement, /git, etc.       │
-└────────────────────┬─────────────────────────────────┘
-                     │
-                     ↓
-┌──────────────────────────────────────────────────────┐
-│          Workflow Backend Interface                   │
-│  (Unified API: issues, specs, tasks, state)          │
-└────────────────────┬─────────────────────────────────┘
-                     │
-       ┌─────────────┼─────────────┐
-       ↓             ↓             ↓
-┌──────────────┐ ┌─────────┐ ┌──────────┐
-│Jira-Task     │ │ Beads   │ │ Custom   │
-│warrior       │ │ Backend │ │ Backends │
-│Backend       │ │         │ │          │
-└──────────────┘ └─────────┘ └──────────┘
-```
-
-**Core Principle**: Your workflow engine (Jira, Beads, etc.) handles state and tasks. OpenCode provides the agent layer and coordination.
+Workflow state persists in `.agent/state/` so you can close the terminal and resume days later.
 
 ---
 
-## 🚀 Quick Start
-
-### 1. Choose Your Backend
-
-Pick a workflow backend that matches your tools:
-
-- **`jira-taskwarrior`** - Jira (ACLI) + Taskwarrior + Bugwarrior (original workflow)
-- **`beads`** - Steve Yegge's Beads task manager
-- **`custom`** - Roll your own (implement the backend interface)
-
-### 2. Install OpenCode
+## Quick start
 
 ```bash
-# Clone this repo
+# 1. Clone this repo
 git clone https://github.com/your-username/opencode.git
-cd opencode
 
-# Install dependencies (if any)
-# Follow setup guide for your chosen backend
+# 2. Initialize OpenCode workflow in your project
+cd opencode
+./bin/opencode-init ~/projects/myapp          # file backend (default, zero deps)
+./bin/opencode-init --backend=jira-taskwarrior ~/projects/myapp
+
+# 3. Open your project in OpenCode and start working
+cd ~/projects/myapp
+# /plan "improve onboarding"     ← brainstorm & bulk-create a backlog
+# /feature ISSUE-1               ← start the full lifecycle
+# /resume  ISSUE-1               ← pick up where you left off
+# /status                        ← see all active work
 ```
 
-### 3. Configure Your Backend
+---
 
-Create or update `opencode.json`:
+## Backends
+
+| Backend | Best for | Dependencies |
+|---------|----------|--------------|
+| `file` | Solo developers, simple projects, getting started | None |
+| `jira-taskwarrior` | Teams using Jira | ACLI, Taskwarrior |
+
+### File backend (default)
+
+Zero dependencies. Issues and tasks stored as JSON files under `.agent/state/`. Sequential IDs: `ISSUE-1`, `ISSUE-2`, …
+
+```json
+{
+  "workflow": {
+    "backend": { "type": "file", "config": {} }
+  }
+}
+```
+
+### Jira-Taskwarrior backend
+
+Uses Atlassian CLI (ACLI) for Jira and Taskwarrior for local task execution.
 
 ```json
 {
@@ -83,344 +73,155 @@ Create or update `opencode.json`:
         "jiraEmail": "you@example.com",
         "taskrcPath": "~/.taskrc",
         "taskDataLocation": "~/.task",
-        "lmmNotesRoot": "$LLM_NOTES_ROOT",
-        "repository": "your-repo"
+        "lmmNotesRoot": "./notes"
       }
     }
   }
 }
 ```
 
-### 4. Follow Your Backend Setup Guide
-
-- **Jira-Taskwarrior**: See [`backends/jira-taskwarrior/README.md`](backends/jira-taskwarrior/README.md)
-- **Beads**: See [`docs/setup/setup-beads.md`](docs/setup/setup-beads.md)
-- **Mac Users**: See [`docs/setup/setup-mac.md`](docs/setup/setup-mac.md) first
-
-### 5. Backend Quickstarts
-
-#### Jira-Taskwarrior Quickstart
-
-```bash
-# Verify Jira and Taskwarrior access
-acli jira auth status
-task --version
-
-# Configure backend in opencode.json, then use the standard flow
-/po-issue "Create a Jira-backed test issue"
-/spec STAR-123
-/createtasks STAR-123
-/implement STAR-123
-```
-
-Use this backend when Jira is your source of truth and Taskwarrior is your local execution layer.
-
-#### Beads Quickstart
-
-```bash
-# Initialize Beads in the repo root
-bd init --stealth
-
-# Create or pick an issue, then use the same OpenCode flow
-bd create "Create a Beads-backed test issue" --type feature --json
-/spec opencode-123 --backend=beads
-/createtasks opencode-123 --backend=beads
-/implement opencode-123 --backend=beads
-```
-
-Use this backend when you want a lightweight local-first workflow without Jira dependencies.
-
-### 6. Troubleshooting Shortcuts
-
-- **General setup**: [`docs/setup.md`](docs/setup.md)
-- **macOS-specific quirks**: [`docs/setup/macos-quirks.md`](docs/setup/macos-quirks.md)
-- **Jira-Taskwarrior backend setup/troubleshooting**: [`backends/jira-taskwarrior/README.md`](backends/jira-taskwarrior/README.md)
-- **Beads setup**: [`docs/setup/setup-beads.md`](docs/setup/setup-beads.md)
-- **Migration notes**: [`docs/migration-from-upstream.md`](docs/migration-from-upstream.md)
+See [`backends/jira-taskwarrior/README.md`](backends/jira-taskwarrior/README.md) for setup.
 
 ---
 
-## 🔄 Typical Workflow
+## Typical workflow
 
-Regardless of your backend, the workflow follows the same pattern:
+### Option A — Full lifecycle (recommended)
 
-### 1. Create an Issue/Story
-
-```bash
-# Create high-quality user stories (agent-assisted)
-/po-issue "Add semantic search to markets page"
+```
+/feature ISSUE-1
 ```
 
-The agent helps you craft proper user stories with acceptance criteria.
+Drives you through every stage with pause points:
 
-### 2. Draft a Spec
+1. **spec** — agent drafts Requirements + Design; you approve
+2. **tasks** — agent breaks spec into phased implementation tasks; you approve
+3. **implement** — agent implements task by task (TDD); phase review gates after each phase
+4. **review** — final code review + PR summary
+
+At each gate you choose: `[c]ontinue  [s]kip  [a]uto-run  [q]uit`
+
+### Option B — Step by step
 
 ```bash
-# Create a specification from an issue
-/spec ISSUE-123
+/issue "Add CSV export to reports"   # create issue
+/spec  ISSUE-1                       # draft + approve spec
+/createtasks ISSUE-1                 # generate phased tasks
+/implement   ISSUE-1                 # implement phase by phase
+/test                                # run tests
+/codereview                          # review the diff
+/git "feat(reports): add CSV export" # commit
+/PR-summary                          # write PR description
 ```
 
-The agent:
-- Pulls issue context from your backend
-- Drafts a detailed spec (Requirements + Design)
-- Stores it as a reviewable markdown file
-- Links it back to your issue tracker
-
-### 3. Review & Approve the Spec
+### Option C — Brainstorm first
 
 ```bash
-# Review the spec file
-cat $LLM_NOTES_ROOT/myrepo/notes/specs/ISSUE-123__feature-name.md
-
-# If good, approve it (agent prompts you)
-# Spec state: draft → approved
-```
-
-### 4. Generate Implementation Tasks
-
-```bash
-# Create granular implementation tasks from approved spec
-/createtasks ISSUE-123
-```
-
-The agent:
-- Analyzes your spec
-- Breaks it into phases and tasks
-- Creates tasks in your backend
-- Sets up dependencies
-
-### 5. Implement (Agent-Assisted)
-
-```bash
-# Start implementation (agent implements code)
-/implement ISSUE-123
-```
-
-The agent:
-- Reads specs and tasks
-- Implements code following TDD
-- Updates task states as work progresses
-- Follows your coding standards
-
-### 6. Review, Test, Commit
-
-```bash
-# Run tests
-/test
-
-# Review code
-/codereview
-
-# Commit changes
-/git
-```
-
-### 7. Create PR
-
-```bash
-# Create pull request
-/create-pr
+/plan "improve developer onboarding"
+# → discovery questions → feature proposals → prioritized backlog
+# → bulk-creates issues (auto-creates an Epic when backlog > 1 item)
+# → backlog exported to plans/<plan-id>-backlog.md
 ```
 
 ---
 
-## 🧩 Available Backends
+## opencode-init
 
-### Jira-Taskwarrior (Original)
+`bin/opencode-init` copies all workflow files into `.agent/` of a target project.
 
-**Best for**: Teams already using Jira + Taskwarrior
+```
+Usage: opencode-init [OPTIONS] [target-dir]
 
-**Tools**:
-- Jira (via ACLI) for issue tracking
-- Taskwarrior for local task execution
-- Bugwarrior for syncing Jira → Taskwarrior
+Options:
+  --backend=TYPE    file (default) or jira-taskwarrior
+  --stack=backend   Copy all backend infra skills (postgres, kafka, docker, …)
+  --skills=LIST     Comma-separated skills (e.g. postgres,kafka,docker)
+  --lang=LANG       Language tooling: go, rust, node, python, both
+  --with-startup    Add flachnetz/startup library (Go)
+  --scaffold[=NAME] Scaffold a Go service from templates/go-service/
+  --list-skills     List all available skills
+```
 
-**Setup**: [`backends/jira-taskwarrior/README.md`](backends/jira-taskwarrior/README.md)
+What gets installed into `.agent/`:
 
-### Beads
+```
+.agent/
+  command/        all workflow commands
+  agent/          spec-mode, create-tasks, plan-mode, build,
+                  test-agent, code-reviewer
+  backends/       chosen backend implementation + interface.ts
+  lib/            backend-loader.js, workflow-state.js, plan-state.js
+  skills/         workflow-backend (always), plus any --stack/--skills/--lang extras
+specs/            spec documents (committed to git)
+plans/            backlog markdowns from /plan (committed to git)
+opencode.json     workflow configuration
+AGENTS.md         AI assistant context (customize for your project)
+```
 
-**Best for**: Individuals or small teams wanting lightweight task management
+---
 
-**Tools**:
-- Beads CLI/API for issues and tasks
-- Local-first workflow
+## Repository layout
 
-**Setup**: [`docs/setup/setup-beads.md`](docs/setup/setup-beads.md)
+```
+agent/              agent definition files
+backends/
+  file/             zero-dependency local backend
+  jira-taskwarrior/ Jira + Taskwarrior backend
+  interface.ts      WorkflowBackend interface
+bin/
+  opencode-init     project initializer
+  opencode-update   update workflow files in an existing project
+command/            slash command definitions
+lib/
+  backend-loader.js runtime backend selection
+  workflow-state.js cross-session state persistence
+  plan-state.js     plan + epic state persistence
+skills/             reusable skill packs (postgres, kafka, coding-standards, …)
+templates/
+  go-service/       Go service scaffold
+  AGENTS.md.tmpl    AGENTS.md template used by opencode-init
+```
 
-**Example config**:
+---
 
-```json
-{
-  "workflow": {
-    "backend": {
-      "type": "beads",
-      "config": {
-        "workspaceDir": "/absolute/path/to/repo",
-        "beadsDir": "/absolute/path/to/repo/.beads",
-        "lmmNotesRoot": "$LLM_NOTES_ROOT",
-        "repository": "repo-name"
-      }
-    }
-  }
+## Workflow state
+
+Stages and valid substages tracked per work item:
+
+| Stage | Substages |
+|-------|-----------|
+| `spec` | `drafting` → `requirements-review` → `design-review` → `approved` |
+| `tasks` | `pending` → `created` |
+| `implement` | `in-phase` → `phase-review` → `phase-approved` (repeats per phase) |
+| `review` | `pending` → `done` |
+| `done` | — |
+
+State file: `.agent/state/workflow.json` (gitignored).
+
+---
+
+## Adding a custom backend
+
+Implement the `WorkflowBackend` interface in `backends/interface.ts`:
+
+```typescript
+interface WorkflowBackend {
+  getIssue(id: string): Promise<Issue>
+  getSpec(issueId: string): Promise<Spec | null>
+  createSpec(issueId: string): Promise<Spec>
+  approveSpec(specId: string): Promise<Spec>
+  getTasks(filter: TaskFilter): Promise<Task[]>
+  createTasks(specId: string): Promise<Task[]>
+  updateTaskState(taskId: string, state: string): Promise<Task>
+  linkIssueToEpic(issueId: string, epicId: string): Promise<Issue>
+  // … see interface.ts for the full contract
 }
 ```
 
-**Example workflow**:
-
-```bash
-# Initialize Beads in your repo
-bd init --stealth
-
-# Create a Beads issue manually or through your preferred flow
-bd create "Implement backend abstraction" \
-  --type feature \
-  --description "Make workflow commands backend-agnostic" \
-  --json
-
-# Use OpenCode against the Beads backend
-/spec opencode-123 --backend=beads
-/createtasks opencode-123 --backend=beads
-/implement opencode-123 --backend=beads
-```
-
-**Notes**:
-
-- Run Beads commands from the initialized workspace root.
-- `bd ready --json` is the best ready-work signal for Beads.
-- Specs remain portable markdown files under `$LLM_NOTES_ROOT`.
-
-### Custom Backend
-
-**Best for**: Teams with unique workflows or custom tools
-
-**How**: Implement the `WorkflowBackend` interface
-
-**Guide**: [`docs/architecture/adding-backends.md`](docs/architecture/adding-backends.md)
+Place your implementation in `backends/<name>/index.js` and register it in `lib/backend-loader.js`.
 
 ---
 
-## 📋 Core Principles
+## License
 
-### 1. Backend = Source of Truth
-
-Your chosen backend (Jira, Beads, etc.) is authoritative for:
-- Issues/stories
-- Task state
-- Ownership and priority
-
-OpenCode coordinates but doesn't replace your workflow engine.
-
-### 2. Specs = First-Class Artifacts
-
-Specs are:
-- Version controlled (markdown in git)
-- Portable across machines (`$LLM_NOTES_ROOT`)
-- Reviewable like code
-- Backend-agnostic
-
-### 3. Agents = Accelerators, Not Decision-Makers
-
-Agents:
-- ✅ Draft specs
-- ✅ Generate implementation tasks
-- ✅ Write code
-- ✅ Run tests
-
-Humans:
-- ✅ Approve specs
-- ✅ Review code
-- ✅ Make architectural decisions
-
-### 4. State Machines Are Explicit
-
-Every backend implements clear state transitions:
-- `new` → `draft` → `approved` (specs)
-- `todo` → `inprogress` → `done` (tasks)
-- `active` → `review` → `approved` (phases)
-
-Backends can extend these states, but core states are standardized.
-
----
-
-## 📚 Documentation
-
-### Getting Started
-- [Mac Setup Guide](docs/setup/setup-mac.md)
-- [Jira-Taskwarrior Setup](backends/jira-taskwarrior/README.md)
-- [Beads Setup](docs/setup/setup-beads.md)
-- [Migration from Upstream](docs/migration-from-upstream.md)
-
-### Architecture
-- [Workflow Backend Interface](docs/architecture/workflow-backend-interface.md)
-- [Adding Custom Backends](docs/architecture/adding-backends.md)
-- [Backend Injection Diagrams](docs/BACKEND_INJECTION_DIAGRAMS.md)
-- [Implementation Details](docs/implement-workflows.md)
-
-### Customizations
-- [Customization Log](CUSTOMIZATIONS.md) - Track of all changes in this fork
-- [Task List](TODO.md) - Current development tasks
-
----
-
-## 🔧 Project Status
-
-**Current Phase**: Phase 0 - Foundation & Documentation
-
-This is an **independent fork** focused on workflow flexibility. See [`CUSTOMIZATIONS.md`](CUSTOMIZATIONS.md) for the full story.
-
-**Completed**:
-- ✅ Architecture design
-- ✅ Backend interface definition
-- 🚧 Jira-Taskwarrior backend (in progress)
-- 📋 Beads backend (planned)
-
-See [`TODO.md`](TODO.md) for detailed progress.
-
----
-
-## 🤝 Contributing
-
-### For Users
-- Report issues and bugs
-- Request new backend implementations
-- Share your workflow customizations
-
-### For Developers
-- Implement new backends (see [guide](docs/architecture/adding-backends.md))
-- Improve existing backends
-- Add tests and documentation
-
-**Important**: This is an independent fork. Contributions here won't go to the upstream repository.
-
----
-
-## 🙏 Acknowledgments
-
-This project is a fork of the original OpenCode agentic workflow by [matlockx](https://github.com/matlockx/opencode), originally designed for fintech/regulated environments with Jira + Taskwarrior.
-
-**Key Changes in This Fork**:
-- Workflow-agnostic architecture (pluggable backends)
-- macOS support
-- Generic domain (not fintech-specific)
-- Multiple backend support
-
-See [`CUSTOMIZATIONS.md`](CUSTOMIZATIONS.md) for the full divergence history.
-
----
-
-## 📄 License
-
-MIT (same as upstream)
-
----
-
-## 🗺️ What This Gives You
-
-- **Clean separation**: Your workflow backend handles state, agents handle acceleration
-- **Local-first specs**: Portable, version-controlled design artifacts
-- **Explicit gates**: Clear approval points (spec review, code review)
-- **Agent acceleration**: Without loss of human control
-- **Full audit trail**: Every state change tracked
-- **Workflow flexibility**: Use tools that fit your team
-
-**Choose your backend. Start building.**
+MIT
