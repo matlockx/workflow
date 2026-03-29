@@ -243,6 +243,24 @@ for cmd_src in "$OPENCODE_ROOT/command/"*.md; do
   UPDATED_COMMANDS=$((UPDATED_COMMANDS + 1))
 done
 
+# AIDEV-NOTE: Remove stale commands that no longer exist in the source repo.
+# This handles renames (e.g. bug.md -> fix.md) where the old file would
+# otherwise linger in the target and confuse the AI with duplicate commands.
+REMOVED_COMMANDS=0
+for installed_cmd in "$TARGET_DIR/.agent/commands/"*.md; do
+  [[ -f "$installed_cmd" ]] || continue
+  cmd_name="$(basename "$installed_cmd")"
+  if [[ ! -f "$OPENCODE_ROOT/command/$cmd_name" ]]; then
+    if [[ -n "$DRY_RUN" ]]; then
+      log_verbose "would remove stale command: $cmd_name"
+    else
+      rm "$installed_cmd"
+      log_verbose "removed stale command: $cmd_name"
+    fi
+    REMOVED_COMMANDS=$((REMOVED_COMMANDS + 1))
+  fi
+done
+
 # Ensure .opencode -> .agent symlink exists
 if [[ -z "$DRY_RUN" ]]; then
   if [[ -L "$TARGET_DIR/.opencode" ]]; then
@@ -263,10 +281,18 @@ if [[ -z "$DRY_RUN" ]]; then
     ln -s .agent "$TARGET_DIR/.opencode"
     log_verbose "created symlink: .opencode -> .agent"
   fi
-  log_success "Commands synced: $UPDATED_COMMANDS files"
+  if [[ "$REMOVED_COMMANDS" -gt 0 ]]; then
+    log_success "Commands synced: $UPDATED_COMMANDS files ($REMOVED_COMMANDS stale removed)"
+  else
+    log_success "Commands synced: $UPDATED_COMMANDS files"
+  fi
 else
   log_verbose "would ensure .opencode -> .agent symlink"
-  log_success "Commands would sync: $UPDATED_COMMANDS files"
+  if [[ "$REMOVED_COMMANDS" -gt 0 ]]; then
+    log_success "Commands would sync: $UPDATED_COMMANDS files ($REMOVED_COMMANDS stale would be removed)"
+  else
+    log_success "Commands would sync: $UPDATED_COMMANDS files"
+  fi
 fi
 
 # ============================================
