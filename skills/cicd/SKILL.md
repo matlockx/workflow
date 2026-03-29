@@ -31,10 +31,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -71,10 +71,10 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -89,10 +89,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -125,7 +125,7 @@ jobs:
           - 5432:5432
       
       redis:
-        image: redis:7-alpine
+        image: redis:8-alpine
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
@@ -135,10 +135,10 @@ jobs:
           - 6379:6379
     
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -158,7 +158,7 @@ jobs:
   security:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       
       - name: Run Gosec
         uses: securego/gosec@master
@@ -205,7 +205,7 @@ jobs:
       packages: write
     
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -266,7 +266,7 @@ jobs:
     environment: production
     
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       
       - name: Install kubectl
         uses: azure/setup-kubectl@v3
@@ -310,7 +310,7 @@ jobs:
     environment: production
     
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       
       - name: Install Helm
         uses: azure/setup-helm@v3
@@ -351,7 +351,7 @@ jobs:
     
     steps:
       - name: Checkout manifests repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: example/k8s-manifests
           token: ${{ secrets.GITOPS_TOKEN }}
@@ -389,10 +389,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go-version }}
           cache: true
@@ -466,10 +466,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ inputs.go-version }}
           cache: true
@@ -484,7 +484,7 @@ jobs:
 
 ```yaml
 - name: Cache Go modules
-  uses: actions/cache@v4
+  uses: actions/cache@v5
   with:
     path: |
       ~/.cache/go-build
@@ -494,7 +494,7 @@ jobs:
       ${{ runner.os }}-go-
 
 - name: Cache Docker layers
-  uses: actions/cache@v4
+  uses: actions/cache@v5
   with:
     path: /tmp/.buildx-cache
     key: ${{ runner.os }}-buildx-${{ github.sha }}
@@ -570,7 +570,7 @@ jobs:
 
 ### 1. Use Dependency Caching
 ```yaml
-- uses: actions/setup-go@v5
+- uses: actions/setup-go@v6
   with:
     go-version: '1.22'
     cache: true  # Enables automatic caching

@@ -19,7 +19,7 @@ Reference for containerizing backend services with Docker.
 # syntax=docker/dockerfile:1
 
 # Build stage
-FROM golang:1.22-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata
@@ -67,7 +67,7 @@ ENTRYPOINT ["/server"]
 ### With CGO Dependencies (librdkafka, etc.)
 
 ```dockerfile
-FROM golang:1.22-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 # Install build deps including CGO libs
 RUN apk add --no-cache git ca-certificates tzdata gcc musl-dev \
@@ -87,7 +87,7 @@ RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build \
     ./cmd/server
 
 # Runtime stage with necessary libraries
-FROM alpine:3.19
+FROM alpine:3.23
 
 RUN apk add --no-cache ca-certificates tzdata librdkafka
 
@@ -131,7 +131,7 @@ services:
     restart: unless-stopped
 
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     environment:
       - POSTGRES_USER=user
       - POSTGRES_PASSWORD=pass
@@ -147,7 +147,7 @@ services:
       retries: 5
 
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     ports:
       - "6379:6379"
     volumes:
@@ -159,7 +159,7 @@ services:
       retries: 5
 
   kafka:
-    image: confluentinc/cp-kafka:7.5.0
+    image: confluentinc/cp-kafka:8.2.0
     ports:
       - "9092:9092"
     environment:
@@ -189,7 +189,7 @@ volumes:
 
 ```dockerfile
 # Dockerfile.dev
-FROM golang:1.22-alpine
+FROM golang:1.26-alpine
 
 RUN apk add --no-cache git
 
@@ -290,7 +290,7 @@ docker build \
 
 ```dockerfile
 # Use alpine for smaller base
-FROM golang:1.22-alpine  # ~300MB
+FROM golang:1.26-alpine  # ~300MB
 
 # Or distroless for production
 FROM gcr.io/distroless/static-debian12  # ~2MB
