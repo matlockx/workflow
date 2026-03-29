@@ -208,6 +208,33 @@ class FileBackend {
     return issue
   }
 
+  /**
+   * Link a child issue to an Epic by storing epicId in metadata.
+   * The Epic itself gets the child recorded in metadata.childIssueIds.
+   *
+   * @param {string} issueId - Child issue ID
+   * @param {string} epicId  - Epic issue ID
+   * @returns {Object} Updated child issue
+   */
+  async linkIssueToEpic(issueId, epicId) {
+    // AIDEV-NOTE: Epic linking for the file backend is metadata-only.
+    // Child gets metadata.epicId; Epic gets metadata.childIssueIds updated.
+    const child = await this.updateIssue(issueId, {
+      metadata: { epicId }
+    })
+
+    // Best-effort: update Epic's childIssueIds list
+    try {
+      const epic = await this.getIssue(epicId)
+      const childIssueIds = [...new Set([...(epic.metadata.childIssueIds || []), issueId])]
+      await this.updateIssue(epicId, { metadata: { childIssueIds } })
+    } catch (err) {
+      // Non-fatal: Epic may not exist if created externally
+    }
+
+    return child
+  }
+
   // ============================================
   // SPEC MANAGEMENT
   // ============================================

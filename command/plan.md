@@ -16,6 +16,7 @@ pause and resume.
   - Examples: `/plan "improve onboarding experience"`, `/plan auth overhaul`
   - Optional flags: `--resume=<plan-id>` to continue an existing plan
   - Optional flags: `--list` to show past plans and stop
+  - Optional flags: `--no-epic` to skip auto-creating an Epic when bulk-creating issues
   - Optional flags: `--backend=<type>` to override the configured backend
 
 ---
@@ -44,6 +45,9 @@ if (tokens.includes('--list')) {
   // Stop here
 }
 
+// Check for --no-epic flag
+const noEpic = tokens.includes('--no-epic')
+
 // Check for --resume flag
 const resumeFlag = tokens.find(t => t.startsWith('--resume='))
 const planId = resumeFlag ? resumeFlag.replace('--resume=', '') : null
@@ -62,7 +66,7 @@ const topic = tokens.filter(t => !t.startsWith('--')).join(' ').replace(/^["']|[
 **If starting fresh:**
 - If no `topic` is provided, show usage and stop:
   ```
-  Usage: /plan <topic> [--backend=<type>]
+  Usage: /plan <topic> [--backend=<type>] [--no-epic]
          /plan --resume=<plan-id>
          /plan --list
   Example: /plan "improve onboarding experience"
@@ -240,10 +244,30 @@ Switch the active agent to **plan-mode** for this session.
 **Entry condition:** `plan.stage === 'bulk-create'`
 
 Create each backlog item as an issue in the backend, in priority order.
+If the backlog has more than one item and `--no-epic` was not passed, auto-create
+an Epic first and link each new issue to it.
 
 ```js
 const plan = ps.getPlan(plan.id)
 const backend = getBackend(backendType)
+
+// Auto-create Epic when backlog has multiple items (unless suppressed)
+let epicId = plan.epicId  // Already created if resuming
+if (!epicId && !noEpic && plan.backlog.length > 1) {
+  try {
+    const epic = await backend.createIssue({
+      summary: plan.title,
+      description: plan.context || `Epic for planning session: ${plan.title}`,
+      issueType: 'epic'
+    })
+    epicId = epic.id
+    ps.setEpicId(plan.id, epicId)
+    console.log(`  Created Epic ${epicId}: ${plan.title}`)
+  } catch (err) {
+    console.warn(`  Warning: Could not create Epic: ${err.message}. Continuing without Epic.`)
+    // Non-fatal — proceed with individual issues
+  }
+}
 
 for (const item of plan.backlog) {
   // Skip items already created (idempotent resume)
@@ -257,6 +281,15 @@ for (const item of plan.backlog) {
     })
     ps.recordCreatedIssue(plan.id, item.id, issue.id, issue.summary)
     console.log(`  Created ${issue.id}: ${issue.summary}`)
+
+    // Link to Epic if one was created
+    if (epicId) {
+      try {
+        await backend.linkIssueToEpic(issue.id, epicId)
+      } catch (linkErr) {
+        console.warn(`    Warning: Could not link ${issue.id} to Epic ${epicId}: ${linkErr.message}`)
+      }
+    }
   } catch (err) {
     console.warn(`  Failed to create "${item.title}": ${err.message}`)
     // Continue with remaining items; user can re-run to retry
@@ -269,6 +302,7 @@ After the loop:
   ```
   Created ${plan.createdIssues.length} / ${plan.backlog.length} issues.
   ```
+- If an Epic was created, also report: `Epic: ${epicId}`
 - If any failed, list them and suggest re-running `/plan --resume=${plan.id}`.
 - Advance to done:
   ```js
@@ -287,6 +321,7 @@ Report completion and print a summary:
 ══════════════════════════════════════════
 
   ${plan.createdIssues.length} issues created
+  ${plan.epicId ? `Epic: ${plan.epicId}` : ''}
   Backlog: plans/${plan.id}-backlog.md
 
   Use /feature <issueId> to start work on any issue.
@@ -300,6 +335,8 @@ Report completion and print a summary:
 |-----------|--------|
 | Backend unavailable | Warn; skip bulk-create; backlog is already saved |
 | `createIssue` fails for one item | Log warning, continue with others |
+| Epic creation fails | Warn and continue; issues created without Epic link |
+| `linkIssueToEpic` fails for one item | Warn and continue; issue was already created |
 | Plan file missing on `--resume` | Stop and show clear error |
 | No topic provided | Show usage and stop |
 

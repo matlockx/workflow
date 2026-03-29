@@ -195,6 +195,20 @@ export interface WorkflowBackend {
    * @throws BackendError with code NOT_FOUND if issue not found
    */
   updateIssue(id: string, updates: Partial<IssueCreateData>): Promise<Issue>
+
+  /**
+   * Link an issue to an Epic.
+   *
+   * For the file backend this sets `metadata.epicId` on the child issue.
+   * For the jira-taskwarrior backend this sets `customfield_10014` (Epic Link)
+   * on the Jira issue via ACLI.
+   *
+   * @param issueId  The child issue to link
+   * @param epicId   The Epic's issue ID
+   * @returns Updated child issue
+   * @throws BackendError with code NOT_FOUND if either issue is not found
+   */
+  linkIssueToEpic(issueId: string, epicId: string): Promise<Issue>
   
   // ============================================
   // SPEC MANAGEMENT

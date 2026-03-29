@@ -417,7 +417,11 @@ class JiraTaskwarriorBackend {
       const payload = {
         projectKey: this.config.jiraProject,
         summary: issueData.summary,
-        type: issueData.type || 'Story'
+        // AIDEV-NOTE: issueType 'epic' maps to Jira type 'Epic'; anything else
+        // falls back to 'Story' so callers can pass interface-level type names.
+        type: issueData.issueType === 'epic' ? 'Epic'
+            : issueData.issueType === 'bug'  ? 'Bug'
+            : issueData.type || 'Story'
       }
 
       if (adf) {
@@ -465,6 +469,78 @@ class JiraTaskwarriorBackend {
         null,
         error
       )
+    }
+  }
+
+  async updateIssue(id, updates) {
+    try {
+      const payload = {}
+      if (updates.summary) payload.summary = updates.summary
+      if (updates.description) payload.description = this._markdownToADF(updates.description)
+      if (updates.assignee) payload.assignee = updates.assignee
+      if (updates.labels) payload.labels = updates.labels
+      if (updates.priority) payload.priority = { name: updates.priority }
+      if (updates.metadata) Object.assign(payload, updates.metadata)
+
+      const tempFile = path.join(os.tmpdir(), `opencode-jira-update-${Date.now()}.json`)
+      fs.writeFileSync(tempFile, JSON.stringify(payload, null, 2))
+
+      try {
+        await this._acli(`workitem update ${shellEscape(id)} --from-json ${shellEscape(tempFile)}`)
+      } finally {
+        try { fs.unlinkSync(tempFile) } catch (_) {}
+      }
+
+      return this.getIssue(id)
+    } catch (error) {
+      throw this._createError(
+        'UPDATE_ERROR',
+        `Failed to update issue ${id}: ${error.message}`,
+        null,
+        error
+      )
+    }
+  }
+
+  /**
+   * Link a child issue to a Jira Epic.
+   *
+   * For classic Jira projects this sets customfield_10014 (Epic Link) on the
+   * child story. For next-gen projects the parent field is used instead.
+   * We attempt customfield_10014 first; if ACLI rejects it we fall back to
+   * setting the `parent` field.
+   *
+   * @param {string} issueId - The child issue key (e.g. "PROJ-5")
+   * @param {string} epicId  - The Epic issue key (e.g. "PROJ-2")
+   * @returns {Object} Normalized child issue
+   */
+  async linkIssueToEpic(issueId, epicId) {
+    // AIDEV-NOTE: Jira classic projects use customfield_10014 (Epic Link).
+    // Next-gen / team-managed projects use the `parent` field instead.
+    // We try classic first and fall back to next-gen on failure.
+    const tempFile = path.join(os.tmpdir(), `opencode-jira-epic-link-${Date.now()}.json`)
+    try {
+      // Classic project Epic Link
+      const payload = { customfield_10014: epicId }
+      fs.writeFileSync(tempFile, JSON.stringify(payload, null, 2))
+      try {
+        await this._acli(`workitem update ${shellEscape(issueId)} --from-json ${shellEscape(tempFile)}`)
+      } catch (classicErr) {
+        // Fall back to next-gen parent field
+        const fallbackPayload = { parent: { key: epicId } }
+        fs.writeFileSync(tempFile, JSON.stringify(fallbackPayload, null, 2))
+        await this._acli(`workitem update ${shellEscape(issueId)} --from-json ${shellEscape(tempFile)}`)
+      }
+      return this.getIssue(issueId)
+    } catch (error) {
+      throw this._createError(
+        'LINK_ERROR',
+        `Failed to link ${issueId} to Epic ${epicId}: ${error.message}`,
+        'Check that the Epic exists and that your Jira project supports Epic Link',
+        error
+      )
+    } finally {
+      try { fs.unlinkSync(tempFile) } catch (_) {}
     }
   }
   
