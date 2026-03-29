@@ -1,6 +1,5 @@
 ---
 mode: primary
-model: claude-sonnet-4-5
 description: >-
   Implement backend-managed tasks from an approved spec. Write code, run tests,
   and make commits following TDD and project conventions.

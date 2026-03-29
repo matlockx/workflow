@@ -1,6 +1,5 @@
 ---
 mode: primary
-model: claude-sonnet-4-5
 description: >-
   Facilitate discovery and brainstorming for a planning session. Help the user
   articulate their goals, propose and prioritize features, and produce a

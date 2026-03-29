@@ -1,7 +1,6 @@
 ---
 mode: primary
 description: "Used to analyze the codebase and write down in /notest/architecture/"
-model: claude-sonnet-4-5
 temperature: 0.1
 permissions:
   write: allow

@@ -1,6 +1,5 @@
 ---
 description: "Read-only PR reviewer that inspects the diff and produces actionable comments."
-model: github-copilot/claude-sonnet-4.5
 temperature: 0.1
 permissions:
   # read-only analysis; no edits/patches

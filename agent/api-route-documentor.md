@@ -1,7 +1,6 @@
 ---
 description: You are documenting one Express route for an OpenAPI 3.0 spec.
 mode: subagent
-model: github-copilot/claude-haiku-4.5
 temperature: 0.2
 ---
 

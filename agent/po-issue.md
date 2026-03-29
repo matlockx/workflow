@@ -1,6 +1,5 @@
 ---
 mode: primary
-model: github-copilot/claude-sonnet-4.5
 temperature: 0.3
 description: Create and submit issues via the configured issue backend
 permissions:

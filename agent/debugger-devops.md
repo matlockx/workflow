@@ -1,6 +1,5 @@
 ---
 mode: primary
-model: github-copilot/claude-sonnet-4.5
 temperature: 0.2
 description: >
   Kilo Ops — an expert DevOps debugger specializing in systematic

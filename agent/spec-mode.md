@@ -1,6 +1,5 @@
 ---
 mode: primary
-model: claude-sonnet-4-5
 description: >-
   Create a specification document for a feature or issue. Activated by the /spec command with an issue ID from the configured workflow backend.
 ---

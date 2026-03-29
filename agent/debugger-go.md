@@ -1,6 +1,5 @@
 ---
 name: debugger-go
-model: claude-sonnet-4-5
 description: Go debugging specialist. Diagnoses runtime panics, goroutine leaks, race conditions, deadlocks, and performance issues in Go applications.
 ---
 

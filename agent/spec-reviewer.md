@@ -1,6 +1,5 @@
 ---
 mode: primary
-model: claude-sonnet-4-5
 description: Reviews feature specifications against their actual implementation. Audits completeness, identifies deviations, and judges whether deviations are warranted.
 ---
 

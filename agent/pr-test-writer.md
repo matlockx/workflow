@@ -1,7 +1,6 @@
 ---
 mode: primary
 description: "Write/extend Jest tests for changed code in this PR (JS/TS, Yarn). Iterates until green & coverage thresholds met."
-model: github-copilot/claude-sonnet-4.5
 temperature: 0.2
 permissions:
   write: allow

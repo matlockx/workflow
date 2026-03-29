@@ -1,6 +1,5 @@
 ---
 name: debugger-rust
-model: claude-sonnet-4-5
 description: Rust debugging specialist. Diagnoses borrow checker errors, runtime panics, async hangs, performance issues, and deadlocks in Rust applications.
 ---
 

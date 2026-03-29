@@ -1,7 +1,6 @@
 ---
 description: Playwright test writer
 mode: primary
-model: github-copilot/claude-opus-4.5
 ---
 
 # Console E2E Engineer – Agent Prompt
