@@ -14,9 +14,12 @@
 #   opencode-init --scaffold=myservice      # Scaffold a Go service from template
 #
 # AIDEV-NOTE: This script copies the minimal workflow files needed to use
-# OpenCode's /issue, /spec, /createtasks, and /implement commands in a new project.
+# OpenCode's /issue, /spec, /createtasks, /implement, /feature, /bug,
+# /resume, /status, and /plan commands in a new project.
 # All workflow machinery is placed under .agent/ (hidden, gitignored state) and
 # specs/ (committed, user-visible). opencode.json and AGENTS.md stay in the root.
+# Phase 1 additions: /feature, /bug, /resume, /status + workflow-state.js
+# Phase 2 additions: /plan, plan-mode agent, plan-state.js
 # Phase E additions: --stack, --skills, --lang for platform engineering setup.
 # Phase F additions: --with-startup, --scaffold for Go service scaffolding.
 
@@ -169,7 +172,9 @@ Examples:
 Backends:
   file              Zero-dependency local workflow (default, recommended)
                     Sequential IDs (ISSUE-1, ISSUE-2), state in .agent/state/
+                    Best for: solo developers, simple projects, getting started
   jira-taskwarrior  Jira + Taskwarrior integration (for teams with Jira)
+                    Best for: teams already using Jira, rich dependency tracking
 
 Stack Presets:
   backend           All backend infrastructure skills:
@@ -557,12 +562,18 @@ cp "$OPENCODE_ROOT/command/spec.md"         "$TARGET_DIR/.agent/command/"
 cp "$OPENCODE_ROOT/command/createtasks.md"  "$TARGET_DIR/.agent/command/"
 cp "$OPENCODE_ROOT/command/implement.md"    "$TARGET_DIR/.agent/command/"
 cp "$OPENCODE_ROOT/command/issue.md"        "$TARGET_DIR/.agent/command/"
-log_success "Copied commands: issue, spec, createtasks, implement"
+cp "$OPENCODE_ROOT/command/feature.md"      "$TARGET_DIR/.agent/command/"
+cp "$OPENCODE_ROOT/command/bug.md"          "$TARGET_DIR/.agent/command/"
+cp "$OPENCODE_ROOT/command/resume.md"       "$TARGET_DIR/.agent/command/"
+cp "$OPENCODE_ROOT/command/status.md"       "$TARGET_DIR/.agent/command/"
+cp "$OPENCODE_ROOT/command/plan.md"         "$TARGET_DIR/.agent/command/"
+log_success "Copied commands: issue, spec, createtasks, implement, feature, bug, resume, status, plan"
 
 # Copy agents
 cp "$OPENCODE_ROOT/agent/spec-mode.md"    "$TARGET_DIR/.agent/agent/"
 cp "$OPENCODE_ROOT/agent/create-tasks.md" "$TARGET_DIR/.agent/agent/"
-log_success "Copied agents: spec-mode, create-tasks"
+cp "$OPENCODE_ROOT/agent/plan-mode.md"    "$TARGET_DIR/.agent/agent/"
+log_success "Copied agents: spec-mode, create-tasks, plan-mode"
 
 # Copy workflow skill
 cp "$OPENCODE_ROOT/skills/workflow-backend/SKILL.md" "$TARGET_DIR/.agent/skills/workflow-backend/"
@@ -574,8 +585,10 @@ cp "$OPENCODE_ROOT/backends/$BACKEND/README.md" "$TARGET_DIR/.agent/backends/$BA
 log_success "Copied backend: $BACKEND"
 
 # Copy backend loader
-cp "$OPENCODE_ROOT/lib/backend-loader.js" "$TARGET_DIR/.agent/lib/"
-log_success "Copied lib: backend-loader"
+cp "$OPENCODE_ROOT/lib/backend-loader.js"  "$TARGET_DIR/.agent/lib/"
+cp "$OPENCODE_ROOT/lib/workflow-state.js"  "$TARGET_DIR/.agent/lib/"
+cp "$OPENCODE_ROOT/lib/plan-state.js"      "$TARGET_DIR/.agent/lib/"
+log_success "Copied lib: backend-loader, workflow-state, plan-state"
 
 # Copy interface (for reference)
 cp "$OPENCODE_ROOT/backends/interface.ts" "$TARGET_DIR/.agent/backends/"
@@ -754,14 +767,23 @@ echo "Files created:"
 echo "  opencode.json                  - Workflow configuration"
 echo "  AGENTS.md                      - AI assistant context (customize me!)"
 echo "  specs/                         - Spec documents (committed to git)"
-echo "  .agent/command/issue.md        - /issue command"
-echo "  .agent/command/spec.md         - /spec command"
-echo "  .agent/command/createtasks.md  - /createtasks command"
-echo "  .agent/command/implement.md    - /implement command"
+echo "  plans/                         - Backlog markdowns from /plan (committed to git)"
+echo "  .agent/command/plan.md         - /plan      brainstorm & bulk-create a backlog"
+echo "  .agent/command/feature.md      - /feature  full lifecycle orchestrator"
+echo "  .agent/command/bug.md          - /bug       alias for /feature --type=bug"
+echo "  .agent/command/resume.md       - /resume    pick up where you left off"
+echo "  .agent/command/status.md       - /status    view all active work items"
+echo "  .agent/command/issue.md        - /issue     create a new issue"
+echo "  .agent/command/spec.md         - /spec      draft & approve a spec"
+echo "  .agent/command/createtasks.md  - /createtasks  break spec into tasks"
+echo "  .agent/command/implement.md    - /implement    execute tasks"
 echo "  .agent/agent/spec-mode.md      - Spec writing agent"
 echo "  .agent/agent/create-tasks.md   - Task creation agent"
+echo "  .agent/agent/plan-mode.md      - Planning / brainstorming agent"
 echo "  .agent/backends/$BACKEND/      - Backend implementation"
 echo "  .agent/lib/backend-loader.js   - Backend loader utility"
+echo "  .agent/lib/workflow-state.js   - Workflow state persistence"
+echo "  .agent/lib/plan-state.js       - Plan state persistence"
 
 if [[ "$STACK" == "backend" ]]; then
   echo
@@ -817,10 +839,20 @@ if [[ -n "$SCAFFOLD" ]]; then
 elif [[ "$BACKEND" == "jira-taskwarrior" ]]; then
   echo "  1. Edit opencode.json with your Jira site/project"
   echo "  2. Authenticate:       acli jira auth"
+  echo
 fi
-echo "  Start a feature:    /issue \"Your feature description\""
-echo "  Create tasks:       /createtasks ISSUE-1"
-echo "  Start implementing: /implement ISSUE-1"
+echo "  Full lifecycle (recommended):"
+echo "    /plan    \"improve onboarding\"  Brainstorm & bulk-create a backlog"
+echo "    /feature ISSUE-1               Start issue → spec → tasks → implement"
+echo "    /bug     ISSUE-2               Same flow, tuned for bug fixes"
+echo "    /resume  ISSUE-1               Pick up where you left off"
+echo "    /status                        View all active work items"
+echo
+echo "  Step-by-step:"
+echo "    /issue \"description\"       Create a new issue"
+echo "    /spec  ISSUE-1             Draft and approve a spec"
+echo "    /createtasks ISSUE-1       Break spec into implementation tasks"
+echo "    /implement   ISSUE-1       Execute tasks"
 echo
 echo "Tip: Edit AGENTS.md to add project-specific context for the AI."
 echo "Documentation: $TARGET_DIR/.agent/backends/$BACKEND/README.md"
