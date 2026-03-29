@@ -1,0 +1,187 @@
+{
+  "$schema": "https://opencode.ai/schemas/go-modernizers.json",
+  "$comment": "Curated Go language feature transformations by version. Used by opencode-update --modernize",
+  
+  "versions": {
+    "1.26": {
+      "released": "2026-02",
+      "features": [
+        {
+          "name": "errors.AsType",
+          "description": "Generic errors.AsType[T](err) replaces manual errors.As with cleaner syntax",
+          "pattern": {
+            "before": "var (\\w+) (\\*?\\w+)\\n\\s*if errors\\.As\\(([^,]+), &\\1\\)",
+            "after": "if $1, ok := errors.AsType[$2]($3); ok"
+          },
+          "example": {
+            "before": "var pathErr *fs.PathError\nif errors.As(err, &pathErr) {",
+            "after": "if pathErr, ok := errors.AsType[*fs.PathError](err); ok {"
+          },
+          "references": ["https://go.dev/doc/go1.26#errors"]
+        },
+        {
+          "name": "new(expr)",
+          "description": "new() can now take an expression, useful for optional pointer fields",
+          "pattern": {
+            "before": "func ptr\\[(\\w+) any\\]\\(v \\1\\) \\*\\1 \\{ return &v \\}",
+            "after": "// Use new(value) directly - Go 1.26+"
+          },
+          "example": {
+            "before": "OptionalField: ptr(\"default\")",
+            "after": "OptionalField: new(\"default\")"
+          },
+          "references": ["https://go.dev/doc/go1.26#language"]
+        },
+        {
+          "name": "reflect.Type.Fields()",
+          "description": "Type.Fields() returns an iterator over struct fields",
+          "pattern": {
+            "before": "for i := 0; i < t\\.NumField\\(\\); i\\+\\+ \\{\\n\\s*f := t\\.Field\\(i\\)",
+            "after": "for f := range t.Fields() {"
+          },
+          "example": {
+            "before": "for i := 0; i < t.NumField(); i++ {\n    f := t.Field(i)",
+            "after": "for f := range t.Fields() {"
+          },
+          "references": ["https://go.dev/doc/go1.26#reflect"]
+        },
+        {
+          "name": "reflect.Type.Methods()",
+          "description": "Type.Methods() returns an iterator over methods",
+          "pattern": {
+            "before": "for i := 0; i < t\\.NumMethod\\(\\); i\\+\\+ \\{\\n\\s*m := t\\.Method\\(i\\)",
+            "after": "for m := range t.Methods() {"
+          },
+          "example": {
+            "before": "for i := 0; i < t.NumMethod(); i++ {\n    m := t.Method(i)",
+            "after": "for m := range t.Methods() {"
+          },
+          "references": ["https://go.dev/doc/go1.26#reflect"]
+        },
+        {
+          "name": "bytes.Buffer.Peek",
+          "description": "Peek at buffer contents without consuming",
+          "note": "Manual review - no automatic transformation",
+          "references": ["https://go.dev/doc/go1.26#bytes"]
+        },
+        {
+          "name": "slog.NewMultiHandler",
+          "description": "Create a handler that fans out to multiple handlers",
+          "note": "Manual review - architectural change",
+          "references": ["https://go.dev/doc/go1.26#slog"]
+        },
+        {
+          "name": "testing.T.ArtifactDir",
+          "description": "Directory for test artifacts, cleaned up after test",
+          "note": "Manual review - test infrastructure change",
+          "references": ["https://go.dev/doc/go1.26#testing"]
+        }
+      ]
+    },
+    "1.24": {
+      "released": "2025-02",
+      "features": [
+        {
+          "name": "generic type aliases",
+          "description": "Type aliases can now have type parameters",
+          "note": "Manual review - depends on use case",
+          "references": ["https://go.dev/doc/go1.24#language"]
+        }
+      ]
+    },
+    "1.23": {
+      "released": "2024-08",
+      "features": [
+        {
+          "name": "range over int",
+          "description": "for i := range 10 {} instead of for i := 0; i < 10; i++ {}",
+          "pattern": {
+            "before": "for (\\w+) := 0; \\1 < (\\d+); \\1\\+\\+ \\{",
+            "after": "for $1 := range $2 {"
+          },
+          "example": {
+            "before": "for i := 0; i < 10; i++ {",
+            "after": "for i := range 10 {"
+          },
+          "references": ["https://go.dev/doc/go1.23#language"]
+        },
+        {
+          "name": "range over func",
+          "description": "Range over iterator functions",
+          "note": "Manual review - requires iterator implementation",
+          "references": ["https://go.dev/doc/go1.23#language"]
+        }
+      ]
+    },
+    "1.22": {
+      "released": "2024-02",
+      "features": [
+        {
+          "name": "loop variable fix",
+          "description": "Loop variables are now per-iteration (no more closure capture bugs)",
+          "note": "Remove workarounds like 'v := v' in closures",
+          "pattern": {
+            "before": "(\\w+) := \\1 // capture for closure",
+            "after": "// $1 is now per-iteration in Go 1.22+"
+          },
+          "references": ["https://go.dev/doc/go1.22#language"]
+        }
+      ]
+    },
+    "1.21": {
+      "released": "2023-08",
+      "features": [
+        {
+          "name": "slices package",
+          "description": "Use slices.Sort, slices.Contains, etc. instead of sort.Slice",
+          "pattern": {
+            "before": "sort\\.Slice\\((\\w+), func\\(i, j int\\) bool \\{\\n\\s*return \\1\\[i\\] < \\1\\[j\\]\\n\\s*\\}\\)",
+            "after": "slices.Sort($1)"
+          },
+          "references": ["https://go.dev/doc/go1.21#slices"]
+        },
+        {
+          "name": "maps package",
+          "description": "Use maps.Clone, maps.Keys, maps.Values, etc.",
+          "note": "Manual review - replace manual map operations",
+          "references": ["https://go.dev/doc/go1.21#maps"]
+        },
+        {
+          "name": "slog package",
+          "description": "Structured logging in standard library",
+          "note": "Consider migrating from log to slog",
+          "references": ["https://go.dev/doc/go1.21#slog"]
+        },
+        {
+          "name": "min/max builtins",
+          "description": "Use builtin min()/max() instead of math.Min/math.Max",
+          "pattern": {
+            "before": "math\\.(Min|Max)\\(float64\\(([^)]+)\\), float64\\(([^)]+)\\)\\)",
+            "after": "$1($2, $3)"
+          },
+          "references": ["https://go.dev/doc/go1.21#language"]
+        },
+        {
+          "name": "clear builtin",
+          "description": "Use clear(m) to clear maps, clear(s) to zero slices",
+          "pattern": {
+            "before": "(\\w+) = make\\(map\\[([^\\]]+)\\]([^,]+), 0\\)",
+            "after": "clear($1)"
+          },
+          "references": ["https://go.dev/doc/go1.21#language"]
+        }
+      ]
+    }
+  },
+  
+  "deprecations": {
+    "1.26": [
+      {
+        "package": "io/ioutil",
+        "replacement": "io and os",
+        "since": "1.16",
+        "removed": "1.26"
+      }
+    ]
+  }
+}

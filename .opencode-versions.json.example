@@ -1,0 +1,20 @@
+{
+  "$schema": "https://opencode.ai/schemas/opencode-versions.json",
+  "$comment": "Version pinning configuration for opencode-update. Copy to .opencode-versions.json to use.",
+  
+  "pinned": {
+    "go": "1.22",
+    "postgres": "16"
+  },
+  
+  "ignore": [
+    "kafka"
+  ],
+  
+  "modernize": {
+    "go": {
+      "enabled": true,
+      "features": ["errors.AsType", "new(expr)"]
+    }
+  }
+}

@@ -1,0 +1,1155 @@
+#!/usr/bin/env bash
+#
+# opencode-update - Update OpenCode skills and templates to latest versions
+#
+# Usage:
+#   opencode-update [OPTIONS]
+#
+# Examples:
+#   opencode-update                      # Update all components
+#   opencode-update --dry-run            # Preview changes without applying
+#   opencode-update --component=go       # Update only Go versions
+#   opencode-update --modernize          # Also update code to use new features
+#   opencode-update --force              # Skip breaking change confirmations
+#
+# AIDEV-NOTE: This script fetches latest versions from official APIs and updates
+# version references across skills/*.md and templates/**. It can also modernize
+# code examples to use new language features (e.g., Go 1.26's errors.AsType).
+
+set -euo pipefail
+
+# ============================================
+# Configuration
+# ============================================
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+OPENCODE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# CLI options
+DRY_RUN=""
+FORCE=""
+COMPONENT=""
+MODERNIZE=""
+VERBOSE=""
+
+# Version pinning config file
+VERSION_CONFIG="$OPENCODE_ROOT/.opencode-versions.json"
+
+# Temp directory for API responses
+TEMP_DIR=""
+
+# Track changes for changelog
+declare -a CHANGES=()
+
+# Colors (if terminal supports them)
+if [[ -t 1 ]]; then
+  RED='\033[0;31m'
+  GREEN='\033[0;32m'
+  YELLOW='\033[0;33m'
+  BLUE='\033[0;34m'
+  CYAN='\033[0;36m'
+  BOLD='\033[1m'
+  NC='\033[0m' # No Color
+else
+  RED=''
+  GREEN=''
+  YELLOW=''
+  BLUE=''
+  CYAN=''
+  BOLD=''
+  NC=''
+fi
+
+# ============================================
+# Helper Functions
+# ============================================
+
+log_info() {
+  echo -e "${BLUE}ℹ${NC} $1"
+}
+
+log_success() {
+  echo -e "${GREEN}✓${NC} $1"
+}
+
+log_warn() {
+  echo -e "${YELLOW}⚠${NC} $1"
+}
+
+log_error() {
+  echo -e "${RED}✗${NC} $1" >&2
+}
+
+log_debug() {
+  [[ -n "$VERBOSE" ]] && echo -e "${CYAN}⋯${NC} $1"
+}
+
+log_change() {
+  local component="$1"
+  local old_ver="$2"
+  local new_ver="$3"
+  local file="$4"
+  CHANGES+=("$component: $old_ver → $new_ver in $file")
+  if [[ -n "$DRY_RUN" ]]; then
+    echo -e "  ${YELLOW}[dry-run]${NC} Would update $component: $old_ver → $new_ver in $file"
+  else
+    echo -e "  ${GREEN}Updated${NC} $component: $old_ver → $new_ver in $file"
+  fi
+}
+
+cleanup() {
+  if [[ -n "$TEMP_DIR" && -d "$TEMP_DIR" ]]; then
+    rm -rf "$TEMP_DIR"
+  fi
+}
+
+trap cleanup EXIT
+
+usage() {
+  cat <<EOF
+Usage: opencode-update [OPTIONS]
+
+Update OpenCode skills and templates to latest tool/framework versions.
+
+Options:
+  --dry-run           Preview changes without applying them
+  --force             Skip confirmation prompts for breaking changes
+  --component=NAME    Update only specified component:
+                      go, alpine, postgres, redis, kafka, actions
+  --modernize         Also update code examples to use new language features
+  --verbose, -v       Show detailed debug output
+  --help, -h          Show this help message
+  --list-versions     Show current and latest versions for all components
+
+Components:
+  go                  Go language version (golang:X.XX-alpine images)
+  alpine              Alpine Linux base images (alpine:X.XX)
+  postgres            PostgreSQL (postgres:XX-alpine)
+  redis               Redis (redis:X-alpine)
+  kafka               Confluent Kafka (confluentinc/cp-kafka:X.X.X)
+  actions             GitHub Actions (actions/checkout, setup-go, cache)
+
+Configuration:
+  Version pinning can be configured in .opencode-versions.json
+
+Examples:
+  opencode-update                        # Update everything
+  opencode-update --dry-run              # Preview all changes
+  opencode-update --component=go         # Only update Go version
+  opencode-update --modernize            # Update versions + modernize code
+  opencode-update --force --component=go # Update Go without prompts
+
+EOF
+  exit 0
+}
+
+# ============================================
+# Version Fetching Functions
+# ============================================
+
+# AIDEV-NOTE: These functions fetch latest stable versions from official APIs.
+# Each returns just the version string (e.g., "1.26", "3.21", "17").
+
+fetch_go_version() {
+  # Go downloads API: https://go.dev/dl/?mode=json
+  # Returns array of versions, first stable one is latest
+  local response
+  response=$(curl -sSL "https://go.dev/dl/?mode=json" 2>/dev/null) || {
+    log_error "Failed to fetch Go version from go.dev"
+    return 1
+  }
+  
+  # Extract first stable version, strip "go" prefix
+  # Format: [{"version":"go1.26.1","stable":true,...}, ...]
+  local version
+  version=$(echo "$response" | jq -r '[.[] | select(.stable == true)][0].version' 2>/dev/null) || {
+    log_error "Failed to parse Go version JSON"
+    return 1
+  }
+  
+  # Strip "go" prefix and patch version: "go1.26.1" -> "1.26"
+  version="${version#go}"
+  version="${version%.*}"
+  
+  echo "$version"
+}
+
+fetch_alpine_version() {
+  # Docker Hub API for official Alpine image
+  # We want the latest stable release (X.YY format)
+  local response
+  response=$(curl -sSL "https://hub.docker.com/v2/repositories/library/alpine/tags?page_size=100" 2>/dev/null) || {
+    log_error "Failed to fetch Alpine version from Docker Hub"
+    return 1
+  }
+  
+  # Find latest X.YY tag (not edge, not latest, not sha)
+  local version
+  version=$(echo "$response" | jq -r '.results[].name' | grep -E '^[0-9]+\.[0-9]+$' | sort -V | tail -1) || {
+    log_error "Failed to parse Alpine version"
+    return 1
+  }
+  
+  echo "$version"
+}
+
+fetch_postgres_version() {
+  # Docker Hub API for official Postgres image
+  # We want latest major version (XX format)
+  local response
+  response=$(curl -sSL "https://hub.docker.com/v2/repositories/library/postgres/tags?page_size=100" 2>/dev/null) || {
+    log_error "Failed to fetch Postgres version from Docker Hub"
+    return 1
+  }
+  
+  # Find latest XX-alpine tag, extract major version
+  local version
+  version=$(echo "$response" | jq -r '.results[].name' | grep -E '^[0-9]+-alpine$' | sed 's/-alpine//' | sort -n | tail -1) || {
+    log_error "Failed to parse Postgres version"
+    return 1
+  }
+  
+  echo "$version"
+}
+
+fetch_redis_version() {
+  # Docker Hub API for official Redis image
+  # We want latest major version (X format)
+  local response
+  response=$(curl -sSL "https://hub.docker.com/v2/repositories/library/redis/tags?page_size=100" 2>/dev/null) || {
+    log_error "Failed to fetch Redis version from Docker Hub"
+    return 1
+  }
+  
+  # Find latest X-alpine tag, extract major version
+  local version
+  version=$(echo "$response" | jq -r '.results[].name' | grep -E '^[0-9]+-alpine$' | sed 's/-alpine//' | sort -n | tail -1) || {
+    log_error "Failed to parse Redis version"
+    return 1
+  }
+  
+  echo "$version"
+}
+
+fetch_kafka_version() {
+  # Docker Hub API for Confluent Kafka
+  # Format: confluentinc/cp-kafka:X.X.X
+  local response
+  response=$(curl -sSL "https://hub.docker.com/v2/repositories/confluentinc/cp-kafka/tags?page_size=100" 2>/dev/null) || {
+    log_error "Failed to fetch Kafka version from Docker Hub"
+    return 1
+  }
+  
+  # Find latest X.X.X tag (not -ubi8, not latest)
+  local version
+  version=$(echo "$response" | jq -r '.results[].name' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1) || {
+    log_error "Failed to parse Kafka version"
+    return 1
+  }
+  
+  echo "$version"
+}
+
+fetch_action_version() {
+  # GitHub API for action releases
+  # Usage: fetch_action_version "actions/checkout"
+  local action="$1"
+  local response
+  response=$(curl -sSL "https://api.github.com/repos/$action/releases/latest" 2>/dev/null) || {
+    log_error "Failed to fetch $action version from GitHub"
+    return 1
+  }
+  
+  # Extract tag_name, strip leading 'v'
+  local version
+  version=$(echo "$response" | jq -r '.tag_name' 2>/dev/null) || {
+    log_error "Failed to parse $action version"
+    return 1
+  }
+  
+  # Return major version only (v4.2.0 -> v4)
+  echo "${version%%.*}"
+}
+
+# ============================================
+# Version Pinning Functions
+# ============================================
+
+# Load pinned versions from config file
+load_pinned_versions() {
+  if [[ -f "$VERSION_CONFIG" ]]; then
+    log_debug "Loading pinned versions from $VERSION_CONFIG"
+    # File exists, will be read by get_pinned_version
+  else
+    log_debug "No version config file found at $VERSION_CONFIG"
+  fi
+}
+
+# Get pinned version for a component (empty if not pinned)
+get_pinned_version() {
+  local component="$1"
+  
+  if [[ ! -f "$VERSION_CONFIG" ]]; then
+    echo ""
+    return
+  fi
+  
+  local pinned
+  pinned=$(jq -r ".pinned.\"$component\" // empty" "$VERSION_CONFIG" 2>/dev/null) || true
+  echo "$pinned"
+}
+
+# Check if component is ignored
+is_ignored() {
+  local component="$1"
+  
+  if [[ ! -f "$VERSION_CONFIG" ]]; then
+    return 1
+  fi
+  
+  local ignored
+  ignored=$(jq -r ".ignore[] // empty" "$VERSION_CONFIG" 2>/dev/null | grep -x "$component") || true
+  [[ -n "$ignored" ]]
+}
+
+# ============================================
+# Version Comparison Functions
+# ============================================
+
+# Compare semantic versions: returns 0 if v1 < v2, 1 if v1 >= v2
+version_lt() {
+  local v1="$1"
+  local v2="$2"
+  
+  # Use sort -V for version comparison
+  local smaller
+  smaller=$(printf '%s\n%s' "$v1" "$v2" | sort -V | head -1)
+  [[ "$smaller" == "$v1" && "$v1" != "$v2" ]]
+}
+
+# Check if this is a major version bump
+is_major_bump() {
+  local old_ver="$1"
+  local new_ver="$2"
+  
+  # Extract major version (first number)
+  local old_major="${old_ver%%.*}"
+  local new_major="${new_ver%%.*}"
+  
+  [[ "$old_major" != "$new_major" ]]
+}
+
+# ============================================
+# File Update Functions
+# ============================================
+
+# Find files containing a version pattern
+find_version_files() {
+  local pattern="$1"
+  local dirs=("$OPENCODE_ROOT/skills" "$OPENCODE_ROOT/templates")
+  
+  for dir in "${dirs[@]}"; do
+    if [[ -d "$dir" ]]; then
+      grep -rl "$pattern" "$dir" 2>/dev/null || true
+    fi
+  done
+}
+
+# Replace version in file
+replace_version() {
+  local file="$1"
+  local old_pattern="$2"
+  local new_pattern="$3"
+  
+  if [[ -n "$DRY_RUN" ]]; then
+    return 0
+  fi
+  
+  # Use sed to replace (macOS compatible with backup)
+  if [[ "$(uname)" == "Darwin" ]]; then
+    sed -i '' "s|$old_pattern|$new_pattern|g" "$file"
+  else
+    sed -i "s|$old_pattern|$new_pattern|g" "$file"
+  fi
+}
+
+# ============================================
+# Component Update Functions
+# ============================================
+
+update_go_version() {
+  log_info "Checking Go version..."
+  
+  if is_ignored "go"; then
+    log_debug "Go is in ignore list, skipping"
+    return 0
+  fi
+  
+  local latest
+  latest=$(fetch_go_version) || return 1
+  log_debug "Latest Go version: $latest"
+  
+  local pinned
+  pinned=$(get_pinned_version "go")
+  if [[ -n "$pinned" ]]; then
+    log_info "Go is pinned to version $pinned"
+    latest="$pinned"
+  fi
+  
+  # Find current Go versions in files
+  # Patterns: golang:1.22-alpine, go 1.22, GO_VERSION: '1.22'
+  local files
+  files=$(find_version_files "golang:1\.")
+  files+=$'\n'$(find_version_files "go 1\.")
+  files=$(echo "$files" | sort -u | grep -v '^$')
+  
+  if [[ -z "$files" ]]; then
+    log_debug "No Go version references found"
+    return 0
+  fi
+  
+  # Detect current version (from first file)
+  local current
+  current=$(echo "$files" | head -1 | xargs grep -oE 'golang:1\.[0-9]+' | head -1 | sed 's/golang://')
+  if [[ -z "$current" ]]; then
+    current=$(echo "$files" | head -1 | xargs grep -oE 'go 1\.[0-9]+' | head -1 | sed 's/go //')
+  fi
+  
+  if [[ -z "$current" ]]; then
+    log_warn "Could not detect current Go version"
+    return 0
+  fi
+  
+  log_debug "Current Go version: $current"
+  
+  if [[ "$current" == "$latest" ]]; then
+    log_success "Go is already at latest version ($latest)"
+    return 0
+  fi
+  
+  # Check for major version bump
+  if is_major_bump "$current" "$latest" && [[ -z "$FORCE" ]]; then
+    echo
+    log_warn "Go major version bump detected: $current → $latest"
+    echo -e "  This may include breaking changes. Review: ${CYAN}https://go.dev/doc/go${latest}${NC}"
+    read -p "  Proceed with update? [y/N] " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+      log_info "Skipping Go update"
+      return 0
+    fi
+  fi
+  
+  log_info "Updating Go: $current → $latest"
+  
+  # Update each file
+  while IFS= read -r file; do
+    [[ -z "$file" ]] && continue
+    
+    # golang:X.XX-alpine pattern
+    if grep -q "golang:$current" "$file"; then
+      replace_version "$file" "golang:$current" "golang:$latest"
+      log_change "Go" "$current" "$latest" "${file#$OPENCODE_ROOT/}"
+    fi
+    
+    # go X.XX in go.mod pattern
+    if grep -q "go $current" "$file"; then
+      replace_version "$file" "go $current" "go $latest"
+      log_change "Go" "$current" "$latest" "${file#$OPENCODE_ROOT/}"
+    fi
+    
+    # GO_VERSION: 'X.XX' pattern
+    if grep -q "GO_VERSION.*$current" "$file"; then
+      replace_version "$file" "GO_VERSION: '$current'" "GO_VERSION: '$latest'"
+      replace_version "$file" "GO_VERSION: \"$current\"" "GO_VERSION: \"$latest\""
+      log_change "Go" "$current" "$latest" "${file#$OPENCODE_ROOT/}"
+    fi
+  done <<< "$files"
+}
+
+update_alpine_version() {
+  log_info "Checking Alpine version..."
+  
+  if is_ignored "alpine"; then
+    log_debug "Alpine is in ignore list, skipping"
+    return 0
+  fi
+  
+  local latest
+  latest=$(fetch_alpine_version) || return 1
+  log_debug "Latest Alpine version: $latest"
+  
+  local pinned
+  pinned=$(get_pinned_version "alpine")
+  if [[ -n "$pinned" ]]; then
+    log_info "Alpine is pinned to version $pinned"
+    latest="$pinned"
+  fi
+  
+  # Find current Alpine versions
+  local files
+  files=$(find_version_files "alpine:3\." | sort -u)
+  
+  if [[ -z "$files" ]]; then
+    log_debug "No Alpine version references found"
+    return 0
+  fi
+  
+  # Detect current version
+  local current
+  current=$(echo "$files" | head -1 | xargs grep -oE 'alpine:3\.[0-9]+' | head -1 | sed 's/alpine://')
+  
+  if [[ -z "$current" ]]; then
+    log_warn "Could not detect current Alpine version"
+    return 0
+  fi
+  
+  log_debug "Current Alpine version: $current"
+  
+  if [[ "$current" == "$latest" ]]; then
+    log_success "Alpine is already at latest version ($latest)"
+    return 0
+  fi
+  
+  log_info "Updating Alpine: $current → $latest"
+  
+  while IFS= read -r file; do
+    [[ -z "$file" ]] && continue
+    
+    if grep -q "alpine:$current" "$file"; then
+      replace_version "$file" "alpine:$current" "alpine:$latest"
+      log_change "Alpine" "$current" "$latest" "${file#$OPENCODE_ROOT/}"
+    fi
+  done <<< "$files"
+}
+
+update_postgres_version() {
+  log_info "Checking Postgres version..."
+  
+  if is_ignored "postgres"; then
+    log_debug "Postgres is in ignore list, skipping"
+    return 0
+  fi
+  
+  local latest
+  latest=$(fetch_postgres_version) || return 1
+  log_debug "Latest Postgres version: $latest"
+  
+  local pinned
+  pinned=$(get_pinned_version "postgres")
+  if [[ -n "$pinned" ]]; then
+    log_info "Postgres is pinned to version $pinned"
+    latest="$pinned"
+  fi
+  
+  # Find current Postgres versions (postgres:16-alpine, postgres:16)
+  # AIDEV-NOTE: Use postgres:XX-alpine pattern to avoid matching port 5432
+  local files
+  files=$(find_version_files "postgres:.*-alpine" | sort -u)
+  
+  if [[ -z "$files" ]]; then
+    log_debug "No Postgres version references found"
+    return 0
+  fi
+  
+  # Detect current version from postgres:XX-alpine pattern
+  local current
+  current=$(grep -rhoE 'postgres:[0-9]+-alpine' "$OPENCODE_ROOT/skills" "$OPENCODE_ROOT/templates" 2>/dev/null | head -1 | sed 's/postgres://' | sed 's/-alpine//')
+  
+  if [[ -z "$current" ]]; then
+    log_warn "Could not detect current Postgres version"
+    return 0
+  fi
+  
+  log_debug "Current Postgres version: $current"
+  
+  if [[ "$current" == "$latest" ]]; then
+    log_success "Postgres is already at latest version ($latest)"
+    return 0
+  fi
+  
+  # Major version bump warning
+  if is_major_bump "$current" "$latest" && [[ -z "$FORCE" ]]; then
+    echo
+    log_warn "Postgres major version bump detected: $current → $latest"
+    echo "  This may require database migration. Review release notes before upgrading production."
+    read -p "  Proceed with update? [y/N] " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+      log_info "Skipping Postgres update"
+      return 0
+    fi
+  fi
+  
+  log_info "Updating Postgres: $current → $latest"
+  
+  while IFS= read -r file; do
+    [[ -z "$file" ]] && continue
+    
+    # postgres:XX-alpine and postgres:XX patterns
+    if grep -qE "postgres:$current(-alpine)?" "$file"; then
+      replace_version "$file" "postgres:$current-alpine" "postgres:$latest-alpine"
+      replace_version "$file" "postgres:$current\b" "postgres:$latest"
+      log_change "Postgres" "$current" "$latest" "${file#$OPENCODE_ROOT/}"
+    fi
+  done <<< "$files"
+}
+
+update_redis_version() {
+  log_info "Checking Redis version..."
+  
+  if is_ignored "redis"; then
+    log_debug "Redis is in ignore list, skipping"
+    return 0
+  fi
+  
+  local latest
+  latest=$(fetch_redis_version) || return 1
+  log_debug "Latest Redis version: $latest"
+  
+  local pinned
+  pinned=$(get_pinned_version "redis")
+  if [[ -n "$pinned" ]]; then
+    log_info "Redis is pinned to version $pinned"
+    latest="$pinned"
+  fi
+  
+  # Find current Redis versions
+  local files
+  files=$(find_version_files "redis:[0-9]" | sort -u)
+  
+  if [[ -z "$files" ]]; then
+    log_debug "No Redis version references found"
+    return 0
+  fi
+  
+  # Detect current version
+  local current
+  current=$(echo "$files" | head -1 | xargs grep -oE 'redis:[0-9]+' | head -1 | sed 's/redis://')
+  
+  if [[ -z "$current" ]]; then
+    log_warn "Could not detect current Redis version"
+    return 0
+  fi
+  
+  log_debug "Current Redis version: $current"
+  
+  if [[ "$current" == "$latest" ]]; then
+    log_success "Redis is already at latest version ($latest)"
+    return 0
+  fi
+  
+  log_info "Updating Redis: $current → $latest"
+  
+  while IFS= read -r file; do
+    [[ -z "$file" ]] && continue
+    
+    if grep -qE "redis:$current(-alpine)?" "$file"; then
+      replace_version "$file" "redis:$current-alpine" "redis:$latest-alpine"
+      replace_version "$file" "redis:$current\b" "redis:$latest"
+      log_change "Redis" "$current" "$latest" "${file#$OPENCODE_ROOT/}"
+    fi
+  done <<< "$files"
+}
+
+update_kafka_version() {
+  log_info "Checking Kafka version..."
+  
+  if is_ignored "kafka"; then
+    log_debug "Kafka is in ignore list, skipping"
+    return 0
+  fi
+  
+  local latest
+  latest=$(fetch_kafka_version) || return 1
+  log_debug "Latest Kafka version: $latest"
+  
+  local pinned
+  pinned=$(get_pinned_version "kafka")
+  if [[ -n "$pinned" ]]; then
+    log_info "Kafka is pinned to version $pinned"
+    latest="$pinned"
+  fi
+  
+  # Find current Kafka versions (confluentinc/cp-kafka:X.X.X)
+  local files
+  files=$(find_version_files "cp-kafka:" | sort -u)
+  
+  if [[ -z "$files" ]]; then
+    log_debug "No Kafka version references found"
+    return 0
+  fi
+  
+  # Detect current version
+  local current
+  current=$(echo "$files" | head -1 | xargs grep -oE 'cp-kafka:[0-9]+\.[0-9]+\.[0-9]+' | head -1 | sed 's/cp-kafka://')
+  
+  if [[ -z "$current" ]]; then
+    log_warn "Could not detect current Kafka version"
+    return 0
+  fi
+  
+  log_debug "Current Kafka version: $current"
+  
+  if [[ "$current" == "$latest" ]]; then
+    log_success "Kafka is already at latest version ($latest)"
+    return 0
+  fi
+  
+  # Major version bump warning
+  if is_major_bump "$current" "$latest" && [[ -z "$FORCE" ]]; then
+    echo
+    log_warn "Kafka major version bump detected: $current → $latest"
+    read -p "  Proceed with update? [y/N] " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+      log_info "Skipping Kafka update"
+      return 0
+    fi
+  fi
+  
+  log_info "Updating Kafka: $current → $latest"
+  
+  while IFS= read -r file; do
+    [[ -z "$file" ]] && continue
+    
+    if grep -q "cp-kafka:$current" "$file"; then
+      replace_version "$file" "cp-kafka:$current" "cp-kafka:$latest"
+      log_change "Kafka" "$current" "$latest" "${file#$OPENCODE_ROOT/}"
+    fi
+  done <<< "$files"
+}
+
+update_github_actions() {
+  log_info "Checking GitHub Actions versions..."
+  
+  if is_ignored "actions"; then
+    log_debug "GitHub Actions is in ignore list, skipping"
+    return 0
+  fi
+  
+  local files
+  files=$(find_version_files "uses: actions/" | sort -u)
+  
+  if [[ -z "$files" ]]; then
+    log_debug "No GitHub Actions references found"
+    return 0
+  fi
+  
+  # AIDEV-NOTE: Process each action individually to avoid associative array issues
+  local action_pairs="checkout:actions/checkout setup-go:actions/setup-go cache:actions/cache"
+  
+  for pair in $action_pairs; do
+    local action_short="${pair%%:*}"
+    local action_full="${pair##*:}"
+    
+    local latest
+    latest=$(fetch_action_version "$action_full") || continue
+    log_debug "Latest $action_full version: $latest"
+    
+    # Find current version in files
+    local current
+    current=$(grep -hoE "$action_short@v[0-9]+" $files 2>/dev/null | head -1 | grep -oE 'v[0-9]+') || true
+    
+    if [[ -z "$current" ]]; then
+      log_debug "No $action_short references found"
+      continue
+    fi
+    
+    if [[ "$current" == "$latest" ]]; then
+      log_success "$action_full is already at latest version ($latest)"
+      continue
+    fi
+    
+    log_info "Updating $action_full: $current → $latest"
+    
+    while IFS= read -r file; do
+      [[ -z "$file" ]] && continue
+      
+      if grep -q "$action_full@$current" "$file"; then
+        replace_version "$file" "$action_full@$current" "$action_full@$latest"
+        log_change "$action_short" "$current" "$latest" "${file#$OPENCODE_ROOT/}"
+      fi
+    done <<< "$files"
+  done
+}
+
+# ============================================
+# Code Modernization Functions
+# ============================================
+
+# AIDEV-NOTE: modernize_go_code applies transformations from lib/go-modernizers.json
+# to update code examples in skills/ to use new Go language features.
+# This is conservative - only applies automatic transformations, logs manual review items.
+
+modernize_go_code() {
+  local modernizers_file="$OPENCODE_ROOT/lib/go-modernizers.json"
+  
+  if [[ ! -f "$modernizers_file" ]]; then
+    log_error "Modernizers file not found: $modernizers_file"
+    return 1
+  fi
+  
+  log_info "Modernizing Go code examples..."
+  
+  # Get current Go version target
+  local target_version
+  target_version=$(grep -rhoE 'golang:1\.[0-9]+' "$OPENCODE_ROOT/skills" "$OPENCODE_ROOT/templates" 2>/dev/null | head -1 | sed 's/golang://')
+  
+  if [[ -z "$target_version" ]]; then
+    log_warn "Could not detect target Go version"
+    return 0
+  fi
+  
+  log_debug "Target Go version: $target_version"
+  
+  # Extract major.minor as number for comparison
+  local target_major="${target_version%%.*}"
+  local target_minor="${target_version#*.}"
+  
+  # Find Go code blocks in markdown files
+  local skill_files
+  skill_files=$(find "$OPENCODE_ROOT/skills" -name "*.md" -type f)
+  
+  local transformations_applied=0
+  local manual_review_items=()
+  
+  # Process each version's features up to target version
+  local versions
+  versions=$(jq -r '.versions | keys[]' "$modernizers_file" 2>/dev/null | sort -V)
+  
+  for version in $versions; do
+    # Check if this version applies (version <= target)
+    local v_major="${version%%.*}"
+    local v_minor="${version#*.}"
+    
+    # Skip if version > target
+    if [[ "$v_major" -gt "$target_major" ]] || 
+       [[ "$v_major" -eq "$target_major" && "$v_minor" -gt "$target_minor" ]]; then
+      continue
+    fi
+    
+    log_debug "Applying modernizations for Go $version..."
+    
+    # Get features for this version
+    local features
+    features=$(jq -r ".versions.\"$version\".features | length" "$modernizers_file" 2>/dev/null)
+    
+    for ((i=0; i<features; i++)); do
+      local name pattern_before pattern_after note
+      name=$(jq -r ".versions.\"$version\".features[$i].name" "$modernizers_file")
+      pattern_before=$(jq -r ".versions.\"$version\".features[$i].pattern.before // empty" "$modernizers_file")
+      pattern_after=$(jq -r ".versions.\"$version\".features[$i].pattern.after // empty" "$modernizers_file")
+      note=$(jq -r ".versions.\"$version\".features[$i].note // empty" "$modernizers_file")
+      
+      # If no pattern, it's a manual review item
+      if [[ -z "$pattern_before" || -z "$pattern_after" ]]; then
+        if [[ -n "$note" ]]; then
+          manual_review_items+=("$name (Go $version): $note")
+        fi
+        continue
+      fi
+      
+      # Apply transformation to each file
+      while IFS= read -r file; do
+        [[ -z "$file" ]] && continue
+        
+        # Check if pattern exists in file
+        if grep -qE "$pattern_before" "$file" 2>/dev/null; then
+          if [[ -n "$DRY_RUN" ]]; then
+            echo -e "  ${YELLOW}[dry-run]${NC} Would apply '$name' modernization in ${file#$OPENCODE_ROOT/}"
+          else
+            # Apply the transformation
+            if [[ "$(uname)" == "Darwin" ]]; then
+              sed -i '' -E "s|$pattern_before|$pattern_after|g" "$file"
+            else
+              sed -i -E "s|$pattern_before|$pattern_after|g" "$file"
+            fi
+            echo -e "  ${GREEN}Applied${NC} '$name' modernization in ${file#$OPENCODE_ROOT/}"
+          fi
+          ((transformations_applied++))
+          CHANGES+=("Modernize: $name in ${file#$OPENCODE_ROOT/}")
+        fi
+      done <<< "$skill_files"
+    done
+  done
+  
+  # Report results
+  if [[ $transformations_applied -eq 0 ]]; then
+    log_success "No automatic modernizations needed"
+  else
+    if [[ -n "$DRY_RUN" ]]; then
+      log_info "Would apply $transformations_applied modernizations"
+    else
+      log_success "Applied $transformations_applied modernizations"
+    fi
+  fi
+  
+  # Report manual review items
+  if [[ ${#manual_review_items[@]} -gt 0 ]]; then
+    echo
+    echo -e "${CYAN}Manual Review Suggestions:${NC}"
+    for item in "${manual_review_items[@]}"; do
+      echo "  - $item"
+    done
+  fi
+}
+
+# ============================================
+# List Versions Command
+# ============================================
+
+list_versions() {
+  echo
+  echo -e "${BOLD}Current and Latest Versions${NC}"
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo
+  
+  printf "%-12s %-15s %-15s %s\n" "COMPONENT" "CURRENT" "LATEST" "STATUS"
+  printf "%-12s %-15s %-15s %s\n" "---------" "-------" "------" "------"
+  
+  # Go
+  local go_latest go_current
+  go_latest=$(fetch_go_version 2>/dev/null) || go_latest="error"
+  go_current=$(grep -rhoE 'golang:1\.[0-9]+' "$OPENCODE_ROOT/skills" "$OPENCODE_ROOT/templates" 2>/dev/null | head -1 | sed 's/golang://' || echo "none")
+  local go_status
+  if [[ "$go_current" == "$go_latest" ]]; then
+    go_status="${GREEN}up-to-date${NC}"
+  else
+    go_status="${YELLOW}update available${NC}"
+  fi
+  printf "%-12s %-15s %-15s " "Go" "$go_current" "$go_latest"
+  echo -e "$go_status"
+  
+  # Alpine
+  local alpine_latest alpine_current
+  alpine_latest=$(fetch_alpine_version 2>/dev/null) || alpine_latest="error"
+  alpine_current=$(grep -rhoE 'alpine:3\.[0-9]+' "$OPENCODE_ROOT/skills" "$OPENCODE_ROOT/templates" 2>/dev/null | head -1 | sed 's/alpine://' || echo "none")
+  local alpine_status
+  if [[ "$alpine_current" == "$alpine_latest" ]]; then
+    alpine_status="${GREEN}up-to-date${NC}"
+  else
+    alpine_status="${YELLOW}update available${NC}"
+  fi
+  printf "%-12s %-15s %-15s " "Alpine" "$alpine_current" "$alpine_latest"
+  echo -e "$alpine_status"
+  
+  # Postgres (look for postgres:XX-alpine pattern to avoid port numbers)
+  local pg_latest pg_current
+  pg_latest=$(fetch_postgres_version 2>/dev/null) || pg_latest="error"
+  pg_current=$(grep -rhoE 'postgres:[0-9]+-alpine' "$OPENCODE_ROOT/skills" "$OPENCODE_ROOT/templates" 2>/dev/null | head -1 | sed 's/postgres://' | sed 's/-alpine//' || echo "none")
+  if [[ -z "$pg_current" || "$pg_current" == "none" ]]; then
+    # Fallback: look for postgres:XX in image context (followed by -alpine or end of line)
+    pg_current=$(grep -rhoE 'postgres:[0-9]+' "$OPENCODE_ROOT/skills" "$OPENCODE_ROOT/templates" 2>/dev/null | grep -v '5432' | head -1 | sed 's/postgres://' || echo "none")
+  fi
+  local pg_status
+  if [[ "$pg_current" == "$pg_latest" ]]; then
+    pg_status="${GREEN}up-to-date${NC}"
+  else
+    pg_status="${YELLOW}update available${NC}"
+  fi
+  printf "%-12s %-15s %-15s " "Postgres" "$pg_current" "$pg_latest"
+  echo -e "$pg_status"
+  
+  # Redis (look for redis:X-alpine pattern to avoid port numbers)
+  local redis_latest redis_current
+  redis_latest=$(fetch_redis_version 2>/dev/null) || redis_latest="error"
+  redis_current=$(grep -rhoE 'redis:[0-9]+-alpine' "$OPENCODE_ROOT/skills" "$OPENCODE_ROOT/templates" 2>/dev/null | head -1 | sed 's/redis://' | sed 's/-alpine//' || echo "none")
+  if [[ -z "$redis_current" || "$redis_current" == "none" ]]; then
+    # Fallback: look for redis:X in image context
+    redis_current=$(grep -rhoE 'redis:[0-9]+' "$OPENCODE_ROOT/skills" "$OPENCODE_ROOT/templates" 2>/dev/null | grep -v '6379' | head -1 | sed 's/redis://' || echo "none")
+  fi
+  local redis_status
+  if [[ "$redis_current" == "$redis_latest" ]]; then
+    redis_status="${GREEN}up-to-date${NC}"
+  else
+    redis_status="${YELLOW}update available${NC}"
+  fi
+  printf "%-12s %-15s %-15s " "Redis" "$redis_current" "$redis_latest"
+  echo -e "$redis_status"
+  
+  # Kafka
+  local kafka_latest kafka_current
+  kafka_latest=$(fetch_kafka_version 2>/dev/null) || kafka_latest="error"
+  kafka_current=$(grep -rhoE 'cp-kafka:[0-9]+\.[0-9]+\.[0-9]+' "$OPENCODE_ROOT/skills" "$OPENCODE_ROOT/templates" 2>/dev/null | head -1 | sed 's/cp-kafka://' || echo "none")
+  local kafka_status
+  if [[ "$kafka_current" == "$kafka_latest" ]]; then
+    kafka_status="${GREEN}up-to-date${NC}"
+  else
+    kafka_status="${YELLOW}update available${NC}"
+  fi
+  printf "%-12s %-15s %-15s " "Kafka" "$kafka_current" "$kafka_latest"
+  echo -e "$kafka_status"
+  
+  echo
+  
+  # Show pinned versions if any
+  if [[ -f "$VERSION_CONFIG" ]]; then
+    local pinned
+    pinned=$(jq -r '.pinned | to_entries[] | "\(.key): \(.value)"' "$VERSION_CONFIG" 2>/dev/null || true)
+    if [[ -n "$pinned" ]]; then
+      echo -e "${BOLD}Pinned Versions:${NC}"
+      echo "$pinned" | while read -r line; do
+        echo "  $line"
+      done
+      echo
+    fi
+    
+    local ignored
+    ignored=$(jq -r '.ignore[]? // empty' "$VERSION_CONFIG" 2>/dev/null || true)
+    if [[ -n "$ignored" ]]; then
+      echo -e "${BOLD}Ignored Components:${NC}"
+      echo "$ignored" | while read -r line; do
+        echo "  $line"
+      done
+      echo
+    fi
+  fi
+  
+  exit 0
+}
+
+# ============================================
+# Argument Parsing
+# ============================================
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run)
+      DRY_RUN="true"
+      shift
+      ;;
+    --force)
+      FORCE="true"
+      shift
+      ;;
+    --component=*)
+      COMPONENT="${1#*=}"
+      shift
+      ;;
+    --component)
+      COMPONENT="$2"
+      shift 2
+      ;;
+    --modernize)
+      MODERNIZE="true"
+      shift
+      ;;
+    --verbose|-v)
+      VERBOSE="true"
+      shift
+      ;;
+    --list-versions)
+      list_versions
+      ;;
+    --help|-h)
+      usage
+      ;;
+    -*)
+      log_error "Unknown option: $1"
+      echo "Run 'opencode-update --help' for usage."
+      exit 1
+      ;;
+    *)
+      log_error "Unexpected argument: $1"
+      echo "Run 'opencode-update --help' for usage."
+      exit 1
+      ;;
+  esac
+done
+
+# Validate component
+if [[ -n "$COMPONENT" ]]; then
+  case "$COMPONENT" in
+    go|alpine|postgres|redis|kafka|actions)
+      ;;
+    *)
+      log_error "Invalid component: $COMPONENT"
+      echo "Valid components: go, alpine, postgres, redis, kafka, actions"
+      exit 1
+      ;;
+  esac
+fi
+
+# ============================================
+# Pre-flight Checks
+# ============================================
+
+# Check for required tools
+for cmd in curl jq; do
+  if ! command -v "$cmd" &> /dev/null; then
+    log_error "Required command not found: $cmd"
+    exit 1
+  fi
+done
+
+# Create temp directory
+TEMP_DIR=$(mktemp -d)
+log_debug "Using temp directory: $TEMP_DIR"
+
+# Load version config
+load_pinned_versions
+
+# ============================================
+# Main Update Logic
+# ============================================
+
+echo
+echo -e "${BOLD}OpenCode Update${NC}"
+echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo
+[[ -n "$DRY_RUN" ]] && echo -e "${YELLOW}[DRY RUN MODE - No changes will be made]${NC}" && echo
+
+# Run updates based on component filter
+if [[ -z "$COMPONENT" ]] || [[ "$COMPONENT" == "go" ]]; then
+  update_go_version
+fi
+
+if [[ -z "$COMPONENT" ]] || [[ "$COMPONENT" == "alpine" ]]; then
+  update_alpine_version
+fi
+
+if [[ -z "$COMPONENT" ]] || [[ "$COMPONENT" == "postgres" ]]; then
+  update_postgres_version
+fi
+
+if [[ -z "$COMPONENT" ]] || [[ "$COMPONENT" == "redis" ]]; then
+  update_redis_version
+fi
+
+if [[ -z "$COMPONENT" ]] || [[ "$COMPONENT" == "kafka" ]]; then
+  update_kafka_version
+fi
+
+if [[ -z "$COMPONENT" ]] || [[ "$COMPONENT" == "actions" ]]; then
+  update_github_actions
+fi
+
+# Code modernization (if requested)
+if [[ -n "$MODERNIZE" ]]; then
+  modernize_go_code
+fi
+
+# ============================================
+# Summary
+# ============================================
+
+echo
+echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+if [[ ${#CHANGES[@]} -eq 0 ]]; then
+  echo -e "${GREEN}✓ All components are up to date!${NC}"
+else
+  if [[ -n "$DRY_RUN" ]]; then
+    echo -e "${YELLOW}Would make ${#CHANGES[@]} changes (dry run)${NC}"
+  else
+    echo -e "${GREEN}✓ Made ${#CHANGES[@]} updates${NC}"
+  fi
+  echo
+  echo "Changes:"
+  for change in "${CHANGES[@]}"; do
+    echo "  - $change"
+  done
+fi
+
+echo
