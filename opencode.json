@@ -8,74 +8,13 @@
       }
     }
   },
-  "provider": {
-    "lmstudio": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "LM Studio (local)",
-      "options": {
-        "baseURL": "http://127.0.0.1:1234/v1"
-      },
-      "models": {
-        "qwen/qwen3.5-9b": {
-          "name": "Qwen 3.5 "
-        }
-      }
-    }
-  },
-  "agent": {
-    "general": {
-      "model": "github-copilot/claude-haiku-4.5"
-    },
-    "summary": {
-      "model": "github-copilot/claude-haiku-4.5"
-    },
-    "title": {
-      "model": "github-copilot/claude-haiku-4.5"
-    },
-    "explore": {
-      "model": "github-copilot/claude-haiku-4.5"
-    }
-  },
   "instructions": [
-    "CONTRIBUTING.md",
-    "instructions/INSTRUCTIONS.md",
     "skills/workflow-backend/SKILL.md",
     "skills/tdd-workflow/SKILL.md",
     "skills/security-review/SKILL.md",
     "skills/coding-standards/SKILL.md"
   ],
   "permission": {
-    "doom_loop": "deny",
-    "mcp_*": "ask"
-  },
-  "mcp": {
-    "grafana": {
-      "type": "local",
-      "command": [
-        "uvx",
-        "mcp-grafana"
-      ],
-      "environment": {
-        "GRAFANA_URL": "https://grafana.dev.salary-hero.com",
-        "GRAFANA_SERVICE_ACCOUNT_TOKEN": "${GRAFANA_SERVICE_ACCOUNT_TOKEN}"
-      },
-      "enabled": true
-    },
-    "firefox-devtools": {
-      "type": "local",
-      "command": [
-        "npx",
-        "firefox-devtools-mcp@latest"
-      ],
-      "enabled": true
-    },
-    "playwright": {
-      "type": "local",
-      "command": [
-        "npx",
-        "@playwright/mcp@latest"
-      ],
-      "enabled": true
-    }
+    "doom_loop": "deny"
   }
 }
