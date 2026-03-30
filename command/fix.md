@@ -42,7 +42,7 @@ All orchestration logic lives in `command/feature.md`.
 
 ## Notes
 
-- The `type` field is stored on the work item in `workflow.json` and shown in
+- The `type` field is stored on the work item in `feature-progress.json` and shown in
   `/status` output so the user can distinguish fixes from features at a glance.
 - Bug fix specs should emphasise **root cause analysis** and **regression test**
   sections rather than a full design document. When drafting the spec, keep the

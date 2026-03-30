@@ -202,7 +202,7 @@ Skip **all** approval gates — the AI executes the entire lifecycle end-to-end
 without stopping for human review. Tests are still run; failures are fixed
 automatically rather than reported. Only unrecoverable errors cause a stop.
 
-The flag is persisted on the work item in `workflow.json`, so `/resume`
+The flag is persisted on the work item in `feature-progress.json`, so `/resume`
 inherits it automatically. You can also upgrade a running workflow to YOLO
 mode mid-flight with `/resume ISSUE-1 --yolo`.
 
@@ -343,7 +343,7 @@ Stages and valid substages tracked per work item:
 | `review` | `pending` → `done` |
 | `done` | — |
 
-State file: `.agent/state/workflow.json` (gitignored).
+State file: `.agent/state/feature-progress.json` (gitignored).
 
 ---
 
@@ -381,7 +381,7 @@ This project is a fork of [opencode by Geert Theys](https://github.com/gtheys/op
 
 - Backend-agnostic workflow engine (`file`, `beads`, `jira-taskwarrior`) with a common `WorkflowBackend` interface
 - Full slash command suite: `/plan`, `/feature`, `/fix`, `/resume`, `/status`, `/issue`, `/spec`, `/createtasks`, `/implement`, `/git`, `/test`, `/codereview`, `/PR-summary`
-- Cross-session workflow state persistence (`.agent/state/workflow.json`)
+- Cross-session workflow state persistence (`.agent/state/feature-progress.json`)
 - Epic auto-creation and issue-to-epic linking across all backends
 - `opencode-init` installer with language scaffolding, startup library detection, and multi-backend support
 - `opencode-sync` for keeping workflow files up to date in initialized projects

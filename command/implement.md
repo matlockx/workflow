@@ -71,7 +71,7 @@ Execute implementation tasks for an issue sequentially using the configured work
      - task description
      - dependency summary
      - spec path
-   - **YOLO mode check:** If the work item has `yolo: true` in `workflow.json`,
+   - **YOLO mode check:** If the work item has `yolo: true` in `feature-progress.json`,
      skip the prompt and auto-implement immediately. Do not ask for confirmation.
    - **Normal mode:** Ask: `Ready to implement? (yes/no/edit)`
      - If `no`, stop and tell the user they can resume with `/implement <issueId>`.
@@ -133,7 +133,7 @@ Execute implementation tasks for an issue sequentially using the configured work
 - Resumability comes from backend task states, not command-local memory.
 - Use backend task dependency data to determine readiness.
 - Support optional command-time backend selection via `--backend=<type>`.
-- YOLO mode is read from the work item's `yolo` field in `workflow.json`,
+- YOLO mode is read from the work item's `yolo` field in `feature-progress.json`,
   set by `/feature --yolo`. When active, all prompts (ready to implement,
   mark complete, phase review) are auto-approved.
 

@@ -97,6 +97,48 @@ You will receive a prompt to execute a task. Once the task is finished provide a
 
 ---
 
+## Backend-First Query Rule (CRITICAL)
+
+**When users ask about tasks, issues, or workflow state, ALWAYS query the configured backend — not local files or git history.**
+
+### What this means
+
+| Query type | DO this | DON'T do this |
+|-----------|---------|---------------|
+| "What was the last task?" | Query backend: `bd list --json --all --limit 1` | Read `feature-progress.json` or `git log` |
+| "Show open issues" | Query backend: `bd list --json` | Assume from local files |
+| "What's in progress?" | Query backend for task states | Guess based on file timestamps |
+
+### How to query the backend
+
+1. **Read `.agent/config.json`** to determine `backend.type`
+2. **Use the backend's CLI** (see `agent/workflow-queries.md` for command reference)
+3. **If backend CLI fails**, tell the user — don't silently fall back to git
+
+### Why this matters
+
+- **Tasks and issues live in the backend**, not in local state files
+- **`feature-progress.json`** only tracks `/feature` command cursor position (stage, substage, phase) — it does NOT store task data
+- **Git history** shows commits, not workflow tasks
+- Silent fallbacks cause user confusion when answers don't match their actual workflow state
+
+### Error handling
+
+If the backend CLI fails (e.g., `bd` unavailable in sandbox mode):
+
+```
+⚠ Backend query failed: <error>
+
+The workflow backend (beads) is not accessible. This may be due to:
+- Sandbox permissions (bd needs access to .beads/ directory)
+- Missing credentials or configuration
+
+I can show git history instead, but this won't reflect your actual task state.
+Would you like me to: [show git history] [help configure backend]?
+```
+
+---
+
 ## Directory-Specific AGENTS.md Files
 
 - **Always check for `AGENTS.md` files in specific directories** before working on code within them. These files contain targeted context.
@@ -208,6 +250,8 @@ When responding to user instructions, the AI assistant (Opencode, Claude, Cursor
     | "go" | Ask: "Proceed with implementation? [y/n]" |
     | "ok", "sure", "fine" | Ask: "Shall I begin writing files? [y/n]" |
     | "looks good" | Ask: "Ready to implement? [y/n]" |
+
+5b. **Gate 3 — Task Tracking**: Before writing files for non-trivial work (>30 LOC or multi-file), create a tracking task in the configured workflow backend. Read `.agent/config.json` to determine the backend, then create the task (e.g., `bd create "description" --json` for Beads). Skip only for trivial work (<30 LOC), explicit "don't track" requests, or when already working within a tracked issue.
 
 6. **Track Progress**: Use a to-do list (internally, or optionally in a `TODOS.md` file) to keep track of your progress on multi-step or complex tasks.
 7. **If Stuck, Re-plan**: If you get stuck or blocked, return to step 3 to re-evaluate and adjust your plan.

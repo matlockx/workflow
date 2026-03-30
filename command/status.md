@@ -148,5 +148,5 @@ For the stage history, reconstruct progress by comparing the item's current
 
 This command must NEVER call `wf.updateWorkItem`, `wf.advanceSubstage`,
 `wf.createWorkItem`, `wf.completeWorkItem`, or any other state-mutating
-function. It only reads `workflow.json` and formats the data for display.
+function. It only reads `feature-progress.json` and formats the data for display.
 This ensures `/status` is always safe to run at any point.

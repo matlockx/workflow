@@ -1,6 +1,8 @@
 # Workflow Query Instructions
 
-When users ask about tasks, issues, or workflow state, use the **configured workflow backend** — not git commands or assumptions.
+**CRITICAL: Always query the configured workflow backend for task/issue data — never fall back to git history or local files silently.**
+
+When users ask about tasks, issues, or workflow state, use the **configured workflow backend** — not git commands, `feature-progress.json`, or assumptions.
 
 ## When to Use the Workflow Backend
 
@@ -100,16 +102,62 @@ No pending tasks. Start new work with `/feature` or `/issue`.
 ## Do NOT Use
 
 - `git log` for task queries — that shows commits, not workflow tasks
+- `feature-progress.json` for task queries — that only tracks `/feature` command cursor position (stage/substage/phase), NOT actual task data
 - Hardcoded backend assumptions — always check `.agent/config.json` first
 - Backend CLIs without verifying the configured backend type
 
-## Error Handling
+## Error Handling (CRITICAL)
+
+**Never silently fall back to git history when the backend fails.** Silent fallbacks confuse users when their answers don't match their actual workflow state.
 
 If `.agent/config.json` is missing or the backend CLI fails:
 
-1. Tell the user: "No workflow backend configured. Run project initialization or check `.agent/config.json`"
-2. Offer alternatives: "I can show git history instead, or help you set up a workflow backend"
+1. **Clearly report the failure**:
+   ```
+   ⚠ Backend query failed: <error message>
+   ```
+
+2. **Explain why it might have failed**:
+   ```
+   The workflow backend (beads) is not accessible. This may be due to:
+   - Sandbox permissions (bd needs access to .beads/ directory)
+   - Missing credentials or configuration
+   - Backend CLI not installed or not in PATH
+   ```
+
+3. **Offer explicit alternatives**:
+   ```
+   I can show git history instead, but this won't reflect your actual task state.
+   Would you like me to: [show git history] [help configure backend]?
+   ```
+
+### Sandbox Mode Considerations
+
+When running in sandbox mode (e.g., `nono run`), the `bd` CLI may fail because:
+
+- It needs access to `.beads/` directory for state
+- It needs access to `.beads-credential-key` for authentication
+- The executable path may not be in the sandboxed `$PATH`
+
+**DO NOT** silently fall back to `git log` in this case. Instead, inform the user about the sandbox limitation.
+
+## What `feature-progress.json` Actually Stores
+
+The file `.agent/state/feature-progress.json` is for `/feature` command orchestration ONLY:
+
+- `activeItems[]` — tracks cursor position (stage, substage, phase, taskIndex)
+- `skippedSteps[]` — records steps the user skipped
+- `history[]` — completed work items
+
+**It does NOT store**:
+- Task descriptions or IDs (those live in the backend)
+- Issue content (those live in the backend)
+- Spec content (those live in spec files)
+
+When users ask "what was the last task", querying `feature-progress.json` would give you cursor position data, not actual task information.
 
 ## AIDEV-NOTE: Backend-agnostic query routing
 
 This file teaches the agent to query the configured workflow backend instead of defaulting to git. When adding new backends, update the CLI reference table here. The agent should always read `.agent/config.json` first to determine which CLI to use.
+
+The separation between `feature-progress.json` (cursor state) and backend (task data) is critical. Never conflate these two systems.
