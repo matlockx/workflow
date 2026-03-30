@@ -565,13 +565,15 @@ ln -s .agent "$TARGET_DIR/.opencode"
 log_success "Created symlink: .opencode -> .agent"
 
 # Copy core agents (selective — agent/ contains many project-specific extras)
-cp "$OPENCODE_ROOT/agent/spec-mode.md"     "$TARGET_DIR/.agent/agents/"
-cp "$OPENCODE_ROOT/agent/create-tasks.md"  "$TARGET_DIR/.agent/agents/"
-cp "$OPENCODE_ROOT/agent/plan-mode.md"     "$TARGET_DIR/.agent/agents/"
-cp "$OPENCODE_ROOT/agent/build.md"         "$TARGET_DIR/.agent/agents/"
-cp "$OPENCODE_ROOT/agent/test-agent.md"    "$TARGET_DIR/.agent/agents/"
-cp "$OPENCODE_ROOT/agent/code-reviewer.md" "$TARGET_DIR/.agent/agents/"
-log_success "Copied core agents (6 files)"
+cp "$OPENCODE_ROOT/agent/spec-mode.md"       "$TARGET_DIR/.agent/agents/"
+cp "$OPENCODE_ROOT/agent/create-tasks.md"    "$TARGET_DIR/.agent/agents/"
+cp "$OPENCODE_ROOT/agent/plan-mode.md"       "$TARGET_DIR/.agent/agents/"
+cp "$OPENCODE_ROOT/agent/build.md"           "$TARGET_DIR/.agent/agents/"
+cp "$OPENCODE_ROOT/agent/test-agent.md"      "$TARGET_DIR/.agent/agents/"
+cp "$OPENCODE_ROOT/agent/code-reviewer.md"   "$TARGET_DIR/.agent/agents/"
+cp "$OPENCODE_ROOT/agent/workflow-guide.md"  "$TARGET_DIR/.agent/agents/"
+cp "$OPENCODE_ROOT/agent/workflow-first.md"  "$TARGET_DIR/.agent/agents/"
+log_success "Copied core agents (8 files)"
 
 # Copy all skills
 # AIDEV-NOTE: Skills are small markdown reference docs loaded on demand by the
