@@ -15,16 +15,48 @@ Before responding to ANY task request, follow this checklist:
 | <30 LOC, single file | `Quick fix (~{loc} LOC, {files} file). Proceed? [y/n/?]` |
 | <10 LOC (typo/rename) | `Trivial change. Proceed? [y/n]` |
 
+## CRITICAL: Two-Gate Confirmation System
+
+### Gate 1: Intent Acknowledgment (this checklist)
+
+Present the acknowledgment template BEFORE any other interaction — including
+asking clarifying questions or doing research. This gate confirms the USER
+wants you to work on this task at all.
+
+### Gate 2: Implementation Confirmation
+
+After planning is complete (questions answered, plan reviewed), present:
+
+```
+Ready to implement:
+- [ ] {file1} (~{loc} LOC)
+- [ ] {file2} (~{loc} LOC)
+
+Begin? [y/n]
+```
+
+Only write files after explicit confirmation: "y", "yes", "proceed", "do it", "implement".
+
+### Ambiguous Responses Require Clarification
+
+| Response | Action |
+|----------|--------|
+| "go" | Ask: "Proceed with implementation? [y/n]" |
+| "ok", "sure", "fine" | Ask: "Shall I begin writing the files? [y/n]" |
+| "looks good" | Ask: "Looks good — ready to implement? [y/n]" |
+
 ## Skip Conditions
 
-Skip this checklist ONLY when:
+Skip Gate 1 ONLY when:
 - User invoked an explicit slash command (`/spec`, `/feature`, `/implement`)
 - User is asking a question, not requesting work
 - User is continuing mid-workflow (already confirmed earlier)
 - User already confirmed in this conversation turn
 
-## AIDEV-NOTE: This is a meta-instruction
+Gate 2 is NEVER skipped for non-trivial tasks.
 
-This file is loaded as an instruction to enforce workflow-first behavior.
-It ensures intent detection happens before any task execution, preventing
-the agent from jumping directly into implementation without acknowledgment.
+## AIDEV-NOTE: Two-gate confirmation system
+
+This file enforces workflow-first behavior with a two-gate confirmation system.
+Gate 1 confirms intent. Gate 2 confirms implementation. Both are required for
+non-trivial tasks to prevent premature file modifications.

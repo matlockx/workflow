@@ -158,7 +158,7 @@ These files control which files should be ignored by AI tools and indexing syste
 
 When responding to user instructions, the AI assistant (Opencode, Claude, Cursor, GPT, etc.) should follow this process to ensure clarity, correctness, and maintainability:
 
-0. **Detect Intent & Confirm Workflow**: Before any task execution, detect the user's intent and present a structured acknowledgment. Wait for confirmation before proceeding.
+0. **Gate 1 — Intent Acknowledgment**: Before any task execution, detect the user's intent and present a structured acknowledgment. Wait for explicit confirmation before proceeding.
 
    **Non-trivial tasks** (feature, multi-file, >30 LOC):
    ```
@@ -179,7 +179,7 @@ When responding to user instructions, the AI assistant (Opencode, Claude, Cursor
    Trivial change. Proceed? [y/n]
    ```
 
-   **Skip this step only when**:
+   **Skip Gate 1 only when**:
    - User explicitly invoked a slash command (`/spec`, `/feature`, etc.)
    - User is asking a question, not requesting work
    - User is mid-workflow and continuing a previous task
@@ -190,6 +190,25 @@ When responding to user instructions, the AI assistant (Opencode, Claude, Cursor
 3. **Break Down & Plan**: Break down the task at hand and chalk out a rough plan for carrying it out, referencing project conventions and best practices.
 4. **Trivial Tasks**: If the plan/request is trivial, go ahead and get started immediately.
 5. **Non-Trivial Tasks**: Otherwise, present the plan to the user for review and iterate based on their feedback.
+
+5a. **Gate 2 — Implementation Confirmation**: After the plan is approved, present a final confirmation before writing any code:
+    ```
+    Ready to implement:
+    - [ ] {file1} (~{loc} LOC)
+    - [ ] {file2} (~{loc} LOC)
+
+    Begin? [y/n]
+    ```
+
+    **Valid confirmations**: "y", "yes", "proceed", "do it", "implement", "go ahead"
+
+    **Ambiguous responses** (require clarification):
+    | Response | Action |
+    |----------|--------|
+    | "go" | Ask: "Proceed with implementation? [y/n]" |
+    | "ok", "sure", "fine" | Ask: "Shall I begin writing files? [y/n]" |
+    | "looks good" | Ask: "Ready to implement? [y/n]" |
+
 6. **Track Progress**: Use a to-do list (internally, or optionally in a `TODOS.md` file) to keep track of your progress on multi-step or complex tasks.
 7. **If Stuck, Re-plan**: If you get stuck or blocked, return to step 3 to re-evaluate and adjust your plan.
 8. **Update Documentation**: Once the user's request is fulfilled, update relevant anchor comments (`AIDEV-NOTE`, etc.) and `AGENTS.md` files in the files and directories you touched.
