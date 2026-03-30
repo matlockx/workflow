@@ -35,7 +35,51 @@ Ready to implement:
 Begin? [y/n]
 ```
 
-Only write files after explicit confirmation: "y", "yes", "proceed", "do it", "implement".
+**Valid confirmations**:
+- `y`, `yes`, `proceed`, `do it`, `implement`, `go ahead` — proceed as planned
+- `y <instructions>`, `yes, <instructions>`, `yes but <instructions>` — proceed and incorporate the additional instructions
+
+When the user provides text after their confirmation, treat it as additional instructions to incorporate during implementation. Examples:
+- `y but skip the README update` → proceed, skip README
+- `yes, also add AIDEV-NOTE comments` → proceed, ensure comments are added
+- `sure and run tests after` → proceed, run tests when done
+- `y don't forget to update the exports` → proceed, make sure exports are updated
+
+### Gate 3: Task Tracking (Non-Trivial Work)
+
+**CRITICAL**: Before writing any files for non-trivial work (>30 LOC or multi-file), create a tracking task in the configured workflow backend.
+
+1. Read `.agent/config.json` to determine the backend type
+2. Create a task to track this work:
+   - **Beads backend**: `bd create "Brief description of work" --json`
+   - **Jira-Taskwarrior**: Use appropriate task creation
+   - **Other backends**: Follow backend-specific task creation
+3. Note the task ID for reference in commits and summaries
+
+**Skip task creation only when**:
+- Work is trivial (<30 LOC, single file, typo/rename)
+- User explicitly says "don't track" or "quick fix"
+- Already working within an existing tracked task/issue
+
+This ensures all meaningful work is captured in the workflow system for history and continuity.
+
+### Gate 4: Task Closure (After Commit)
+
+After committing work, close the tracking task with a summary:
+
+1. **Close the task** with a brief summary of what was done:
+   - **Beads backend**: `bd close <task-id> --reason "Summary of changes. Commit <hash>."`
+   - **Jira-Taskwarrior**: Transition the task to done
+   - **Other backends**: Follow backend-specific closure
+
+2. **Include in the closure reason**:
+   - What was accomplished
+   - Commit hash for traceability
+   - Any notable decisions or follow-ups
+
+**Skip task closure only when**:
+- No task was created (trivial work)
+- Work is incomplete and will continue in the next session
 
 ### Ambiguous Responses Require Clarification
 
@@ -55,8 +99,124 @@ Skip Gate 1 ONLY when:
 
 Gate 2 is NEVER skipped for non-trivial tasks.
 
-## AIDEV-NOTE: Two-gate confirmation system
+---
 
-This file enforces workflow-first behavior with a two-gate confirmation system.
-Gate 1 confirms intent. Gate 2 confirms implementation. Both are required for
-non-trivial tasks to prevent premature file modifications.
+## Post-Confirmation: Workflow Orchestration
+
+After the user confirms at Gate 2, orchestrate the appropriate workflow based on detected intent.
+
+### Workflow Types
+
+| Intent | Workflow | Steps |
+|--------|----------|-------|
+| **feature** | Full workflow | Issue → Spec (requirements) → Spec (design) → Tasks → Implement → Review |
+| **fix/bug** | Quick workflow | Issue → Quick spec → Implement → Review |
+| **review/optimize** | Analysis workflow | Issue → Analyze → Tasks → Implement → Benchmark |
+| **quick/trivial** | Minimal | Implement directly (no spec, no issue) |
+
+### Confidence-Based Routing
+
+**High confidence (≥0.8)**: Present the workflow plan and start on confirmation.
+
+**Medium confidence (0.5–0.8)**: Offer workflow options:
+```
+This could be handled as:
+[1] New feature — full spec → tasks → implement
+[2] Bug fix — quick spec → implement
+[3] Code review — analyze → optimize
+[4] Quick change — just implement
+
+Which fits? [1-4]
+```
+
+**Low confidence (<0.5)**: Ask clarifying questions before proceeding.
+
+### Checkpoint Behavior
+
+At each workflow checkpoint, provide a concise summary and options:
+
+```
+━━━ {Phase} Summary ━━━
+• {key metrics: requirements count, estimated LOC, files}
+
+[c]ontinue  [s]kip  [m]odify  [d]etails  [q]uit
+```
+
+**Smart skip suggestions**: For small changes (<50 LOC, ≤2 files), suggest skipping heavyweight steps:
+- Skip design review for straightforward fixes
+- Skip formal spec for trivial changes
+- Skip task breakdown for single-task work
+
+### Delegation Rules
+
+After orchestration decisions are made:
+
+- **Full feature/fix/review** → Delegate to `/workflow` or `/feature` command
+- **Quick changes** → Implement directly with inline planning
+- **Trivial changes** → Just do it (single edit, no ceremony)
+
+### Pattern Recognition
+
+Recognize these natural language patterns to detect intent:
+
+| Pattern | Intent |
+|---------|--------|
+| "Add X", "Create X", "Build X", "Implement X", "I want to", "New feature" | feature |
+| "Fix X", "Resolve X", "Debug X", "X is broken", "X doesn't work", "Bug:" | fix |
+| "Optimize X", "Improve X", "Refactor X", "Clean up X", "X is slow" | review |
+| "Plan X", "Brainstorm X", "Roadmap", "Strategy" | plan |
+| Typo, rename, single-line change | quick |
+
+### Example: Feature Request
+
+```
+User: I want to add dark mode to the settings page
+
+Agent: **Detected**: feature — 85%
+       **Workflow**: full (6 steps)
+       **Scope**: ~120 LOC, 5 files
+
+       Proceed? [y/n/?]
+
+User: y
+
+Agent: ━━━ Workflow Plan ━━━
+       Steps:
+         1. Create issue
+         2. Spec (requirements)
+         3. Spec (design)
+         4. Task breakdown
+         5. Implementation
+         6. Review
+
+       Starting with issue creation...
+       [Delegates to /workflow or /feature]
+```
+
+### Example: Trivial Fix
+
+```
+User: Fix the typo "Sing In" on the login button
+
+Agent: Trivial change. Proceed? [y/n]
+
+User: y
+
+Agent: Fixed "Sing In" → "Sign In" in src/components/LoginButton.tsx:23
+```
+
+---
+
+## AIDEV-NOTE: Unified workflow-first behavior
+
+This file enforces workflow-first behavior with a four-gate confirmation system
+and post-confirmation orchestration. It combines:
+
+1. Gate 1: Intent acknowledgment (confirm user wants to work on this)
+2. Gate 2: Implementation confirmation (confirm the plan before writing files)
+3. Gate 3: Task tracking (create backend task for non-trivial work)
+4. Gate 4: Task closure (close task after commit with summary)
+5. Orchestration: Route to appropriate workflow based on intent and scope
+
+The intent detection is deliberately conservative — when unsure, ask rather than guess.
+This preserves user trust and prevents mis-routing.

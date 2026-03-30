@@ -253,6 +253,8 @@ When responding to user instructions, the AI assistant (Opencode, Claude, Cursor
 
 5b. **Gate 3 — Task Tracking**: Before writing files for non-trivial work (>30 LOC or multi-file), create a tracking task in the configured workflow backend. Read `.agent/config.json` to determine the backend, then create the task (e.g., `bd create "description" --json` for Beads). Skip only for trivial work (<30 LOC), explicit "don't track" requests, or when already working within a tracked issue.
 
+5c. **Gate 4 — Task Closure**: After committing work, close the tracking task with a summary. For Beads: `bd close <task-id> --reason "Summary. Commit <hash>."`. Include what was accomplished and the commit hash. Skip only when no task was created or work is incomplete.
+
 6. **Track Progress**: Use a to-do list (internally, or optionally in a `TODOS.md` file) to keep track of your progress on multi-step or complex tasks.
 7. **If Stuck, Re-plan**: If you get stuck or blocked, return to step 3 to re-evaluate and adjust your plan.
 8. **Update Documentation**: Once the user's request is fulfilled, update relevant anchor comments (`AIDEV-NOTE`, etc.) and `AGENTS.md` files in the files and directories you touched.
