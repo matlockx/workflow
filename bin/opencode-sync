@@ -72,15 +72,12 @@ Arguments:
   target-dir    Directory to sync into (default: current directory)
 
 What is updated:
-  .agent/commands/     All slash commands (replaced)
+  .agent/commands/     All slash commands (synced, stale removed)
   .opencode            Symlink to .agent (ensured)
-  .agent/agents/       Core agents: spec-mode, create-tasks, plan-mode,
-                       build, test-agent, code-reviewer (replaced)
-                       + missing language agents installed (e.g. debugger-go)
+  .agent/agents/       All agents from source repo (synced, stale removed)
   .agent/lib/          backend-loader, workflow-state, plan-state (replaced)
   .agent/backends/     Active backend index.js + README, interface.ts (replaced)
-  .agent/skills/       All skills from source repo (synced unconditionally)
-  Language agents      Synced if language is set in .agent/config.json
+  .agent/skills/       All skills from source repo (synced, stale removed)
 
 What is preserved:
   .agent/config.json   Your backend configuration
@@ -296,73 +293,81 @@ else
 fi
 
 # ============================================
-# Sync Agents (installed-only)
+# Sync Agents (all agents from source)
 # ============================================
 
-# AIDEV-NOTE: agent/ in the source repo contains many project-specific extras
-# (arch-linux, api-documenter, etc.) that were never installed by opencode-init.
-# We only update agents already present in .agent/agents/ rather than blindly
-# copying everything. Uses plural "agents/" to match OpenCode convention.
+# AIDEV-NOTE: Sync ALL agents from the source repo's agent/ directory.
+# The AI will self-select which agents are relevant based on codebase context.
+# This matches how skills are synced (unconditionally) and ensures projects
+# always have access to the latest workflow agents without re-running opencode-init.
 log_info "Syncing agents..."
 UPDATED_AGENTS=0
+ADDED_AGENTS=0
 
-# Check both old (singular) and new (plural) locations for migration
-AGENTS_DIR=""
-if [[ -d "$TARGET_DIR/.agent/agents" ]]; then
-  AGENTS_DIR="$TARGET_DIR/.agent/agents"
-elif [[ -d "$TARGET_DIR/.agent/agent" ]]; then
-  # Migrate from old singular to new plural
+# Migrate from old singular to new plural if needed
+if [[ -d "$TARGET_DIR/.agent/agent" && ! -d "$TARGET_DIR/.agent/agents" ]]; then
   if [[ -z "$DRY_RUN" ]]; then
     mv "$TARGET_DIR/.agent/agent" "$TARGET_DIR/.agent/agents"
     log_info "Migrated .agent/agent/ to .agent/agents/"
   else
     log_verbose "would migrate .agent/agent/ to .agent/agents/"
   fi
-  AGENTS_DIR="$TARGET_DIR/.agent/agents"
+elif [[ -d "$TARGET_DIR/.agent/agent" && -d "$TARGET_DIR/.agent/agents" ]]; then
+  # Both exist, remove old one
+  if [[ -z "$DRY_RUN" ]]; then
+    rm -rf "$TARGET_DIR/.agent/agent"
+    log_info "Removed old .agent/agent/ (migrated to .agent/agents/)"
+  else
+    log_verbose "would remove old .agent/agent/"
+  fi
 fi
 
-if [[ -n "$AGENTS_DIR" && -d "$AGENTS_DIR" ]]; then
-  for installed_agent in "$AGENTS_DIR/"*.md; do
-    [[ -f "$installed_agent" ]] || continue
-    agent_name="$(basename "$installed_agent")"
-    src_agent="$OPENCODE_ROOT/agent/$agent_name"
-    if [[ -f "$src_agent" ]]; then
-      sync_file "$src_agent" "$installed_agent"
-      UPDATED_AGENTS=$((UPDATED_AGENTS + 1))
-    else
-      log_verbose "agent '$agent_name' installed but not in source repo — skipping"
-    fi
-  done
+# Ensure agents directory exists
+if [[ -z "$DRY_RUN" ]]; then
+  mkdir -p "$TARGET_DIR/.agent/agents"
 fi
 
-# Install missing language-specific agents
-# AIDEV-NOTE: Keep in sync with opencode-init's GO_AGENTS / RUST_AGENTS arrays.
-ADDED_AGENTS=0
-install_agent_if_missing() {
-  local agent_name="$1"
-  local src_agent="$OPENCODE_ROOT/agent/$agent_name.md"
-  local dst_agent="$TARGET_DIR/.agent/agents/$agent_name.md"
-  if [[ -f "$src_agent" && ! -f "$dst_agent" ]]; then
+# Sync ALL agents from source repo
+for agent_src in "$OPENCODE_ROOT/agent/"*.md; do
+  [[ -f "$agent_src" ]] || continue
+  agent_name="$(basename "$agent_src")"
+  dst_agent="$TARGET_DIR/.agent/agents/$agent_name"
+  if [[ -f "$dst_agent" ]]; then
+    sync_file "$agent_src" "$dst_agent"
+    UPDATED_AGENTS=$((UPDATED_AGENTS + 1))
+  else
     if [[ -n "$DRY_RUN" ]]; then
-      log_verbose "would install missing agent: $agent_name"
+      log_verbose "would install agent: $agent_name"
     else
-      mkdir -p "$TARGET_DIR/.agent/agents"
-      cp "$src_agent" "$dst_agent"
-      log_info "Installed missing agent: $agent_name"
+      cp "$agent_src" "$dst_agent"
+      log_verbose "installed: $agent_name"
     fi
     ADDED_AGENTS=$((ADDED_AGENTS + 1))
   fi
-}
+done
 
-if [[ "$LANG" == "go" || "$LANG" == "both" ]]; then
-  install_agent_if_missing "debugger-go"
+# Remove stale agents that no longer exist in source repo
+# AIDEV-NOTE: This handles agent renames/removals, keeping target in sync with source.
+REMOVED_AGENTS=0
+for installed_agent in "$TARGET_DIR/.agent/agents/"*.md; do
+  [[ -f "$installed_agent" ]] || continue
+  agent_name="$(basename "$installed_agent")"
+  if [[ ! -f "$OPENCODE_ROOT/agent/$agent_name" ]]; then
+    if [[ -n "$DRY_RUN" ]]; then
+      log_verbose "would remove stale agent: $agent_name"
+    else
+      rm "$installed_agent"
+      log_verbose "removed stale agent: $agent_name"
+    fi
+    REMOVED_AGENTS=$((REMOVED_AGENTS + 1))
+  fi
+done
+
+if [[ "$REMOVED_AGENTS" -gt 0 ]]; then
+  log_success "Agents synced: $UPDATED_AGENTS updated, $ADDED_AGENTS added, $REMOVED_AGENTS stale removed"
+else
+  log_success "Agents synced: $UPDATED_AGENTS updated, $ADDED_AGENTS added"
 fi
-
-if [[ "$LANG" == "rust" || "$LANG" == "both" ]]; then
-  install_agent_if_missing "debugger-rust"
-fi
-
-log_success "Agents synced: $UPDATED_AGENTS updated, $ADDED_AGENTS newly installed"
 
 # ============================================
 # Sync Lib

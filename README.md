@@ -283,12 +283,11 @@ Options:
 What is updated:
 
 ```
-.agent/command/      All slash commands
-.agent/agent/        Core agents (spec-mode, create-tasks, plan-mode, build,
-                     test-agent, code-reviewer) + any language agents
+.agent/commands/     All slash commands (synced from source, stale removed)
+.agent/agents/       All agents (synced from source, stale removed)
 .agent/lib/          backend-loader.js, workflow-state.js, plan-state.js
 .agent/backends/     Active backend implementation + interface.ts
-.agent/skills/       All currently installed skill packs
+.agent/skills/       All skill packs (synced from source)
 ```
 
 What is **never** touched:
@@ -302,7 +301,7 @@ specs/               Your spec documents
 plans/               Your plan documents
 ```
 
-Language agents (`debugger-go`, `debugger-rust`, `debugger-ts`) are synced if `"language"` is set in `.agent/config.json`. Only commands and agents that are already installed are updated — `opencode-sync` does not add new files.
+All agents and skills are synced unconditionally — the AI will self-select which ones are relevant based on your codebase context.
 
 ---
 
@@ -390,6 +389,48 @@ This project is a fork of [opencode by Geert Theys](https://github.com/gtheys/op
 - macOS bash 3.2 compatibility throughout all shell scripts
 
 If this project is useful to you, go give Geert's repo a star too.
+
+---
+
+## Development (dogfooding)
+
+This repo uses its own workflows for development — "eating our own dogfood". This ensures the workflows, agents, and skills stay optimized through real-world usage.
+
+### Setup for development
+
+```bash
+# 1. Clone the repo
+git clone https://github.com/your-username/opencode.git
+cd opencode
+
+# 2. Initialize beads (if not already done)
+bd init
+
+# 3. Initialize opencode workflow in this repo
+bin/opencode-init --backend=beads .
+
+# 4. Sync to get all agents (opencode-init only copies core agents)
+bin/opencode-sync .
+```
+
+The `.agent/` directory is gitignored — each developer sets up their own local workflow.
+
+### Running tests
+
+```bash
+# Run all tests
+npm run test:all
+
+# Jest tests only (lib/)
+npm test
+
+# Bash tests only (bin/)
+npm run test:bash
+```
+
+### Making changes
+
+When changing workflow files (agents, commands, skills), the changes are immediately available in this repo since `.agent/` symlinks to the source directories. For other projects, run `opencode-sync` to pull in updates.
 
 ---
 

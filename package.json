@@ -7,7 +7,9 @@
   "scripts": {
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "test:bash": "bats test/bin/",
+    "test:all": "npm run test && npm run test:bash"
   },
   "devDependencies": {
     "jest": "^29.7.0"

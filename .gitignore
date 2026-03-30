@@ -9,3 +9,11 @@ node_modules/
 coverage/
 *.log
 .npm/
+
+# Local agent directory (created by opencode-init, not committed)
+# This repo dogfoods its own workflows via opencode-init --backend=beads
+.agent/
+.opencode
+
+# OpenCode
+.agent/state/       # workflow runtime state (issues, tasks, counters)
