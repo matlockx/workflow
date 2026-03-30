@@ -9,6 +9,7 @@
     }
   },
   "instructions": [
+    "agent/workflow-first.md",
     "skills/workflow-backend/SKILL.md",
     "skills/tdd-workflow/SKILL.md",
     "skills/security-review/SKILL.md",

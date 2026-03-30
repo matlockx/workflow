@@ -158,6 +158,33 @@ These files control which files should be ignored by AI tools and indexing syste
 
 When responding to user instructions, the AI assistant (Opencode, Claude, Cursor, GPT, etc.) should follow this process to ensure clarity, correctness, and maintainability:
 
+0. **Detect Intent & Confirm Workflow**: Before any task execution, detect the user's intent and present a structured acknowledgment. Wait for confirmation before proceeding.
+
+   **Non-trivial tasks** (feature, multi-file, >30 LOC):
+   ```
+   **Detected**: {type} — {confidence}%
+   **Workflow**: {workflow} ({step_count} steps)
+   **Scope**: ~{loc} LOC, {files} file(s)
+
+   Proceed? [y]es  [n]o  [?]details
+   ```
+
+   **Trivial tasks** (single file, <30 LOC):
+   ```
+   Quick fix (~{loc} LOC, {files} file). Proceed? [y/n/?]
+   ```
+
+   **Very trivial** (typo, rename, <10 LOC):
+   ```
+   Trivial change. Proceed? [y/n]
+   ```
+
+   **Skip this step only when**:
+   - User explicitly invoked a slash command (`/spec`, `/feature`, etc.)
+   - User is asking a question, not requesting work
+   - User is mid-workflow and continuing a previous task
+   - User has already confirmed in this conversation turn
+
 1. **Consult Relevant Guidance**: When the user gives an instruction, consult the relevant instructions from `AGENTS.md` files (both root and directory-specific) for the request.
 2. **Clarify Ambiguities**: Based on what you could gather, see if there's any need for clarifications. If so, ask the user targeted questions before proceeding.
 3. **Break Down & Plan**: Break down the task at hand and chalk out a rough plan for carrying it out, referencing project conventions and best practices.
