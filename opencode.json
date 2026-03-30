@@ -1,15 +1,8 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "workflow": {
-    "backend": {
-      "type": "beads",
-      "config": {
-        "specsDir": "./specs"
-      }
-    }
-  },
   "instructions": [
     "agent/workflow-first.md",
+    "agent/workflow-queries.md",
     "skills/workflow-backend/SKILL.md",
     "skills/tdd-workflow/SKILL.md",
     "skills/security-review/SKILL.md",
