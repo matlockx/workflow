@@ -286,5 +286,5 @@ Task 1 → Task 2 → Task N → Phase Complete → /test → /git → Next Phas
 ## Related Documentation
 
 - `/command/implement.md` - Full implementation command specification
-- `/command/specjira.md` - Spec creation workflow
+- `/command/spec.md` - Spec creation workflow
 - `/command/createtasks.md` - Task generation from spec

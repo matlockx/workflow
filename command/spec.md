@@ -106,4 +106,3 @@ Create or continue a specification for an issue tracked in the configured workfl
 - The backend abstracts the underlying workflow tools.
 - Preserve portable spec storage through the backend-provided `spec.filePath`.
 - Issue descriptions may contain backend-specific markup; keep the meaning, not the formatting quirks.
-- This command replaces the legacy `/specjira` flow.

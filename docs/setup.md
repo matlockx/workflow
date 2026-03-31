@@ -337,7 +337,7 @@ If I want to write a spec, I query Taskwarrior for specs, check the JiraID, and 
 ```bash
 task specs
 
-/specjira IN-1423
+/spec IN-1423
 ```
 
 ## List spec reviews
