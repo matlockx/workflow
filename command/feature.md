@@ -7,7 +7,7 @@ mode: plan
 # /feature — Full lifecycle orchestrator
 
 Drive an issue from idea to merged code in a single resumable workflow.
-State is persisted in `.agent/state/workflow.json` so work can span multiple
+State is persisted in `.agent/state/feature-progress.json` so work can span multiple
 sessions.
 
 ## Input
@@ -300,8 +300,8 @@ at each stage boundary:
 - `create-tasks`  → task breakdown
 - `build`         → implementation loop
 
-The spec file is the durable context shared between all agents. Workflow state
-in `workflow.json` only tracks position (stage/substage/phase) and skip records.
+The spec file is the durable context shared between all agents. Feature progress state
+in `feature-progress.json` only tracks position (stage/substage/phase) and skip records.
 It never duplicates content that the backend already owns.
 
 State is written after **every** substage transition so a quit at any point
@@ -309,7 +309,7 @@ results in a clean resume point.
 
 ## AIDEV-NOTE: yolo mode design
 
-The `--yolo` flag sets `item.yolo = true` on the work item in `workflow.json`.
+The `--yolo` flag sets `item.yolo = true` on the work item in `feature-progress.json`.
 This persists across sessions so `/resume` inherits it automatically. In YOLO
 mode, all pause points auto-continue — the AI executes the entire lifecycle
 (spec → tasks → implement → review) without stopping for human approval.

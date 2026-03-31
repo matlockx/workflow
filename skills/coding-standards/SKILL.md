@@ -1,6 +1,6 @@
 ---
 name: coding-standards
-description: Universal coding standards, best practices, and patterns for Go, Rust, TypeScript, JavaScript, React, and Node.js development.
+description: Universal coding standards, best practices, and patterns for Go, Rust, Swift, TypeScript, JavaScript, React, and Node.js development.
 ---
 
 # Coding Standards & Best Practices
@@ -915,6 +915,23 @@ mod tests {
     }
 }
 ```
+
+---
+
+## Swift Standards
+
+For comprehensive Swift development guidance, see the dedicated **`swift` skill** which covers:
+
+- API Design Guidelines and naming conventions
+- Optionals and error handling (including typed throws in Swift 6)
+- Swift 6 concurrency (actors, async/await, Sendable)
+- SwiftUI best practices and state management
+- Memory management and ARC
+- Testing with Swift Testing framework
+
+The `swift` skill is based on authoritative sources: [Swift API Design Guidelines](https://www.swift.org/documentation/api-design-guidelines/),
+[The Swift Programming Language](https://docs.swift.org/swift-book/), [Swift Evolution](https://github.com/apple/swift-evolution),
+and WWDC best practices.
 
 ---
 

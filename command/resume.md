@@ -132,7 +132,7 @@ active items.
 `/resume` is deliberately a thin redirect — it finds the right work item,
 prints a summary, and then falls into the exact same stage/substage logic that
 `/feature` uses. There is no separate "resume mode"; the stage machine in
-`feature.md` is stateless and reads position from `workflow.json` every time.
+`feature.md` is stateless and reads position from `feature-progress.json` every time.
 
 YOLO mode is persisted on the work item (`item.yolo`) so `/resume` inherits
 it automatically. Passing `--yolo` on `/resume` upgrades a normal workflow
