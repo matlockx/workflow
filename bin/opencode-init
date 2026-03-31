@@ -6,7 +6,7 @@
 #   opencode-init [OPTIONS] [target-dir]
 #
 # Examples:
-#   opencode-init                           # Initialize in current directory with file backend
+#   opencode-init                           # Initialize in current directory with beads backend
 #   opencode-init ~/projects/myapp          # Initialize in specified directory
 #   opencode-init --backend=jira-taskwarrior .  # Jira + Taskwarrior backend
 #   opencode-init --lang=go                 # Go language tooling
@@ -37,7 +37,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OPENCODE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Defaults
-BACKEND="file"
+BACKEND="beads"
 TARGET_DIR="."
 LANG=""
 WITH_STARTUP=""
@@ -135,7 +135,7 @@ Usage: opencode-init [OPTIONS] [target-dir]
 Initialize OpenCode workflow in a project directory.
 
 Options:
-  --backend=TYPE    Workflow backend: file (default), beads, or jira-taskwarrior
+  --backend=TYPE    Workflow backend: beads (default), mock, or jira-taskwarrior
   --lang=LANG       Language tooling: go, rust, node, python, both,
                     or any custom language (e.g. swift, elixir)
   --with-startup    Add flachnetz/startup library (runs go get if go.mod exists)
@@ -147,7 +147,7 @@ Arguments:
   target-dir        Directory to initialize (default: current directory)
 
 Examples:
-  opencode-init                                    # Init with file backend only
+  opencode-init                                    # Init with beads backend only
   opencode-init --lang=go                          # Init with Go tooling
   opencode-init --lang=rust                        # Init with Rust tooling
   opencode-init --backend=jira-taskwarrior         # Jira + Taskwarrior backend
@@ -156,11 +156,10 @@ Examples:
   opencode-init --scaffold --with-startup          # Scaffold with startup library
 
 Backends:
-  file              Zero-dependency local workflow (default, recommended)
-                    Sequential IDs (ISSUE-1, ISSUE-2), state in .agent/state/
-                    Best for: solo developers, simple projects, getting started
-  beads             Beads (bd) local-first task manager
+  beads             Beads (bd) local-first task manager (default)
                     Best for: individuals wanting lightweight local workflow
+  mock              Zero-dependency in-memory backend for testing
+                    Best for: demos, testing, CI environments
   jira-taskwarrior  Jira + Taskwarrior integration (for teams with Jira)
                     Best for: teams already using Jira, rich dependency tracking
 
@@ -447,9 +446,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Validate backend
-if [[ "$BACKEND" != "file" && "$BACKEND" != "beads" && "$BACKEND" != "jira-taskwarrior" ]]; then
+if [[ "$BACKEND" != "beads" && "$BACKEND" != "mock" && "$BACKEND" != "jira-taskwarrior" ]]; then
   log_error "Invalid backend: $BACKEND"
-  echo "Valid backends: file, beads, jira-taskwarrior"
+  echo "Valid backends: beads, mock, jira-taskwarrior"
   exit 1
 fi
 

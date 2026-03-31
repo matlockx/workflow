@@ -26,7 +26,7 @@ git clone https://github.com/your-username/opencode.git
 
 # 2. Initialize OpenCode workflow in your project
 cd opencode
-./bin/opencode-init ~/projects/myapp          # file backend (default, zero deps)
+./bin/opencode-init ~/projects/myapp          # beads backend (default)
 ./bin/opencode-init --backend=jira-taskwarrior ~/projects/myapp
 
 # 3. Open your project in OpenCode and start working
@@ -117,18 +117,7 @@ Run `opencode models` to see available models for your configured providers.
 | `beads` | Individuals wanting lightweight local workflow | Beads (`bd`) CLI |
 | `jira-taskwarrior` | Teams using Jira | ACLI, Taskwarrior |
 
-### File backend (default)
-
-Zero dependencies. Issues and tasks stored as JSON files under `.agent/state/`. Sequential IDs: `ISSUE-1`, `ISSUE-2`, …
-
-`.agent/config.json`:
-```json
-{
-  "backend": { "type": "file", "config": {} }
-}
-```
-
-### Beads backend
+### Beads backend (default)
 
 Lightweight local-first task manager using the `bd` CLI. Issues and tasks stored locally; no external service required.
 
@@ -147,6 +136,17 @@ Lightweight local-first task manager using the `bd` CLI. Issues and tasks stored
 ```
 
 Run `bd init --stealth` in your project root before first use. See [`backends/beads/README.md`](backends/beads/README.md) for setup.
+
+### Mock backend
+
+Zero dependencies. In-memory backend for testing and demos. Does not persist state between sessions.
+
+`.agent/config.json`:
+```json
+{
+  "backend": { "type": "mock", "config": {} }
+}
+```
 
 ### Jira-Taskwarrior backend
 
@@ -238,7 +238,7 @@ mode mid-flight with `/resume ISSUE-1 --yolo`.
 Usage: opencode-init [OPTIONS] [target-dir]
 
 Options:
-  --backend=TYPE    file (default), beads, or jira-taskwarrior
+  --backend=TYPE    beads (default), mock, or jira-taskwarrior
   --stack=backend   Copy all backend infra skills (postgres, kafka, docker, …)
   --skills=LIST     Comma-separated skills (e.g. postgres,kafka,docker)
   --lang=LANG       Language tooling: go, rust, node, python, both

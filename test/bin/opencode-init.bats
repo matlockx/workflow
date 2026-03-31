@@ -3,14 +3,14 @@
 #
 # AIDEV-NOTE: These tests use a temporary directory to avoid polluting
 # the real filesystem. Each test creates a fresh temp dir and cleans up.
-# We use the 'file' backend for testing as it requires no external tools.
+# We use the 'mock' backend for testing as it requires no external tools.
 
 # Get the directory where this test file lives
 BATS_TEST_DIRNAME="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
 OPENCODE_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
 
-# Use 'file' backend for tests - it requires no external tools
-TEST_BACKEND="file"
+# Use 'mock' backend for tests - it requires no external tools
+TEST_BACKEND="mock"
 
 setup() {
   # Create a temporary directory for each test
@@ -34,12 +34,12 @@ teardown() {
   [[ "$output" == *"--backend"* ]]
 }
 
-@test "opencode-init defaults to file backend when no --backend flag" {
+@test "opencode-init defaults to beads backend when no --backend flag" {
   run "$OPENCODE_ROOT/bin/opencode-init" "$TEST_DIR"
   [ "$status" -eq 0 ]
-  # Should default to file backend
+  # Should default to beads backend
   run grep '"type"' "$TEST_DIR/.agent/config.json"
-  [[ "$output" == *"file"* ]]
+  [[ "$output" == *"beads"* ]]
 }
 
 @test "opencode-init fails with invalid backend" {
@@ -49,10 +49,10 @@ teardown() {
 }
 
 # =============================================================================
-# File backend tests (doesn't require external tools)
+# Mock backend tests (doesn't require external tools)
 # =============================================================================
 
-@test "opencode-init creates .agent directory with file backend" {
+@test "opencode-init creates .agent directory with mock backend" {
   run "$OPENCODE_ROOT/bin/opencode-init" --backend="$TEST_BACKEND" "$TEST_DIR"
   [ "$status" -eq 0 ]
   [ -d "$TEST_DIR/.agent" ]

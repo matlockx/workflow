@@ -66,16 +66,6 @@ Uses `task` (Taskwarrior) CLI for local task state and `acli` for Jira issues.
 
 **Last task query**: Use `task +impl limit:1 export` or sort by modification time.
 
-### File Backend (`backend.type: "file"`)
-
-Uses local JSON files in `.agent/data/`. Query by reading the files directly:
-
-| Query | Location |
-|-------|----------|
-| Issues | `.agent/data/issues.json` |
-| Tasks | `.agent/data/tasks.json` |
-| Specs | `.agent/data/specs.json` |
-
 ## Response Format
 
 When presenting workflow data to users:
