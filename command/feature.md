@@ -1,5 +1,5 @@
 ---
-description: Guide an issue through its full lifecycle — spec → tasks → implement → review — with cross-session persistence
+description: Guide an issue through its full lifecycle — spec → tasks → implement → review — with natural language input and cross-session persistence
 agent: spec-mode
 mode: plan
 ---
@@ -10,10 +10,18 @@ Drive an issue from idea to merged code in a single resumable workflow.
 State is persisted in `.agent/state/feature-progress.json` so work can span multiple
 sessions.
 
+Accepts either an issue ID or natural language description of what you want to build.
+
 ## Input
 
-- `$ARGUMENTS`: issue ID, optionally with `--type=fix`, `--backend=<type>`, or `--yolo`
-  - Examples: `ISSUE-3`, `IN-1234 --type=fix`, `MOCK-1 --backend=mock`, `ISSUE-3 --yolo`
+- `$ARGUMENTS`: issue ID or natural language description
+  - Issue ID: `ISSUE-3`, `IN-1234 --type=fix`, `MOCK-1 --backend=mock`
+  - Natural language: `Add OAuth login with Google and GitHub`
+  - Optional flags:
+    - `--type=fix`: Treat as bug fix (streamlined workflow)
+    - `--backend=<type>`: Override configured backend
+    - `--yolo`: Skip all approval gates, execute end-to-end
+    - `--quick`: Skip spec phase for small changes
 
 ---
 
@@ -23,27 +31,40 @@ sessions.
 
    ```js
    const { parseBackendOverride } = require('./lib/backend-loader.js')
+   const { detectIntent, getWorkflowRecommendation } = require('./lib/intent-router.js')
    const wf = require('./lib/workflow-state.js')
 
    const { backendType, cleanedArguments } = parseBackendOverride($ARGUMENTS)
    const tokens = cleanedArguments.trim().split(/\s+/).filter(Boolean)
 
-   // Detect --type flag
-   let workType = 'feature'
-   const typeFlag = tokens.find(t => t.startsWith('--type='))
-   if (typeFlag) workType = typeFlag.replace('--type=', '')
-
-   // Detect --yolo flag
+   // Extract flags
    const yoloMode = tokens.some(t => t === '--yolo')
+   const quickMode = tokens.some(t => t === '--quick')
+   const typeFlag = tokens.find(t => t.startsWith('--type='))
+   let workType = typeFlag ? typeFlag.replace('--type=', '') : 'feature'
 
-   const issueId = tokens.filter(t => !t.startsWith('--'))[0]
+   // Get non-flag tokens
+   const nonFlagTokens = tokens.filter(t => !t.startsWith('--'))
+   const firstToken = nonFlagTokens[0]
    ```
 
-2. **Validate input**
-   - If no `issueId` is supplied, print usage and stop:
-     ```
-      Usage: /feature <issueId> [--type=fix] [--backend=<type>] [--yolo]
-     ```
+2. **Detect input type (issue ID vs natural language)**
+
+   ```js
+   // Check if first token looks like an issue ID (e.g., PROJ-123, IN-42, MOCK-1)
+   const issueIdPattern = /^[A-Z]+-\d+$/i
+   const isIssueId = firstToken && issueIdPattern.test(firstToken)
+
+   let issueId = null
+   let description = null
+
+   if (isIssueId) {
+     issueId = firstToken
+   } else {
+     // Treat entire non-flag input as natural language description
+     description = nonFlagTokens.join(' ')
+   }
+   ```
 
 3. **Load the backend**
    ```js
@@ -52,17 +73,97 @@ sessions.
    ```
    If initialization fails, show the error and stop.
 
-4. **Fetch the issue**
+---
+
+## Natural Language Input Flow
+
+If `description` is set (no issue ID provided):
+
+4. **Detect intent and confirm**
+
+   ```js
+   const intent = detectIntent(description)
+   const recommendation = getWorkflowRecommendation(intent)
+
+   // Override workType if intent suggests different type
+   if (intent.type && intent.type !== 'feature') {
+     workType = intent.type
+   }
+   ```
+
+   **High confidence (≥0.8):**
+   ```
+   ━━━ Workflow Plan ━━━
+   I'll treat this as: {intent.type}
+
+   {recommendation.suggestion}
+
+   Steps:
+   {recommendation.steps.map((s, i) => `  ${i+1}. ${s}`).join('\n')}
+
+   {if quickMode or recommendation.canSkip.length > 0}
+   ⚡ I can skip: {recommendation.canSkip.join(', ')}
+   {/if}
+
+   [s]tart  [c]ustomize  [q]uit
+   ```
+
+   **Medium confidence (0.5-0.8):**
+   ```
+   I'm not entirely sure what workflow fits best.
+
+   This sounds like it could be:
+   [1] New feature (full spec → tasks → implement)
+   [2] Bug fix (quick spec → implement)
+   [3] Code review (analyze → optimize)
+   [4] Quick change (just implement)
+
+   Which workflow fits your needs? [1-4]
+   ```
+
+   **Low confidence (<0.5):**
+   ```
+   I need a bit more context to set up the right workflow.
+
+   Could you tell me:
+   • Is this a new feature, bug fix, or improvement?
+   • Roughly how big is this change?
+   • Are there any existing issues or specs?
+   ```
+
+5. **On [s]tart: Create issue and continue**
+
+   ```js
+   // Extract summary (first sentence or first 100 chars)
+   const summary = extractSummary(description)
+
+   const issue = await backend.createIssue({
+     summary,
+     description,
+     issueType: workType === 'fix' ? 'bug' : 'feature'
+   })
+
+   console.log(`Created issue ${issue.id}: ${issue.summary}`)
+   issueId = issue.id
+   ```
+
+---
+
+## Issue ID Flow
+
+If `issueId` is set:
+
+6. **Fetch the issue**
    - Call `backend.getIssue(issueId)`.
    - If not found, tell the user and stop.
    - Store `issue.summary` as `title`.
 
-5. **Resolve or create the work item**
+7. **Resolve or create the work item**
    ```js
    let item = wf.getActiveItem(issueId)
 
    if (!item) {
-     item = wf.createWorkItem({ issueId, type: workType, title, yolo: yoloMode })
+     item = wf.createWorkItem({ issueId, type: workType, title, yolo: yoloMode, quick: quickMode })
    } else if (yoloMode && !item.yolo) {
      // Upgrade an existing item to yolo mode if flag is passed
      wf.updateWorkItem(issueId, { yolo: true })
@@ -75,14 +176,40 @@ sessions.
      ```
      ⚡ YOLO mode — skipping all approval gates, executing end-to-end.
      ```
+   - If `quickMode` is active, print:
+     ```
+     ⚡ Quick mode — skipping spec phase, going straight to implementation.
+     ```
 
-6. **Show current position**
+8. **Show current position**
    ```
    ══════════════════════════════════════════
    /feature  [ISSUE-3]  My feature title
    Stage: spec › requirements-review
    ══════════════════════════════════════════
    ```
+
+---
+
+## Quick Mode (--quick)
+
+When `--quick` flag is passed or workflow type is 'quick':
+
+1. Skip issue creation if work is truly trivial
+2. Skip spec phase entirely
+3. Go straight to implementation with inline planning:
+   ```
+   Quick mode: Skipping formal spec.
+
+   I'll implement: {description}
+
+   Before I start, quick check:
+   • Files I expect to change: {predicted files}
+   • Estimated LOC: ~{estimate}
+
+   [g]o  [a]dd more context  [q]uit
+   ```
+4. Jump directly to `implement` stage
 
 ---
 
@@ -98,16 +225,17 @@ At every pause point, check `item.yolo` first:
   Tests should still be run — if they fail, fix them and continue rather
   than stopping to ask.
 
-- **If `item.yolo` is false (normal mode):** show exactly:
+- **If `item.yolo` is false (normal mode):** show:
 
 ```
-[c]ontinue  [s]kip  [a]uto-run  [q]uit
+[c]ontinue  [s]kip  [m]odify  [a]uto-run  [q]uit
 ```
 
 - **c** — execute the current step, then pause again at the next pause point
 - **s** — skip the current step; prompt for an optional reason, record it with
   `wf.recordSkip(issueId, stepName, reason)`, then continue to the next pause
   point
+- **m** — modify the current work (edit spec, change requirements, etc.)
 - **a** — execute all steps until the next **major stage boundary**
   (spec → tasks, tasks → implement, phase N end → phase N+1 start)
 - **q** — save state (`wf.updateWorkItem` is already called after each step)
@@ -115,9 +243,52 @@ At every pause point, check `item.yolo` first:
 
 ---
 
+## Enhanced Checkpoints (Smart Skip)
+
+At each pause point, add smart skip suggestions using `lib/intent-router.js`.
+
+```js
+const { shouldSkipStep, generateCheckpointSummary, formatCheckpointPrompt } =
+  require('./lib/intent-router.js')
+
+// Estimate change size from spec content
+const context = {
+  estimatedLOC: estimateLOCFromSpec(spec),
+  fileCount: estimateFilesFromSpec(spec),
+  type: item.type
+}
+
+const skipSuggestion = shouldSkipStep(currentStep, context)
+const summary = generateCheckpointSummary(currentStage, {
+  requirementsCount: countRequirements(spec),
+  estimatedLOC: context.estimatedLOC,
+  fileCount: context.fileCount
+})
+
+console.log(summary)
+console.log('')
+console.log(formatCheckpointPrompt(currentStep, {
+  skipSuggested: skipSuggestion.suggest,
+  skipReason: skipSuggestion.reason
+}))
+```
+
+Example output:
+```
+━━━ Spec Summary ━━━
+• 3 requirements defined
+• Estimated: ~45 LOC across 2 files
+
+⚡ Suggestion: Skip this step? Small change (~45 LOC, 2 files)
+
+[c]ontinue to Design  [s]kip  [m]odify  [d]etails  [q]uit
+```
+
+---
+
 ## Stage: spec
 
-**Entry condition:** `item.stage === 'spec'`
+**Entry condition:** `item.stage === 'spec'` (skipped in quick mode)
 
 Switch the active agent to **spec-mode** for this stage.
 
@@ -143,7 +314,7 @@ Switch the active agent to **spec-mode** for this stage.
    Please review the requirements above.
    Are they accurate and complete?
 
-   [c]ontinue to Design  [s]kip  [a]uto-run  [q]uit
+   [c]ontinue to Design  [s]kip  [m]odify  [a]uto-run  [q]uit
    ```
    In YOLO mode, auto-approve requirements and proceed immediately.
 2. On **c/a** (or auto in YOLO): write the Design section of the spec.
@@ -156,7 +327,7 @@ Switch the active agent to **spec-mode** for this stage.
    Please review the design above.
    Is it accurate and complete?
 
-   [c]ontinue to approval  [s]kip  [a]uto-run  [q]uit
+   [c]ontinue to approval  [s]kip  [m]odify  [a]uto-run  [q]uit
    ```
    In YOLO mode, auto-approve design and proceed immediately.
 2. On **c/a** (or auto in YOLO):
@@ -223,7 +394,7 @@ After each **phase** completes (all its tasks reach `done`):
    ```
    Phase complete. Please run tests and review the code.
 
-   [c]ontinue (approve phase)  [s]kip  [a]uto-run  [q]uit
+   [c]ontinue (approve phase)  [s]kip  [m]odify  [a]uto-run  [q]uit
    ```
    In YOLO mode, run tests automatically. If tests pass, auto-approve and
    continue. If tests fail, attempt to fix them and re-run. Only stop on
@@ -256,7 +427,7 @@ After each **phase** completes (all its tasks reach `done`):
    ```
    Implementation complete. Ready to create a PR and finish the review?
 
-   [c]ontinue  [s]kip  [a]uto-run  [q]uit
+   [c]ontinue  [s]kip  [m]odify  [a]uto-run  [q]uit
    ```
    In YOLO mode, auto-create the PR and finish.
 2. On **c/a** (or auto in YOLO):
@@ -282,11 +453,90 @@ After each **phase** completes (all its tasks reach `done`):
 
 | Situation | Action |
 |-----------|--------|
+| Intent unclear | Ask clarifying questions |
 | Backend unavailable | Show error, stop — state is already saved |
 | `approveSpec` fails | Warn user, keep item at `design-review` |
 | `createTasks` already exist | Skip task creation, advance to `created` |
 | Task dependency blocked | Stop and tell user which dependency is unmet |
 | User presses `q` | Save state, print `/resume <issueId>` hint |
+
+---
+
+## Example Sessions
+
+### Example 1: Issue ID Input
+
+```
+User: /feature PROJ-42
+
+Agent: ══════════════════════════════════════════
+       /feature  [PROJ-42]  Add dark mode toggle
+       Stage: spec › drafting
+       ══════════════════════════════════════════
+
+       Ready to draft the spec for PROJ-42?
+
+       [c]ontinue  [s]kip  [m]odify  [a]uto-run  [q]uit
+```
+
+### Example 2: Natural Language Input
+
+```
+User: /feature add a dark mode toggle to the settings page
+
+Agent: ━━━ Workflow Plan ━━━
+       I'll treat this as: feature
+
+       Full feature workflow with spec and task breakdown
+
+       Steps:
+         1. Create issue
+         2. Spec (requirements)
+         3. Spec (design)
+         4. Task breakdown
+         5. Implementation
+         6. Review
+
+       [s]tart  [c]ustomize  [q]uit
+
+User: s
+
+Agent: Created issue PROJ-42: "Add dark mode toggle to settings page"
+       Starting spec phase...
+
+       [Drafts requirements]
+
+       ━━━ Spec Summary ━━━
+       • 4 requirements defined
+       • Estimated: ~120 LOC across 5 files
+
+       [c]ontinue to Design  [s]kip  [m]odify  [d]etails  [q]uit
+```
+
+### Example 3: Quick Mode
+
+```
+User: /feature fix the typo in the login button --quick
+
+Agent: ⚡ Quick mode — skipping spec phase.
+
+       Quick mode: Skipping formal spec.
+
+       I'll implement: fix the typo in the login button
+
+       Before I start, quick check:
+       • Files I expect to change: src/components/LoginButton.tsx
+       • Estimated LOC: ~5
+
+       [g]o  [a]dd more context  [q]uit
+
+User: g
+
+Agent: Found the typo in src/components/LoginButton.tsx:23
+       Changing "Sing In" → "Sign In"
+
+       [a]pply  [r]eview diff  [q]uit
+```
 
 ---
 
@@ -315,3 +565,14 @@ mode, all pause points auto-continue — the AI executes the entire lifecycle
 (spec → tasks → implement → review) without stopping for human approval.
 Tests are still run; failures are fixed rather than reported. The only hard
 stop is an unrecoverable error (backend unavailable, etc.).
+
+## AIDEV-NOTE: natural language input
+
+This command now accepts natural language descriptions as an alternative to issue IDs.
+When NL input is detected, the intent router (`lib/intent-router.js`) analyzes the
+description, detects the workflow type (feature, fix, review, quick), and shows a
+confirmation before creating the issue. This provides a user-friendly entry point
+without requiring users to pre-create issues in the backend.
+
+The `--quick` flag enables a streamlined workflow that skips the spec phase entirely,
+useful for trivial changes like typo fixes or simple renames.

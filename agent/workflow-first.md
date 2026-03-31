@@ -207,8 +207,8 @@ At each workflow checkpoint, provide a concise summary and options:
 
 After orchestration decisions are made:
 
-- **Full feature/fix/review** → Delegate to `/workflow` or `/feature` command
-- **Quick changes** → Implement directly with inline planning
+- **Full feature/fix/review** → Delegate to `/feature` command
+- **Quick changes** → Delegate to `/feature --quick` or implement directly
 - **Trivial changes** → Just do it (single edit, no ceremony)
 
 ### Pattern Recognition
@@ -246,7 +246,7 @@ Agent: ━━━ Workflow Plan ━━━
          6. Review
 
        Starting with issue creation...
-       [Delegates to /workflow or /feature]
+       [Delegates to /feature]
 ```
 
 ### Example: Trivial Fix
