@@ -21,7 +21,6 @@ The mock backend provides a minimal implementation of the `WorkflowBackend` inte
 ✅ Full `WorkflowBackend` interface implementation
 ✅ In-memory storage (no external dependencies)
 ✅ State validation and transitions
-✅ Spec file management
 ✅ Simple, readable code (good for learning)
 
 ❌ No persistence (data lost on restart)
@@ -41,8 +40,6 @@ Add to `opencode.json`:
     "backend": {
       "type": "mock",
       "config": {
-        "specsDir": "./specs",
-        "autoGenerateSpecs": true,
         "initialIssues": [
           {
             "id": "MOCK-1",
@@ -58,8 +55,6 @@ Add to `opencode.json`:
 
 ### Configuration Options
 
-- **`specsDir`** (optional, default: `./specs`): Path to spec storage directory
-- **`autoGenerateSpecs`** (optional, default: `true`): Auto-generate spec content
 - **`initialIssues`** (optional): Pre-populate with sample issues
 
 ---
@@ -71,10 +66,7 @@ Add to `opencode.json`:
 ```javascript
 const MockBackend = require('./backends/mock')
 
-const backend = new MockBackend({
-  specsDir: './specs',
-  autoGenerateSpecs: true
-})
+const backend = new MockBackend({})
 
 // Create an issue
 const issue = await backend.createIssue({
@@ -82,14 +74,8 @@ const issue = await backend.createIssue({
   description: 'Users want a dark mode option'
 })
 
-// Create a spec
-const spec = await backend.createSpec(issue.id)
-
-// Approve the spec
-await backend.approveSpec(spec.id)
-
-// Create tasks
-const tasks = await backend.createTasks(spec.id)
+// Create tasks directly from the issue
+const tasks = await backend.createTasks(issue.id)
 
 console.log(`Created ${tasks.length} tasks`)
 ```
@@ -100,10 +86,7 @@ Once configured in `opencode.json`, use standard commands:
 
 ```bash
 # Create issue
-/po-issue "Add user authentication"
-
-# Create spec
-/spec MOCK-1
+/issue "Add user authentication"
 
 # Create tasks
 /createtasks MOCK-1
@@ -121,7 +104,6 @@ All data stored in memory:
 ```
 MockBackend instance
   ├── issues: Map<string, Issue>
-  ├── specs: Map<string, Spec>
   └── tasks: Map<string, Task>
 ```
 
@@ -130,15 +112,6 @@ MockBackend instance
 ---
 
 ## State Machine
-
-### Spec States
-
-```
-draft ──────► approved
-  │              │
-  └────► rejected ┘
-         (loop back)
-```
 
 ### Task States
 
@@ -159,73 +132,27 @@ const MockBackend = require('./backends/mock')
 
 describe('Workflow Tests', () => {
   let backend
-  
+
   beforeEach(() => {
-    backend = new MockBackend({
-      specsDir: './test-specs'
-    })
+    backend = new MockBackend({})
   })
-  
-  it('creates issue -> spec -> tasks flow', async () => {
+
+  it('creates issue -> tasks flow', async () => {
     const issue = await backend.createIssue({
       summary: 'Test feature',
       description: 'Test description'
     })
-    
-    const spec = await backend.createSpec(issue.id)
-    expect(spec.state).toBe('draft')
-    
-    await backend.approveSpec(spec.id)
-    
-    const tasks = await backend.createTasks(spec.id)
+
+    const tasks = await backend.createTasks(issue.id)
     expect(tasks.length).toBeGreaterThan(0)
   })
-  
+
   it('validates state transitions', () => {
-    expect(backend.isValidTransition('draft', 'approved')).toBe(true)
-    expect(backend.isValidTransition('draft', 'done')).toBe(false)
+    expect(backend.isValidTransition('todo', 'inprogress')).toBe(true)
+    expect(backend.isValidTransition('todo', 'done')).toBe(false)
   })
 })
 ```
-
----
-
-## Implementation Notes
-
-### Auto-Generated Specs
-
-When `autoGenerateSpecs: true`, specs are auto-generated with placeholder content:
-
-```markdown
----
-createdAt: 2026-03-28T12:00:00Z
-work_state: draft
----
-
-# [Issue Summary]
-
-## Requirements
-
-### User Story 1
-**Story**: [Auto-generated from issue description]
-**Acceptance Criteria**:
-- Placeholder criteria
-
-## Design
-
-### Components
-- Placeholder component
-
-### Files
-#### New
-- `src/placeholder.ts`
-
-### Testing Strategy
-- Unit tests
-- Integration tests
-```
-
-For real projects, use agents to generate proper specs.
 
 ---
 
@@ -243,8 +170,7 @@ For production use, implement a real backend or use existing ones (`jira-taskwar
 
 ## See Also
 
-- [Backend Interface](../interface.ts) - Full interface specification
-- [Workflow Backend Interface Docs](../../docs/architecture/workflow-backend-interface.md)
+- [Workflow Backend Skill](../../skills/workflow-backend/SKILL.md) - Interface contract and orchestration patterns
 - [Jira-Taskwarrior Backend](../jira-taskwarrior/README.md) - Production backend example
 
 ---

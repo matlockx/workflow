@@ -38,7 +38,7 @@ Backends allow OpenCode to work with different issue trackers and task managemen
 
 ## Backend Interface
 
-All backends must implement the `WorkflowBackend` interface defined in `interface.ts`.
+All backends must implement the `WorkflowBackend` interface described in [`workflow-backend/SKILL.md`](../skills/workflow-backend/SKILL.md).
 
 ### Core Methods
 
@@ -50,14 +50,8 @@ interface WorkflowBackend {
   createIssue(data: IssueCreateData): Promise<Issue>
   updateIssue(id: string, updates: Partial<IssueCreateData>): Promise<Issue>
   
-  // Spec Management
-  createSpec(issueId: string): Promise<Spec>
-  getSpec(issueId: string): Promise<Spec>
-  approveSpec(specId: string): Promise<Spec>
-  rejectSpec(specId: string, reason?: string): Promise<Spec>
-  
   // Task Management
-  createTasks(specId: string): Promise<Task[]>
+  createTasks(issueId: string): Promise<Task[]>
   getTasks(filter?: TaskFilter): Promise<Task[]>
   getTask(taskId: string): Promise<Task>
   updateTaskState(taskId: string, state: WorkState): Promise<Task>
@@ -70,7 +64,7 @@ interface WorkflowBackend {
 }
 ```
 
-See [`interface.ts`](interface.ts) for complete type definitions.
+See [`skills/workflow-backend/SKILL.md`](../skills/workflow-backend/SKILL.md) for the full interface contract and orchestration patterns.
 
 ---
 
@@ -127,8 +121,7 @@ Required `opencode.json` config:
       "type": "my-backend",
       "config": {
         "apiUrl": "https://...",
-        "apiKey": "...",
-        "specsDir": "./specs"
+        "apiKey": "..."
       }
     }
   }
@@ -170,10 +163,9 @@ Create `backends/my-backend/README.md` with:
 ### Must Implement ✅
 
 1. All methods in `WorkflowBackend` interface
-2. Core work states (new, draft, todo, inprogress, review, approved, rejected, done)
+2. Core work states (new, todo, inprogress, review, approved, rejected, done)
 3. Error handling (throw `BackendError` with codes)
-4. Spec file management in `specsDir` (default: `./specs`)
-5. Linking between issues, specs, and tasks
+4. Linking between issues and tasks
 
 ### Should Implement 🔄
 
@@ -197,8 +189,6 @@ Create `backends/my-backend/README.md` with:
 ```
 backends/
 ├── README.md               # This file
-├── interface.ts            # TypeScript interface definition
-├── types.ts                # Shared type definitions
 ├── mock/                   # Mock backend (testing)
 │   ├── README.md
 │   └── index.js

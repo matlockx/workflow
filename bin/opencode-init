@@ -13,14 +13,13 @@
 #   opencode-init --with-startup            # Add flachnetz/startup library dependency
 #
 # AIDEV-NOTE: This script copies the minimal workflow files needed to use
-# OpenCode's /issue, /spec, /createtasks, /implement, /feature, /fix,
+# OpenCode's /issue, /createtasks, /implement, /feature, /fix,
 # /resume, /status, and /plan commands in a new project.
 # All workflow files go in .agent/ with plural subdirectory names:
 # .agent/commands/, .agent/agents/, .agent/skills/.
 # A single symlink .opencode -> .agent makes everything discoverable by OpenCode.
 # All skills are copied unconditionally — they are small markdown reference docs
 # loaded on demand by the AI via description-based matching. Zero cost to having them all.
-# specs/ and plans/ are committed, user-visible.
 # opencode.json and AGENTS.md stay in the root.
 
 set -euo pipefail
@@ -531,8 +530,7 @@ ${LANG_LINE:+$LANG_LINE
     "type": "beads",
     "config": {
       "workspaceDir": "$TARGET_DIR",
-      "beadsDir": "$TARGET_DIR/.beads",
-      "specsDir": "./specs"
+      "beadsDir": "$TARGET_DIR/.beads"
     }
   }
 }
@@ -564,8 +562,7 @@ ${LANG_LINE:+$LANG_LINE
       "jiraProject": "YOUR_PROJECT_KEY",
       "jiraEmail": "your.email@example.com",
       "taskrcPath": "~/.taskrc",
-      "taskDataLocation": "~/.task",
-      "specsDir": "./specs"
+      "taskDataLocation": "~/.task"
     }
   }
 }

@@ -112,7 +112,6 @@ Add to your `opencode.json`:
         "jiraEmail": "you@example.com",
         "taskrcPath": "~/.taskrc",
         "taskDataLocation": "~/.task",
-        "specsDir": "./specs",
         "repository": "my-project",
         "useBugwarrior": true,
         "bugwarriorConfig": "~/.config/bugwarrior/bugwarrior.toml"
@@ -159,13 +158,13 @@ console.log(`Found ${issues.length} issues`)
 ### Create Spec
 
 ```javascript
-// Create spec from Jira issue
-const spec = await backend.createSpec('PROJ-123')
+// Create tasks from Jira issue
+const tasks = await backend.createTasks('PROJ-123')
 
-console.log(`Spec created: ${spec.filePath}`)
+console.log(`Tasks created: ${tasks.length}`)
 // Creates:
-// - Spec file: ./specs/PROJ-123__issue-title.md
-// - Task in Taskwarrior with +spec tag and jiraid:PROJ-123
+// - Phase tasks with +impl +phase tags
+// - Implementation tasks with dependencies on phases
 ```
 
 ### Approve Spec
@@ -205,9 +204,6 @@ await backend.updateTaskState(taskUUID, 'inprogress')
 ```
 Jira Issue (PROJ-123)
   └─ jiraid:PROJ-123
-     ├─ Spec Task (+spec, work_state:draft → approved)
-     │  └─ Spec file: notes/repo/specs/PROJ-123__title.md
-     │
      └─ Implementation (+impl)
         ├─ Phase 1 (+phase, work_state:todo → inprogress → review → approved)
         │  ├─ Task 1.1 (depends:phase1-uuid)
@@ -369,19 +365,6 @@ task show | grep "uda\."
 
 # Re-import existing tasks
 task rc.recurrence=off rc.verbose=nothing export | task import
-```
-
-### Missing Spec File
-
-If spec task exists but file is missing:
-
-```bash
-# Find spec task
-task jiraid:PROJ-123 +spec export
-
-# Manually create spec file
-mkdir -p specs
-touch specs/PROJ-123__title.md
 ```
 
 ### Task Dependency Issues
