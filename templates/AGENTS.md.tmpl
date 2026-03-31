@@ -100,8 +100,8 @@ All OpenCode workflow machinery lives in `.agent/` (hidden, gitignored state) an
 ├── specs/                      ← committed to git (human-readable specs)
 │   └── ISSUE-1.md
 └── .agent/                     ← gitignored workflow machinery
-    ├── command/                ← /spec, /createtasks, /implement, /issue
-    ├── agent/                  ← AI agent persona definitions
+    ├── commands/               ← /spec, /createtasks, /implement, /issue
+    ├── agents/                 ← AI agent persona definitions
     ├── skills/                 ← domain knowledge injected per-command
     ├── backends/               ← workflow backend implementation
     └── lib/                    ← shared Node.js utilities (backend-loader)
@@ -118,7 +118,7 @@ Use `/issue`, `/spec`, `/createtasks`, and `/implement` to drive all workflow.
 ## Domain Glossary [FIXED]
 
 - **Agent**: AI entity with memory, tools, and defined behavior
-- **Backend**: Pluggable workflow engine (`file`, `jira-taskwarrior`, etc.)
+- **Backend**: Pluggable workflow engine (`beads`, `jira-taskwarrior`, `mock`)
 - **Issue**: High-level work item (user story, bug, epic) tracked by the backend
 - **Spec**: Technical specification document (markdown) derived from an issue — lives in `specs/`
 - **Task**: Granular implementation work item created from an approved spec
