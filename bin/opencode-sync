@@ -385,15 +385,6 @@ done
 log_success "Lib synced: $UPDATED_LIB JS files"
 
 # ============================================
-# Sync Templates
-# ============================================
-
-log_info "Syncing templates..."
-sync_file "$OPENCODE_ROOT/templates/generate-lang-skills.md.tmpl" \
-          "$TARGET_DIR/.agent/templates/generate-lang-skills.md.tmpl"
-log_success "Templates synced"
-
-# ============================================
 # Sync Backend
 # ============================================
 

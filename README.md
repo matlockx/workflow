@@ -243,7 +243,6 @@ Options:
   --skills=LIST     Comma-separated skills (e.g. postgres,kafka,docker)
   --lang=LANG       Language tooling: go, rust, node, python, both
   --with-startup    Add flachnetz/startup library (Go)
-  --scaffold[=NAME] Scaffold a Go service from templates/go-service/
   --list-skills     List all available skills
 ```
 
@@ -325,7 +324,6 @@ lib/
   plan-state.js     plan + epic state persistence
 skills/             reusable skill packs (postgres, kafka, coding-standards, …)
 templates/
-  go-service/       Go service scaffold
   AGENTS.md.tmpl    AGENTS.md template used by opencode-init
 ```
 
@@ -379,11 +377,11 @@ This project is a fork of [opencode by Geert Theys](https://github.com/gtheys/op
 
 **What this fork adds on top:**
 
-- Backend-agnostic workflow engine (`file`, `beads`, `jira-taskwarrior`) with a common `WorkflowBackend` interface
+- Backend-agnostic workflow engine (`beads`, `jira-taskwarrior`, `mock`) with a common `WorkflowBackend` interface
 - Full slash command suite: `/plan`, `/feature`, `/fix`, `/resume`, `/status`, `/issue`, `/spec`, `/createtasks`, `/implement`, `/git`, `/test`, `/codereview`, `/PR-summary`
 - Cross-session workflow state persistence (`.agent/state/feature-progress.json`)
 - Epic auto-creation and issue-to-epic linking across all backends
-- `opencode-init` installer with language scaffolding, startup library detection, and multi-backend support
+- `opencode-init` installer with language tooling, startup library detection, and multi-backend support
 - `opencode-sync` for keeping workflow files up to date in initialized projects
 - Separation of workflow config (`.agent/config.json`) from OpenCode native config (`opencode.json`) to comply with upstream schema validation
 - macOS bash 3.2 compatibility throughout all shell scripts

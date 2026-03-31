@@ -141,16 +141,15 @@ teardown() {
   [ -f "$TEST_DIR/.agent/agents/create-tasks.md" ]
   [ -f "$TEST_DIR/.agent/agents/plan-mode.md" ]
   [ -f "$TEST_DIR/.agent/agents/workflow-first.md" ]
-  [ -f "$TEST_DIR/.agent/agents/workflow-guide.md" ]
 }
 
-@test "opencode-init copies 8 core agents" {
+@test "opencode-init copies 7 core agents" {
   run "$OPENCODE_ROOT/bin/opencode-init" --backend="$TEST_BACKEND" "$TEST_DIR"
   [ "$status" -eq 0 ]
   
-  # Count agents in target (should be exactly 8 core agents)
+  # Count agents in target (should be exactly 7 core agents)
   agent_count=$(ls -1 "$TEST_DIR/.agent/agents/"*.md 2>/dev/null | wc -l | tr -d ' ')
-  [ "$agent_count" -eq 8 ]
+  [ "$agent_count" -eq 7 ]
 }
 
 # =============================================================================
@@ -206,15 +205,16 @@ teardown() {
 # Idempotency tests
 # =============================================================================
 
-@test "opencode-init fails on second run (prevents accidental overwrite)" {
+@test "opencode-init prompts before overwriting (aborts when not confirmed)" {
   # First run
   run "$OPENCODE_ROOT/bin/opencode-init" --backend="$TEST_BACKEND" "$TEST_DIR"
   [ "$status" -eq 0 ]
   
-  # Second run should fail (config already exists)
-  run "$OPENCODE_ROOT/bin/opencode-init" --backend="$TEST_BACKEND" "$TEST_DIR"
-  [ "$status" -ne 0 ]
+  # Second run - pipe 'n' to simulate declining overwrite
+  run bash -c "echo 'n' | '$OPENCODE_ROOT/bin/opencode-init' --backend='$TEST_BACKEND' '$TEST_DIR'"
+  [ "$status" -eq 0 ]  # Exits 0, but aborts
   [[ "$output" == *"already exists"* ]]
+  [[ "$output" == *"Aborted"* ]]
 }
 
 @test "opencode-sync should be used for updates after init" {

@@ -11,7 +11,6 @@
 #   opencode-init --backend=jira-taskwarrior .  # Jira + Taskwarrior backend
 #   opencode-init --lang=go                 # Go language tooling
 #   opencode-init --with-startup            # Add flachnetz/startup library dependency
-#   opencode-init --scaffold=myservice      # Scaffold a Go service from template
 #
 # AIDEV-NOTE: This script copies the minimal workflow files needed to use
 # OpenCode's /issue, /spec, /createtasks, /implement, /feature, /fix,
@@ -23,9 +22,6 @@
 # loaded on demand by the AI via description-based matching. Zero cost to having them all.
 # specs/ and plans/ are committed, user-visible.
 # opencode.json and AGENTS.md stay in the root.
-# Phase 1 additions: /feature, /fix, /resume, /status + workflow-state.js
-# Phase 2 additions: /plan, plan-mode agent, plan-state.js
-# Phase F additions: --with-startup, --scaffold for Go service scaffolding.
 
 set -euo pipefail
 
@@ -42,7 +38,6 @@ TARGET_DIR="."
 LANG=""
 WITH_STARTUP=""
 STARTUP_APPLIED=""   # set to "true" only if add_startup_library succeeds
-SCAFFOLD=""
 
 # Language-specific agents (not skills — skills are all copied unconditionally)
 GO_AGENTS=(
@@ -136,10 +131,8 @@ Initialize OpenCode workflow in a project directory.
 
 Options:
   --backend=TYPE    Workflow backend: beads (default), mock, or jira-taskwarrior
-  --lang=LANG       Language tooling: go, rust, node, python, both,
-                    or any custom language (e.g. swift, elixir)
+  --lang=LANG       Language tooling: go, rust, node, python, both
   --with-startup    Add flachnetz/startup library (runs go get if go.mod exists)
-  --scaffold[=NAME] Scaffold a Go service from template (default name: service)
   --help, -h        Show this help message
   --list-skills     List all available skills
 
@@ -152,8 +145,6 @@ Examples:
   opencode-init --lang=rust                        # Init with Rust tooling
   opencode-init --backend=jira-taskwarrior         # Jira + Taskwarrior backend
   opencode-init --with-startup                     # Add startup library to existing go.mod
-  opencode-init --scaffold=myapi                   # Scaffold Go service named 'myapi'
-  opencode-init --scaffold --with-startup          # Scaffold with startup library
 
 Backends:
   beads             Beads (bd) local-first task manager (default)
@@ -169,17 +160,6 @@ Language Tooling:
   node              Node.js / TypeScript tooling
   python            Python tooling
   both              Both Go and Rust tooling
-  <custom>          Any other language (e.g. swift, elixir, java)
-                    Stored in .agent/config.json; use /generate-lang-skills
-                    inside OpenCode to create custom skills for it
-
-Scaffolding:
-  --scaffold        Creates a complete Go service from templates/go-service/
-                    Uses flachnetz/startup for bootstrapping with:
-                    - Postgres connection with migrations
-                    - HTTP server with admin panel
-                    - Prometheus metrics
-                    - Graceful shutdown
 
 EOF
   exit 0
@@ -230,109 +210,10 @@ copy_agent() {
   fi
 }
 
-# AIDEV-NOTE: scaffold_service copies templates/go-service/ to target,
-# substituting {{.Module}} and {{.ServiceName}} placeholders.
-scaffold_service() {
-  local service_name="$1"
-  local template_src="$OPENCODE_ROOT/templates/go-service"
-  local service_dst="$TARGET_DIR"
-
-  if [[ ! -d "$template_src" ]]; then
-    log_error "Template not found: $template_src"
-    return 1
-  fi
-
-  # Detect module path from existing go.mod or ask the user
-  # AIDEV-NOTE: We never guess the GitHub username from the local OS user —
-  # local username (e.g. "martin") often differs from the GitHub handle
-  # (e.g. "matlockx"). Always ask.
-  local module_path
-  if [[ -f "$service_dst/go.mod" ]]; then
-    module_path=$(grep "^module " "$service_dst/go.mod" | awk '{print $2}')
-    log_info "Using existing module: $module_path"
-  else
-    local dir_name; dir_name="$(basename "$service_dst")"
-    local suggested="github.com/<your-username>/$dir_name"
-    echo
-    log_info "No go.mod found. Please enter the Go module path."
-    log_info "Example: github.com/matlockx/$dir_name"
-    echo
-    read -p "Module path [$suggested]: " module_path
-    module_path="${module_path:-}"
-    if [[ -z "$module_path" ]]; then
-      log_error "Module path is required for scaffolding. Aborting scaffold."
-      return 1
-    fi
-    log_info "Using module path: $module_path"
-  fi
-
-  log_info "Scaffolding service '$service_name' from template..."
-
-  # Create directory structure
-  mkdir -p "$service_dst/cmd/server"
-  mkdir -p "$service_dst/internal/handler"
-  mkdir -p "$service_dst/internal/repository"
-  mkdir -p "$service_dst/internal/service"
-  mkdir -p "$service_dst/sql"
-
-  # Process template files with variable substitution
-  # Using sed for {{.Module}} and {{.ServiceName}} replacement
-  local files_to_process=(
-    "cmd/server/main.go"
-    "internal/handler/handler.go"
-    "internal/repository/repository.go"
-    "internal/service/service.go"
-  )
-
-  for file in "${files_to_process[@]}"; do
-    if [[ -f "$template_src/$file" ]]; then
-      sed -e "s|{{\.Module}}|$module_path|g" \
-          -e "s|{{\.ServiceName}}|$service_name|g" \
-          "$template_src/$file" > "$service_dst/$file"
-      log_success "Created: $file"
-    fi
-  done
-
-  # Copy non-template files directly
-  local files_to_copy=(
-    "sql/001_initial.sql"
-    "Dockerfile"
-    "docker-compose.yml"
-    "Makefile"
-    ".gitignore"
-  )
-
-  for file in "${files_to_copy[@]}"; do
-    if [[ -f "$template_src/$file" ]]; then
-      # Ensure parent directory exists
-      mkdir -p "$(dirname "$service_dst/$file")"
-      cp "$template_src/$file" "$service_dst/$file"
-      log_success "Copied: $file"
-    fi
-  done
-
-  # Process go.mod.tmpl if no go.mod exists
-  if [[ ! -f "$service_dst/go.mod" ]] && [[ -f "$template_src/go.mod.tmpl" ]]; then
-    sed -e "s|{{\.Module}}|$module_path|g" \
-        "$template_src/go.mod.tmpl" > "$service_dst/go.mod"
-    log_success "Created: go.mod"
-  fi
-
-  # Copy README with substitution
-  if [[ -f "$template_src/README.md" ]]; then
-    sed -e "s|{{\.Module}}|$module_path|g" \
-        -e "s|{{\.ServiceName}}|$service_name|g" \
-        "$template_src/README.md" > "$service_dst/README.md"
-    log_success "Created: README.md"
-  fi
-
-  log_success "Service scaffolded: $service_name"
-}
-
 # Add startup library to go.mod
 add_startup_library() {
   if [[ ! -f "$TARGET_DIR/go.mod" ]]; then
-    log_warn "No go.mod found. Skipping --with-startup (run 'go mod init' first or use --scaffold)"
+    log_warn "No go.mod found. Skipping --with-startup (run 'go mod init' first)"
     return 1
   fi
 
@@ -418,15 +299,6 @@ while [[ $# -gt 0 ]]; do
       WITH_STARTUP="true"
       shift
       ;;
-    --scaffold=*)
-      SCAFFOLD="${1#*=}"
-      shift
-      ;;
-    --scaffold)
-      # Default service name if not specified
-      SCAFFOLD="service"
-      shift
-      ;;
     --list-skills)
       list_skills
       ;;
@@ -452,11 +324,10 @@ if [[ "$BACKEND" != "beads" && "$BACKEND" != "mock" && "$BACKEND" != "jira-taskw
   exit 1
 fi
 
-# Validate lang — known langs get specific tooling; unknown langs get a warning
-# and a prompt to generate skills via /generate-lang-skills after init.
+# Validate lang — known langs get specific tooling; unknown langs get a warning.
 # AIDEV-NOTE: We intentionally do NOT exit on unknown lang. Unknown langs are
-# stored in .agent/config.json so opencode-sync and /generate-lang-skills can
-# pick them up later.
+# stored in .agent/config.json for reference. Skills cover most languages via
+# the generic coding-standards skill.
 KNOWN_LANGS=("go" "rust" "node" "python" "both")
 LANG_IS_KNOWN=""
 if [[ -n "$LANG" ]]; then
@@ -467,9 +338,8 @@ if [[ -n "$LANG" ]]; then
     fi
   done
   if [[ -z "$LANG_IS_KNOWN" ]]; then
-    log_warn "Unknown language: '$LANG' — no built-in tooling for this language."
+    log_warn "Unknown language: '$LANG' — no language-specific agents will be copied."
     log_warn "Your language will be stored in .agent/config.json."
-    log_warn "After init you can run /generate-lang-skills to create custom skills."
   fi
 fi
 
@@ -479,7 +349,6 @@ fi
 
 log_info "Initializing OpenCode workflow with backend: ${BLUE}$BACKEND${NC}"
 [[ -n "$LANG" ]] && log_info "Language tooling: ${BLUE}$LANG${NC}"
-[[ -n "$SCAFFOLD" ]] && log_info "Scaffold service: ${BLUE}$SCAFFOLD${NC}"
 [[ -n "$WITH_STARTUP" ]] && log_info "With startup library: ${BLUE}yes${NC}"
 
 # Check target directory
@@ -518,10 +387,10 @@ if [[ "$BACKEND" == "beads" ]]; then
   fi
 fi
 
-# Check Go prerequisites for --with-startup and --scaffold
-if [[ -n "$WITH_STARTUP" || -n "$SCAFFOLD" ]]; then
+# Check Go prerequisites for --with-startup
+if [[ -n "$WITH_STARTUP" ]]; then
   if ! command -v go &> /dev/null; then
-    log_error "Go is required for --with-startup and --scaffold options"
+    log_error "Go is required for --with-startup option"
     log_info "Install Go from: https://go.dev/dl/"
     exit 1
   fi
@@ -570,9 +439,8 @@ cp "$OPENCODE_ROOT/agent/plan-mode.md"       "$TARGET_DIR/.agent/agents/"
 cp "$OPENCODE_ROOT/agent/build.md"           "$TARGET_DIR/.agent/agents/"
 cp "$OPENCODE_ROOT/agent/test-agent.md"      "$TARGET_DIR/.agent/agents/"
 cp "$OPENCODE_ROOT/agent/code-reviewer.md"   "$TARGET_DIR/.agent/agents/"
-cp "$OPENCODE_ROOT/agent/workflow-guide.md"  "$TARGET_DIR/.agent/agents/"
 cp "$OPENCODE_ROOT/agent/workflow-first.md"  "$TARGET_DIR/.agent/agents/"
-log_success "Copied core agents (8 files)"
+log_success "Copied core agents (7 files)"
 
 # Copy all skills
 # AIDEV-NOTE: Skills are small markdown reference docs loaded on demand by the
@@ -603,10 +471,6 @@ log_success "Copied backend: $BACKEND"
 cp "$OPENCODE_ROOT/lib/"*.js "$TARGET_DIR/.agent/lib/"
 log_success "Copied lib ($(ls "$OPENCODE_ROOT/lib/"*.js | wc -l | tr -d ' ') JS files)"
 
-# Copy templates used by commands
-cp "$OPENCODE_ROOT/templates/generate-lang-skills.md.tmpl" "$TARGET_DIR/.agent/templates/"
-log_success "Copied templates: generate-lang-skills"
-
 # Copy interface (for reference)
 cp "$OPENCODE_ROOT/backends/interface.ts" "$TARGET_DIR/.agent/backends/"
 log_success "Copied interface definition"
@@ -630,15 +494,6 @@ if [[ "$LANG" == "rust" || "$LANG" == "both" ]]; then
   for agent in "${RUST_AGENTS[@]}"; do
     copy_agent "$agent"
   done
-fi
-
-# ============================================
-# Scaffold Go Service
-# ============================================
-
-if [[ -n "$SCAFFOLD" ]]; then
-  # AIDEV-NOTE: || true prevents set -e abort if template is missing.
-  scaffold_service "$SCAFFOLD" || true
 fi
 
 # ============================================
@@ -667,23 +522,13 @@ log_info "Generating .agent/config.json..."
 
 # Build optional language line to inject into config.json
 # AIDEV-NOTE: "language" is stored for both known and unknown langs so that
-# opencode-sync and /generate-lang-skills can read it later.
+# opencode-sync can reference it for language-specific operations.
 LANG_LINE=""
 if [[ -n "$LANG" ]]; then
   LANG_LINE="  \"language\": \"$LANG\","
 fi
 
-if [[ "$BACKEND" == "file" ]]; then
-  cat > "$TARGET_DIR/.agent/config.json" <<EOF
-{
-${LANG_LINE:+$LANG_LINE
-}  "backend": {
-    "type": "file",
-    "config": {}
-  }
-}
-EOF
-elif [[ "$BACKEND" == "beads" ]]; then
+if [[ "$BACKEND" == "beads" ]]; then
   cat > "$TARGET_DIR/.agent/config.json" <<EOF
 {
 ${LANG_LINE:+$LANG_LINE
@@ -731,6 +576,16 @@ ${LANG_LINE:+$LANG_LINE
 }
 EOF
   log_warn "Edit .agent/config.json to configure your Jira site and project"
+elif [[ "$BACKEND" == "mock" ]]; then
+  cat > "$TARGET_DIR/.agent/config.json" <<EOF
+{
+${LANG_LINE:+$LANG_LINE
+}  "backend": {
+    "type": "mock",
+    "config": {}
+  }
+}
+EOF
 fi
 
 log_success "Generated .agent/config.json"
@@ -813,7 +668,6 @@ echo
 echo "Directory: $TARGET_DIR"
 echo "Backend:   $BACKEND"
 [[ -n "$LANG" ]] && echo "Language:  $LANG"
-[[ -n "$SCAFFOLD" ]] && echo "Scaffold:  $SCAFFOLD"
 [[ -n "$WITH_STARTUP" ]] && echo "Startup:   enabled"
 echo
 echo "Files created:"
@@ -861,19 +715,6 @@ if [[ "$LANG" == "rust" || "$LANG" == "both" ]]; then
   echo "  .agent/agents/debugger-rust.md   - Rust debugger agent"
 fi
 
-if [[ -n "$SCAFFOLD" ]]; then
-  echo
-  echo "Scaffolded service '$SCAFFOLD':"
-  echo "  cmd/server/main.go         - Entry point with startup bootstrap"
-  echo "  internal/handler/          - HTTP handlers"
-  echo "  internal/repository/       - Database access"
-  echo "  internal/service/          - Business logic"
-  echo "  sql/                       - Database migrations"
-  echo "  Dockerfile                 - Multi-stage build"
-  echo "  docker-compose.yml         - Local development"
-  echo "  Makefile                   - Build targets"
-fi
-
 if [[ -n "$STARTUP_APPLIED" ]]; then
   echo
   echo "Startup library:"
@@ -883,14 +724,7 @@ fi
 
 echo
 echo -e "${BLUE}Next steps:${NC}"
-if [[ -n "$SCAFFOLD" ]]; then
-  echo "  1. Initialize deps:    go mod tidy"
-  echo "  2. Start database:     docker-compose up -d postgres"
-  echo "  3. Run service:        make run"
-  echo "  4. View admin panel:   http://localhost:8080/admin"
-  echo
-  echo "Or use OpenCode workflow:"
-elif [[ "$BACKEND" == "beads" ]]; then
+if [[ "$BACKEND" == "beads" ]]; then
   # Beads init is now automatic, just show verification step
   STEP=1
   if ! command -v bd &> /dev/null; then
@@ -929,47 +763,3 @@ echo
 echo "Tip: Edit AGENTS.md to add project-specific context for the AI."
 echo "Documentation: $TARGET_DIR/.agent/backends/$BACKEND/README.md"
 echo
-
-# ============================================
-# Unknown language post-init prompt
-# ============================================
-
-# AIDEV-NOTE: When --lang=<custom> is given (e.g. swift, elixir), there are
-# no built-in skills. We prompt the user to either generate skills now via
-# /generate-lang-skills inside OpenCode, or skip and do it later.
-if [[ -n "$LANG" && -z "$LANG_IS_KNOWN" ]]; then
-  echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-  echo -e "${YELLOW}Unknown language: $LANG${NC}"
-  echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-  echo
-  echo "No built-in skills exist for '$LANG', but OpenCode can generate them."
-  echo "The /generate-lang-skills command will create custom coding-standards"
-  echo "and debugger skills tailored to $LANG."
-  echo
-  echo "Options:"
-  echo "  [g] Generate skills now — open OpenCode and run /generate-lang-skills $LANG"
-  echo "  [s] Skip — I'll generate skills later with /generate-lang-skills $LANG"
-  echo "  [q] Quit"
-  echo
-  read -p "Choice [g/s/q]: " -n 1 -r LANG_CHOICE
-  echo
-  case "$LANG_CHOICE" in
-    g|G)
-      echo
-      log_info "Open OpenCode in $TARGET_DIR and run:"
-      echo
-      echo "  /generate-lang-skills $LANG"
-      echo
-      echo "This will generate .agent/skills/coding-standards/ and"
-      echo ".agent/agent/debugger-${LANG}.md customized for $LANG."
-      ;;
-    q|Q)
-      log_info "Exiting. Run /generate-lang-skills $LANG inside OpenCode when ready."
-      exit 0
-      ;;
-    *)
-      log_info "Skipped. Run /generate-lang-skills $LANG inside OpenCode when ready."
-      ;;
-  esac
-  echo
-fi
