@@ -146,6 +146,18 @@ teardown() {
   [ "$source_count" -eq "$target_count" ]
 }
 
+@test "opencode-sync removes stale skills" {
+  # Create a fake stale skill
+  mkdir -p "$TEST_DIR/.agent/skills/stale-skill"
+  echo "# Stale skill" > "$TEST_DIR/.agent/skills/stale-skill/SKILL.md"
+  
+  run "$OPENCODE_ROOT/bin/opencode-sync" "$TEST_DIR"
+  [ "$status" -eq 0 ]
+  
+  # Stale skill directory should be removed
+  [ ! -d "$TEST_DIR/.agent/skills/stale-skill" ]
+}
+
 # =============================================================================
 # Preservation tests
 # =============================================================================
@@ -265,4 +277,172 @@ teardown() {
   
   # Should have same number of agents
   [ "$first_count" -eq "$second_count" ]
+}
+
+# =============================================================================
+# Force mode tests
+# =============================================================================
+
+@test "opencode-sync --force succeeds" {
+  run "$OPENCODE_ROOT/bin/opencode-sync" --force "$TEST_DIR"
+  [ "$status" -eq 0 ]
+}
+
+@test "opencode-sync --force creates .agent-backup/" {
+  run "$OPENCODE_ROOT/bin/opencode-sync" --force "$TEST_DIR"
+  [ "$status" -eq 0 ]
+  
+  # Backup directory should exist
+  [ -d "$TEST_DIR/.agent-backup" ]
+}
+
+@test "opencode-sync --force backup contains original config.json" {
+  # Store original config content
+  original_config=$(cat "$TEST_DIR/.agent/config.json")
+  
+  run "$OPENCODE_ROOT/bin/opencode-sync" --force "$TEST_DIR"
+  [ "$status" -eq 0 ]
+  
+  # Backup should contain original config
+  [ -f "$TEST_DIR/.agent-backup/config.json" ]
+  backup_config=$(cat "$TEST_DIR/.agent-backup/config.json")
+  [ "$original_config" = "$backup_config" ]
+}
+
+@test "opencode-sync --force preserves config.json in .agent/" {
+  # Add custom content to config (must use valid backend type)
+  echo '{"backend":{"type":"mock"},"custom":"force-test"}' > "$TEST_DIR/.agent/config.json"
+  
+  run "$OPENCODE_ROOT/bin/opencode-sync" --force "$TEST_DIR"
+  [ "$status" -eq 0 ]
+  
+  # config.json should still have custom content (restored from backup)
+  run grep "force-test" "$TEST_DIR/.agent/config.json"
+  [ "$status" -eq 0 ]
+}
+
+@test "opencode-sync --force preserves .agent/state/" {
+  # Create state directory with content
+  mkdir -p "$TEST_DIR/.agent/state"
+  echo "force state test" > "$TEST_DIR/.agent/state/test.txt"
+  
+  run "$OPENCODE_ROOT/bin/opencode-sync" --force "$TEST_DIR"
+  [ "$status" -eq 0 ]
+  
+  # State should be preserved (restored from backup)
+  [ -f "$TEST_DIR/.agent/state/test.txt" ]
+  run grep "force state test" "$TEST_DIR/.agent/state/test.txt"
+  [ "$status" -eq 0 ]
+}
+
+@test "opencode-sync --force regenerates AGENTS.md" {
+  # Modify AGENTS.md with custom content
+  echo "# My custom AGENTS.md" > "$TEST_DIR/AGENTS.md"
+  
+  run "$OPENCODE_ROOT/bin/opencode-sync" --force "$TEST_DIR"
+  [ "$status" -eq 0 ]
+  
+  # AGENTS.md should be regenerated (custom content overwritten)
+  run grep "My custom AGENTS.md" "$TEST_DIR/AGENTS.md"
+  [ "$status" -ne 0 ]
+  
+  # Should contain template content
+  run grep "Golden Rule" "$TEST_DIR/AGENTS.md"
+  [ "$status" -eq 0 ]
+}
+
+@test "opencode-sync --force regenerates opencode.json" {
+  # Modify opencode.json with custom content
+  echo '{"custom":"should-be-gone"}' > "$TEST_DIR/opencode.json"
+  
+  run "$OPENCODE_ROOT/bin/opencode-sync" --force "$TEST_DIR"
+  [ "$status" -eq 0 ]
+  
+  # Custom content should be overwritten
+  run grep "should-be-gone" "$TEST_DIR/opencode.json"
+  [ "$status" -ne 0 ]
+  
+  # Should contain canonical content
+  run grep "opencode.ai/config.json" "$TEST_DIR/opencode.json"
+  [ "$status" -eq 0 ]
+}
+
+@test "opencode-sync --force nukes old agents and rebuilds" {
+  # Create a custom agent that should NOT survive force
+  echo "# Custom agent" > "$TEST_DIR/.agent/agents/my-custom-agent.md"
+  
+  run "$OPENCODE_ROOT/bin/opencode-sync" --force "$TEST_DIR"
+  [ "$status" -eq 0 ]
+  
+  # Custom agent should be gone (nuked with .agent/, not restored)
+  [ ! -f "$TEST_DIR/.agent/agents/my-custom-agent.md" ]
+  
+  # But all source agents should be present
+  source_count=$(ls -1 "$OPENCODE_ROOT/agent/"*.md 2>/dev/null | wc -l | tr -d ' ')
+  target_count=$(ls -1 "$TEST_DIR/.agent/agents/"*.md 2>/dev/null | wc -l | tr -d ' ')
+  [ "$source_count" -eq "$target_count" ]
+}
+
+@test "opencode-sync --force replaces previous backup" {
+  # First force run
+  run "$OPENCODE_ROOT/bin/opencode-sync" --force "$TEST_DIR"
+  [ "$status" -eq 0 ]
+  
+  # Add a marker to the current .agent
+  echo "marker" > "$TEST_DIR/.agent/force-marker.txt"
+  
+  # Second force run
+  run "$OPENCODE_ROOT/bin/opencode-sync" --force "$TEST_DIR"
+  [ "$status" -eq 0 ]
+  
+  # Backup should contain the marker from the second run's backup
+  [ -f "$TEST_DIR/.agent-backup/force-marker.txt" ]
+}
+
+@test "opencode-sync --force --dry-run makes no changes" {
+  # Modify AGENTS.md
+  echo "# Custom content" > "$TEST_DIR/AGENTS.md"
+  original_agents=$(cat "$TEST_DIR/AGENTS.md")
+  
+  run "$OPENCODE_ROOT/bin/opencode-sync" --force --dry-run "$TEST_DIR"
+  [ "$status" -eq 0 ]
+  
+  # AGENTS.md should NOT be overwritten
+  current_agents=$(cat "$TEST_DIR/AGENTS.md")
+  [ "$original_agents" = "$current_agents" ]
+  
+  # No backup should exist
+  [ ! -d "$TEST_DIR/.agent-backup" ]
+}
+
+@test "opencode-sync --force uses language from config.json" {
+  # Set language in config.json
+  echo '{"language":"go","backend":{"type":"mock"}}' > "$TEST_DIR/.agent/config.json"
+  
+  run "$OPENCODE_ROOT/bin/opencode-sync" --force "$TEST_DIR"
+  [ "$status" -eq 0 ]
+  
+  # AGENTS.md should contain Go-specific commands
+  run grep "go build" "$TEST_DIR/AGENTS.md"
+  [ "$status" -eq 0 ]
+  run grep "go test" "$TEST_DIR/AGENTS.md"
+  [ "$status" -eq 0 ]
+}
+
+@test "opencode-sync --force with no language uses defaults" {
+  # Config without language field
+  echo '{"backend":{"type":"mock"}}' > "$TEST_DIR/.agent/config.json"
+  
+  run "$OPENCODE_ROOT/bin/opencode-sync" --force "$TEST_DIR"
+  [ "$status" -eq 0 ]
+  
+  # AGENTS.md should contain default placeholder commands
+  run grep "fill in your build command" "$TEST_DIR/AGENTS.md"
+  [ "$status" -eq 0 ]
+}
+
+@test "opencode-sync --force shows in help" {
+  run "$OPENCODE_ROOT/bin/opencode-sync" --help
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"--force"* ]]
 }

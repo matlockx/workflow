@@ -3,11 +3,12 @@
 # opencode-sync - Sync workflow files from the opencode repo into an initialized project
 #
 # Usage:
-#   opencode-sync [target-dir]
+#   opencode-sync [--force] [target-dir]
 #
 # Examples:
 #   opencode-sync                  # Sync into current directory
 #   opencode-sync ~/projects/myapp # Sync into specified directory
+#   opencode-sync --force          # Nuke .agent/ and regenerate AGENTS.md + opencode.json
 #
 # What it does:
 #   - Updates .agent/commands/* (slash commands)
@@ -19,6 +20,12 @@
 #   - Does NOT overwrite AGENTS.md (project-specific, user-editable)
 #   - Does NOT touch .agent/state/ (runtime workflow data)
 #   - Does NOT change your backend config
+#
+# With --force:
+#   - Backs up .agent/ to .agent-backup/
+#   - Nukes .agent/ entirely and rebuilds from source
+#   - Restores .agent/config.json and .agent/state/ from backup
+#   - Regenerates AGENTS.md from template and opencode.json from canonical content
 #
 # AIDEV-NOTE: This script is the "update" companion to opencode-init.
 # It refreshes workflow machinery while preserving all project-specific config.
@@ -35,6 +42,7 @@ OPENCODE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 TARGET_DIR="."
 DRY_RUN=""
 VERBOSE=""
+FORCE=""
 
 # Colors (if terminal supports them)
 if [[ -t 1 ]]; then
@@ -65,6 +73,8 @@ Sync workflow files from the opencode repo into an already-initialized project.
 
 Options:
   --dry-run     Show what would be updated without making changes
+  --force       Nuke .agent/ and regenerate AGENTS.md + opencode.json from templates
+                (backs up .agent/ to .agent-backup/ first)
   --verbose     Show each file being copied
   --help, -h    Show this help message
 
@@ -86,6 +96,12 @@ What is preserved:
   opencode.json        Your OpenCode provider/model config
   specs/               Your spec documents
   plans/               Your plan documents
+
+With --force:
+  .agent/              Deleted entirely, then rebuilt from source (backed up first)
+  AGENTS.md            Regenerated from template
+  opencode.json        Regenerated from canonical content
+  .agent-backup/       Previous .agent/ contents (for recovery)
 
 EOF
   exit 0
@@ -133,6 +149,7 @@ sync_dir_files() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run)     DRY_RUN="true"; shift ;;
+    --force)       FORCE="true"; shift ;;
     --verbose|-v)  VERBOSE="true"; shift ;;
     --help|-h)     usage ;;
     -*)
@@ -172,7 +189,6 @@ fi
 # to avoid requiring jq or node on the host. The config schema is simple
 # enough that this is reliable.
 BACKEND=$(grep '"type"' "$TARGET_DIR/.agent/config.json" | head -1 | sed 's/.*"type"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-LANG=$(grep '"language"' "$TARGET_DIR/.agent/config.json" | head -1 | sed 's/.*"language"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' || true)
 
 if [[ -z "$BACKEND" ]]; then
   log_error "Could not determine backend from .agent/config.json"
@@ -182,7 +198,6 @@ fi
 
 log_info "Target:  $TARGET_DIR"
 log_info "Backend: $BACKEND"
-[[ -n "$LANG" ]] && log_info "Language: $LANG"
 [[ -n "$DRY_RUN" ]] && log_warn "Dry-run mode: no files will be written"
 echo
 
@@ -191,6 +206,153 @@ if [[ ! -d "$OPENCODE_ROOT/backends/$BACKEND" ]]; then
   log_error "Backend '$BACKEND' not found in opencode repo: $OPENCODE_ROOT/backends/"
   log_info  "Available backends: $(ls "$OPENCODE_ROOT/backends/" | grep -v '^interface' | grep -v '\.ts$' | grep -v '\.js$' | tr '\n' ' ')"
   exit 1
+fi
+
+# ============================================
+# Language helpers (for AGENTS.md regeneration)
+# ============================================
+
+# AIDEV-NOTE: These mirror the lang_*_cmd functions in opencode-init.
+# Duplicated here to keep opencode-sync self-contained (no sourcing opencode-init).
+lang_build_cmd() {
+  case "$1" in
+    go)      echo "go build ./..." ;;
+    rust)    echo "cargo build" ;;
+    node)    echo "npm run build" ;;
+    python)  echo "python -m build" ;;
+    *)       echo "<fill in your build command>" ;;
+  esac
+}
+lang_test_cmd() {
+  case "$1" in
+    go)      echo "go test ./..." ;;
+    rust)    echo "cargo test" ;;
+    node)    echo "npm test" ;;
+    python)  echo "pytest" ;;
+    *)       echo "<fill in your test command>" ;;
+  esac
+}
+lang_lint_cmd() {
+  case "$1" in
+    go)      echo "golangci-lint run ./..." ;;
+    rust)    echo "cargo clippy -- -D warnings" ;;
+    node)    echo "npm run lint" ;;
+    python)  echo "ruff check ." ;;
+    *)       echo "<fill in your lint command>" ;;
+  esac
+}
+lang_single_test_cmd() {
+  case "$1" in
+    go)      echo "go test ./path/to/package/..." ;;
+    rust)    echo "cargo test test_name" ;;
+    node)    echo "npm test -- --testPathPattern=<pattern>" ;;
+    python)  echo "pytest path/to/test_file.py" ;;
+    *)       echo "<fill in your single-test command>" ;;
+  esac
+}
+
+generate_agents_md() {
+  local project_name="$1"
+  local lang_key="$2"
+  local template_src="$OPENCODE_ROOT/templates/AGENTS.md.tmpl"
+  local agents_md_dst="$TARGET_DIR/AGENTS.md"
+
+  if [[ ! -f "$template_src" ]]; then
+    log_warn "AGENTS.md template not found: $template_src — skipping generation"
+    return 0
+  fi
+
+  local build_cmd; build_cmd="$(lang_build_cmd "$lang_key")"
+  local test_cmd;  test_cmd="$(lang_test_cmd  "$lang_key")"
+  local lint_cmd;  lint_cmd="$(lang_lint_cmd  "$lang_key")"
+  local single_test_cmd; single_test_cmd="$(lang_single_test_cmd "$lang_key")"
+
+  sed \
+    -e "s|{{PROJECT_NAME}}|$project_name|g" \
+    -e "s|{{BUILD_CMD}}|$build_cmd|g" \
+    -e "s|{{TEST_CMD}}|$test_cmd|g" \
+    -e "s|{{LINT_CMD}}|$lint_cmd|g" \
+    -e "s|{{SINGLE_TEST_CMD}}|$single_test_cmd|g" \
+    "$template_src" > "$agents_md_dst"
+
+  log_success "Regenerated AGENTS.md (lang: $lang_key)"
+}
+
+# ============================================
+# Force mode: backup, nuke, and regenerate
+# ============================================
+
+# AIDEV-NOTE: --force backs up .agent/ to .agent-backup/, nukes .agent/,
+# restores config.json and state/ (needed for the sync to work), then
+# regenerates AGENTS.md and opencode.json from templates. This is useful
+# during active development of opencode itself when these files change often.
+
+if [[ -n "$FORCE" ]]; then
+  log_warn "Force mode: backing up .agent/ and regenerating AGENTS.md + opencode.json"
+  echo
+
+  if [[ -n "$DRY_RUN" ]]; then
+    log_verbose "would back up .agent/ to .agent-backup/"
+    log_verbose "would nuke .agent/"
+    log_verbose "would restore .agent/config.json and .agent/state/ from backup"
+    log_verbose "would regenerate AGENTS.md from template"
+    log_verbose "would regenerate opencode.json"
+  else
+    # Back up .agent/ to .agent-backup/ (remove previous backup if any)
+    if [[ -d "$TARGET_DIR/.agent-backup" ]]; then
+      rm -rf "$TARGET_DIR/.agent-backup"
+    fi
+    cp -a "$TARGET_DIR/.agent" "$TARGET_DIR/.agent-backup"
+    log_success "Backed up .agent/ to .agent-backup/"
+
+    # Nuke .agent/
+    rm -rf "$TARGET_DIR/.agent"
+    log_success "Removed .agent/"
+
+    # Restore config.json and state/ from backup
+    mkdir -p "$TARGET_DIR/.agent"
+    if [[ -f "$TARGET_DIR/.agent-backup/config.json" ]]; then
+      cp "$TARGET_DIR/.agent-backup/config.json" "$TARGET_DIR/.agent/config.json"
+      log_verbose "restored .agent/config.json from backup"
+    fi
+    if [[ -d "$TARGET_DIR/.agent-backup/state" ]]; then
+      cp -a "$TARGET_DIR/.agent-backup/state" "$TARGET_DIR/.agent/state"
+      log_verbose "restored .agent/state/ from backup"
+    fi
+
+    # Regenerate AGENTS.md from template
+    PROJECT_NAME="$(basename "$TARGET_DIR")"
+    # Read language from config.json if present
+    LANG_KEY="default"
+    if [[ -f "$TARGET_DIR/.agent/config.json" ]]; then
+      detected_lang=$(grep '"language"' "$TARGET_DIR/.agent/config.json" 2>/dev/null | sed 's/.*"language"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' || true)
+      if [[ -n "$detected_lang" ]]; then
+        case "$detected_lang" in
+          go|both) LANG_KEY="go" ;;
+          rust)    LANG_KEY="rust" ;;
+          node)    LANG_KEY="node" ;;
+          python)  LANG_KEY="python" ;;
+          *)       LANG_KEY="default" ;;
+        esac
+        log_verbose "detected language from config.json: $detected_lang (template key: $LANG_KEY)"
+      fi
+    fi
+    generate_agents_md "$PROJECT_NAME" "$LANG_KEY"
+
+    # Regenerate opencode.json
+    cat > "$TARGET_DIR/opencode.json" <<'OCEOF'
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "AGENTS.md",
+    ".agent/agents/workflow-first.md"
+  ]
+}
+OCEOF
+    log_success "Regenerated opencode.json"
+  fi
+
+  echo
 fi
 
 # ============================================
@@ -438,7 +600,28 @@ for skill_dir in "$OPENCODE_ROOT/skills"/*/; do
   fi
 done
 
-log_success "Skills synced: $UPDATED_SKILLS updated, $ADDED_SKILLS newly installed"
+# AIDEV-NOTE: Remove stale skills that no longer exist in source repo.
+# This mirrors the stale-removal logic for commands and agents above.
+REMOVED_SKILLS=0
+for installed_skill_dir in "$TARGET_DIR/.agent/skills"/*/; do
+  [[ -d "$installed_skill_dir" ]] || continue
+  skill_name="$(basename "$installed_skill_dir")"
+  if [[ ! -d "$OPENCODE_ROOT/skills/$skill_name" ]]; then
+    if [[ -n "$DRY_RUN" ]]; then
+      log_verbose "would remove stale skill: $skill_name"
+    else
+      rm -rf "$installed_skill_dir"
+      log_verbose "removed stale skill: $skill_name"
+    fi
+    REMOVED_SKILLS=$((REMOVED_SKILLS + 1))
+  fi
+done
+
+if [[ "$REMOVED_SKILLS" -gt 0 ]]; then
+  log_success "Skills synced: $UPDATED_SKILLS updated, $ADDED_SKILLS newly installed, $REMOVED_SKILLS stale removed"
+else
+  log_success "Skills synced: $UPDATED_SKILLS updated, $ADDED_SKILLS newly installed"
+fi
 
 # ============================================
 # Summary
@@ -457,13 +640,27 @@ fi
 echo
 echo "Updated: commands ($UPDATED_COMMANDS), agents ($UPDATED_AGENTS updated, $ADDED_AGENTS added), skills ($UPDATED_SKILLS updated, $ADDED_SKILLS added)"
 echo
-echo "Preserved (not touched):"
-echo "  .agent/config.json   — your backend config"
-echo "  .agent/state/        — your workflow runtime state"
-echo "  AGENTS.md            — your project AI context"
-echo "  opencode.json        — your OpenCode config"
-echo "  specs/               — your spec documents"
-echo "  plans/               — your plan documents"
+if [[ -n "$FORCE" ]]; then
+  echo "Force-regenerated:"
+  echo "  AGENTS.md            — from template (overwritten)"
+  echo "  opencode.json        — canonical content (overwritten)"
+  echo "  .agent/              — nuked and rebuilt from source"
+  echo "  .agent-backup/       — previous .agent/ contents (for recovery)"
+  echo
+  echo "Preserved (restored from backup):"
+  echo "  .agent/config.json   — your backend config"
+  echo "  .agent/state/        — your workflow runtime state"
+  echo "  specs/               — your spec documents"
+  echo "  plans/               — your plan documents"
+else
+  echo "Preserved (not touched):"
+  echo "  .agent/config.json   — your backend config"
+  echo "  .agent/state/        — your workflow runtime state"
+  echo "  AGENTS.md            — your project AI context"
+  echo "  opencode.json        — your OpenCode config"
+  echo "  specs/               — your spec documents"
+  echo "  plans/               — your plan documents"
+fi
 echo
 echo "Tip: Run with --verbose to see each file updated."
 echo "Tip: Run with --dry-run first to preview changes."
