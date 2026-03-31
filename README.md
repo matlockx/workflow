@@ -230,6 +230,160 @@ mode mid-flight with `/resume ISSUE-1 --yolo`.
 
 ---
 
+## Workflow Diagrams
+
+### Five-Gate System
+
+Every non-trivial task passes through five gates before completion.
+Gate 1 and Gate 3 may be skipped in specific conditions (shown as dotted lines); **Gate 2 is never skipped**.
+Gate 4 also checks spec compliance, code quality, and PR size (~500 LOC limit) — build and test failures auto-loop; PR size violations stop for user decision.
+
+```mermaid
+flowchart TD
+    Start([User request]) --> G1
+
+    G1{{"Gate 1<br/>Intent Acknowledgment"}}
+    G1 -->|confirmed| G2
+    G1 -.->|"skip: slash command,<br/>question, or mid-workflow"| G2
+
+    G2{{"Gate 2<br/>Implementation Confirmation"}}
+    G2 -->|confirmed| G3
+
+    G3{{"Gate 3<br/>Task Tracking"}}
+    G3 -->|"create task in backend"| Impl
+    G3 -.->|"skip: trivial &lt; 30 LOC"| Impl
+
+    Impl["Implementation"]
+    Impl --> G4
+
+    G4{{"Gate 4<br/>Review / QA"}}
+    G4 -->|"build or tests fail"| Impl
+    G4 -->|"all checks pass"| Commit
+
+    Commit["Commit"] --> G5
+
+    G5{{"Gate 5<br/>Task Closure"}}
+    G5 --> Done(["Done"])
+```
+
+### Workflow Types
+
+Intent detection routes your request to the appropriate workflow:
+
+```mermaid
+flowchart LR
+    Intent([Detect intent]) --> F
+    Intent --> B
+    Intent --> R
+    Intent --> Q
+
+    subgraph F [" feature — full workflow"]
+        direction LR
+        F1[Issue] --> F2["Spec<br/>requirements"] --> F3["Spec<br/>design"] --> F4[Tasks] --> F5[Implement] --> F6[Review]
+    end
+
+    subgraph B [" fix — quick workflow"]
+        direction LR
+        X1[Issue] --> X2[Quick spec] --> X3[Implement] --> X4[Review]
+    end
+
+    subgraph R [" review — analysis workflow"]
+        direction LR
+        R1[Issue] --> R2[Analyze] --> R3[Tasks] --> R4[Implement] --> R5[Benchmark]
+    end
+
+    subgraph Q [" quick — minimal"]
+        direction LR
+        Q1[Implement directly]
+    end
+```
+
+### Spec and Task Lifecycle
+
+State machines for the core entities:
+
+```mermaid
+stateDiagram-v2
+    direction LR
+
+    state "Spec Lifecycle" as spec {
+        [*] --> draft
+        draft --> approved
+        approved --> rejected
+        approved --> draft : revise
+        rejected --> draft
+    }
+
+    state "Phase Lifecycle" as phase {
+        [*] --> p_todo : created
+        p_todo --> p_inprogress : start
+        p_inprogress --> p_review : submit
+        p_review --> p_approved : approve
+
+        p_todo : todo
+        p_inprogress : inprogress
+        p_review : review
+        p_approved : approved
+    }
+
+    state "Task Lifecycle" as task {
+        [*] --> t_todo : created
+        t_todo --> t_inprogress : start
+        t_inprogress --> t_review : submit
+        t_review --> t_done : approve
+
+        t_todo : todo
+        t_inprogress : inprogress
+        t_review : review
+        t_done : done
+    }
+```
+
+### End-to-End Feature Flow
+
+The full `/feature` pipeline with gate checkpoints:
+
+```mermaid
+flowchart TD
+    G1(["Gate 1 — Intent confirmed"]) --> Issue
+
+    Issue["/issue<br/>Create or select issue"]
+    Issue --> Spec
+
+    subgraph Spec ["Spec Phase"]
+        direction TB
+        S1["Draft requirements"] --> S2["User approves requirements"]
+        S2 --> S3["Draft design"]
+        S3 --> S4["User approves design"]
+    end
+
+    Spec --> G2(["Gate 2 — Implementation plan confirmed"])
+    G2 --> Tasks
+
+    Tasks["/createtasks<br/>Break spec into phased tasks"]
+    Tasks --> G3(["Gate 3 — Task tracked"])
+    G3 --> Phases
+
+    subgraph Phases ["Implementation — repeats per phase"]
+        direction TB
+        P1["Start phase"] --> P2["Implement tasks via TDD"]
+        P2 --> P3{"Gate 4 — QA"}
+        P3 -->|"fail"| P2
+        P3 -->|"pass"| P4["Phase review gate"]
+        P4 --> P5["Next phase"]
+        P5 -.->|"repeat"| P1
+    end
+
+    Phases --> Review
+
+    Review["/codereview<br/>Final code review"]
+    Review --> Commit["/git commit<br/>+ /PR-summary"]
+    Commit --> G5(["Gate 5 — Task closed"])
+    G5 --> Done(["Complete"])
+```
+
+---
+
 ## opencode-init
 
 `bin/opencode-init` copies all workflow files into `.agent/` of a target project.
