@@ -112,15 +112,11 @@ teardown() {
   [ -f "$TEST_DIR/.agent/agents/workflow-first.md" ]
 }
 
-@test "workflow activation: workflow-first.md contains five gates" {
-  # The file should mention all five gates
-  run grep -c "Gate [1-5]" "$TEST_DIR/.agent/agents/workflow-first.md"
+@test "workflow activation: workflow-first.md contains gate system" {
+  # The file should mention at least 3 gates
+  run grep -c "Gate [1-9]" "$TEST_DIR/.agent/agents/workflow-first.md"
   [ "$status" -eq 0 ]
-  [ "$output" -ge 5 ]
-}
-
-@test "workflow activation: spec-reviewer.md exists (needed by Gate 4)" {
-  [ -f "$TEST_DIR/.agent/agents/spec-reviewer.md" ]
+  [ "$output" -ge 3 ]
 }
 
 @test "workflow activation: code-reviewer.md exists (needed by Gate 4)" {
@@ -135,10 +131,6 @@ teardown() {
   [ -f "$TEST_DIR/.agent/commands/implement.md" ]
 }
 
-@test "workflow activation: spec command exists" {
-  [ -f "$TEST_DIR/.agent/commands/spec.md" ]
-}
-
 # =============================================================================
 # Backend Loader
 # =============================================================================
@@ -149,10 +141,6 @@ teardown() {
 
 @test "workflow activation: mock backend index.js exists" {
   [ -f "$TEST_DIR/.agent/backends/$TEST_BACKEND/index.js" ]
-}
-
-@test "workflow activation: backend interface.ts exists" {
-  [ -f "$TEST_DIR/.agent/backends/interface.ts" ]
 }
 
 # =============================================================================

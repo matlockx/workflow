@@ -89,12 +89,6 @@ teardown() {
   [ -f "$TEST_DIR/AGENTS.md" ]
 }
 
-@test "opencode-init creates specs/ directory" {
-  run "$OPENCODE_ROOT/bin/opencode-init" --backend="$TEST_BACKEND" "$TEST_DIR"
-  [ "$status" -eq 0 ]
-  [ -d "$TEST_DIR/specs" ]
-}
-
 @test "opencode-init creates plans/ directory" {
   run "$OPENCODE_ROOT/bin/opencode-init" --backend="$TEST_BACKEND" "$TEST_DIR"
   [ "$status" -eq 0 ]
@@ -109,9 +103,8 @@ teardown() {
   run "$OPENCODE_ROOT/bin/opencode-init" --backend="$TEST_BACKEND" "$TEST_DIR"
   [ "$status" -eq 0 ]
   [ -d "$TEST_DIR/.agent/commands" ]
-  
+
   # Check that key commands exist
-  [ -f "$TEST_DIR/.agent/commands/spec.md" ]
   [ -f "$TEST_DIR/.agent/commands/implement.md" ]
   [ -f "$TEST_DIR/.agent/commands/feature.md" ]
   [ -f "$TEST_DIR/.agent/commands/plan.md" ]
@@ -137,22 +130,21 @@ teardown() {
   run "$OPENCODE_ROOT/bin/opencode-init" --backend="$TEST_BACKEND" "$TEST_DIR"
   [ "$status" -eq 0 ]
   [ -d "$TEST_DIR/.agent/agents" ]
-  
+
   # Check core agents exist
-  [ -f "$TEST_DIR/.agent/agents/spec-mode.md" ]
   [ -f "$TEST_DIR/.agent/agents/build.md" ]
   [ -f "$TEST_DIR/.agent/agents/create-tasks.md" ]
   [ -f "$TEST_DIR/.agent/agents/plan-mode.md" ]
   [ -f "$TEST_DIR/.agent/agents/workflow-first.md" ]
 }
 
-@test "opencode-init copies 10 core agents" {
+@test "opencode-init copies 7 core agents" {
   run "$OPENCODE_ROOT/bin/opencode-init" --backend="$TEST_BACKEND" "$TEST_DIR"
   [ "$status" -eq 0 ]
-  
-  # Count agents in target (should be exactly 10 core agents)
+
+  # Count agents in target (should be exactly 7 core agents)
   agent_count=$(ls -1 "$TEST_DIR/.agent/agents/"*.md 2>/dev/null | wc -l | tr -d ' ')
-  [ "$agent_count" -eq 10 ]
+  [ "$agent_count" -eq 7 ]
 }
 
 # =============================================================================
@@ -190,7 +182,6 @@ teardown() {
   [ "$status" -eq 0 ]
   [ -d "$TEST_DIR/.agent/backends/$TEST_BACKEND" ]
   [ -f "$TEST_DIR/.agent/backends/$TEST_BACKEND/index.js" ]
-  [ -f "$TEST_DIR/.agent/backends/interface.ts" ]
 }
 
 # =============================================================================

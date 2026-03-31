@@ -412,8 +412,7 @@ mkdir -p "$TARGET_DIR/.agent/skills"
 mkdir -p "$TARGET_DIR/.agent/backends/$BACKEND"
 mkdir -p "$TARGET_DIR/.agent/lib"
 mkdir -p "$TARGET_DIR/.agent/templates"
-# specs/ and plans/ live in the project root (committed to git)
-mkdir -p "$TARGET_DIR/specs"
+# plans/ lives in the project root (committed to git)
 mkdir -p "$TARGET_DIR/plans"
 touch "$TARGET_DIR/plans/.gitkeep"
 
@@ -433,17 +432,14 @@ ln -s .agent "$TARGET_DIR/.opencode"
 log_success "Created symlink: .opencode -> .agent"
 
 # Copy core agents (selective — agent/ contains many project-specific extras)
-cp "$OPENCODE_ROOT/agent/spec-mode.md"       "$TARGET_DIR/.agent/agents/"
 cp "$OPENCODE_ROOT/agent/create-tasks.md"    "$TARGET_DIR/.agent/agents/"
 cp "$OPENCODE_ROOT/agent/plan-mode.md"       "$TARGET_DIR/.agent/agents/"
 cp "$OPENCODE_ROOT/agent/build.md"           "$TARGET_DIR/.agent/agents/"
 cp "$OPENCODE_ROOT/agent/test-agent.md"      "$TARGET_DIR/.agent/agents/"
 cp "$OPENCODE_ROOT/agent/code-reviewer.md"   "$TARGET_DIR/.agent/agents/"
 cp "$OPENCODE_ROOT/agent/workflow-first.md"  "$TARGET_DIR/.agent/agents/"
-cp "$OPENCODE_ROOT/agent/spec-reviewer.md"   "$TARGET_DIR/.agent/agents/"
 cp "$OPENCODE_ROOT/agent/research-agent.md"  "$TARGET_DIR/.agent/agents/"
-cp "$OPENCODE_ROOT/agent/rewrite-agent.md"   "$TARGET_DIR/.agent/agents/"
-log_success "Copied core agents (10 files)"
+log_success "Copied core agents (7 files)"
 
 # Copy all skills
 # AIDEV-NOTE: Skills are small markdown reference docs loaded on demand by the
@@ -473,10 +469,6 @@ log_success "Copied backend: $BACKEND"
 # Copy lib JS files only (lib/ also contains non-workflow data files like go-modernizers.json)
 cp "$OPENCODE_ROOT/lib/"*.js "$TARGET_DIR/.agent/lib/"
 log_success "Copied lib ($(ls "$OPENCODE_ROOT/lib/"*.js | wc -l | tr -d ' ') JS files)"
-
-# Copy interface (for reference)
-cp "$OPENCODE_ROOT/backends/interface.ts" "$TARGET_DIR/.agent/backends/"
-log_success "Copied interface definition"
 
 # ============================================
 # Copy Language-Specific Agents
@@ -678,7 +670,6 @@ echo "Files created:"
 echo "  opencode.json                  - OpenCode configuration (instructions, providers)"
 echo "  .agent/config.json             - Workflow backend configuration"
 echo "  AGENTS.md                      - AI assistant context (customize me!)"
-echo "  specs/                         - Spec documents (committed to git)"
 echo "  plans/                         - Backlog markdowns from /plan (committed to git)"
 echo "  .opencode -> .agent            - Symlink for OpenCode discovery"
 echo "  .agent/commands/plan.md        - /plan      brainstorm & bulk-create a backlog"
@@ -687,14 +678,12 @@ echo "  .agent/commands/fix.md         - /fix        alias for /feature --type=f
 echo "  .agent/commands/resume.md      - /resume     pick up where you left off"
 echo "  .agent/commands/status.md      - /status     view all active work items"
 echo "  .agent/commands/issue.md       - /issue      create a new issue"
-echo "  .agent/commands/spec.md        - /spec       draft & approve a spec"
-echo "  .agent/commands/createtasks.md - /createtasks   break spec into tasks"
+echo "  .agent/commands/createtasks.md - /createtasks   break issue into tasks"
 echo "  .agent/commands/implement.md   - /implement     execute tasks"
 echo "  .agent/commands/git.md         - /git        commit staged changes"
 echo "  .agent/commands/test.md        - /test       run tests with coverage"
 echo "  .agent/commands/codereview.md  - /codereview review the current diff"
 echo "  .agent/commands/PR-summary.md  - /PR-summary write a PR description"
-echo "  .agent/agents/spec-mode.md     - Spec writing agent"
 echo "  .agent/agents/create-tasks.md  - Task creation agent"
 echo "  .agent/agents/plan-mode.md     - Planning / brainstorming agent"
 echo "  .agent/agents/build.md         - Implementation / coding agent"
@@ -702,7 +691,6 @@ echo "  .agent/agents/test-agent.md    - Test runner subagent"
 echo "  .agent/agents/code-reviewer.md - Code review agent"
 echo "  .agent/backends/$BACKEND/      - Backend implementation"
 echo "  .agent/lib/backend-loader.js   - Backend loader utility"
-echo "  .agent/lib/workflow-state.js   - Workflow state persistence"
 echo "  .agent/lib/plan-state.js       - Plan state persistence"
 
 echo "  .agent/skills/               - All skills ($SKILL_COUNT) loaded on demand by AI"
@@ -748,7 +736,7 @@ elif [[ "$BACKEND" == "jira-taskwarrior" ]]; then
 fi
 echo "  Full lifecycle (recommended):"
 echo "    /plan    \"improve onboarding\"  Brainstorm & bulk-create a backlog"
-echo "    /feature ISSUE-1               Start issue → spec → tasks → implement"
+echo "    /feature ISSUE-1               Start issue → tasks → implement"
 echo "    /fix     ISSUE-2               Same flow, tuned for bug fixes"
 echo "    /resume  ISSUE-1               Pick up where you left off"
 echo "    /status                        View all active work items"
@@ -760,8 +748,7 @@ echo "    /resume  ISSUE-1 --yolo        Upgrade running workflow to YOLO"
 echo
 echo "  Step-by-step:"
 echo "    /issue \"description\"       Create a new issue"
-echo "    /spec  ISSUE-1             Draft and approve a spec"
-echo "    /createtasks ISSUE-1       Break spec into implementation tasks"
+echo "    /createtasks ISSUE-1       Break issue into implementation tasks"
 echo "    /implement   ISSUE-1       Execute tasks"
 echo
 echo "Tip: Edit AGENTS.md to add project-specific context for the AI."

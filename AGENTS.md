@@ -105,7 +105,6 @@ You will receive a prompt to execute a task. Once the task is finished provide a
 - **Agent**: AI entity with memory, tools, and defined behavior
 - **Backend**: Pluggable workflow engine (Jira, Beads, custom, etc.)
 - **Issue**: High-level work item (user story, bug, epic) from your workflow backend
-- **Spec**: Technical specification document (markdown) derived from an issue
 - **Task**: Granular implementation work item tracked by your backend
 - **Phase**: Container for related tasks (sequential execution)
 - **Work State**: Fine-grained state tracking (draft, todo, inprogress, review, approved, etc.)
@@ -135,7 +134,6 @@ You will receive a prompt to execute a task. Once the task is finished provide a
 ### Why this matters
 
 - **Tasks and issues live in the backend**, not in local state files
-- **`feature-progress.json`** only tracks `/feature` command cursor position (stage, substage, phase) — it does NOT store task data
 - **Git history** shows commits, not workflow tasks
 - Silent fallbacks cause user confusion when answers don't match their actual workflow state
 
@@ -217,65 +215,13 @@ These files control which files should be ignored by AI tools and indexing syste
 
 When responding to user instructions, the AI assistant (Opencode, Claude, Cursor, GPT, etc.) should follow this process to ensure clarity, correctness, and maintainability:
 
-0. **Gate 1 — Intent Acknowledgment**: Before any task execution, detect the user's intent and present a structured acknowledgment. Wait for explicit confirmation before proceeding.
-
-   **Non-trivial tasks** (feature, multi-file, >30 LOC):
-   ```
-   **Detected**: {type} — {confidence}%
-   **Workflow**: {workflow} ({step_count} steps)
-   **Scope**: ~{loc} LOC, {files} file(s)
-
-   Proceed? [y]es  [n]o  [?]details
-   ```
-
-   **Trivial tasks** (single file, <30 LOC):
-   ```
-   Quick fix (~{loc} LOC, {files} file). Proceed? [y/n/?]
-   ```
-
-   **Very trivial** (typo, rename, <10 LOC):
-   ```
-   Trivial change. Proceed? [y/n]
-   ```
-
-   **Skip Gate 1 only when**:
-   - User explicitly invoked a slash command (`/spec`, `/feature`, etc.)
-   - User is asking a question, not requesting work
-   - User is mid-workflow and continuing a previous task
-   - User has already confirmed in this conversation turn
+0. **Gate 1 — Intent Acknowledgment**: Before any task execution, detect the user's intent and present a structured acknowledgment. Wait for explicit confirmation before proceeding. See `agent/workflow-first.md` for the full three-gate system and templates.
 
 1. **Consult Relevant Guidance**: When the user gives an instruction, consult the relevant instructions from `AGENTS.md` files (both root and directory-specific) for the request.
 2. **Clarify Ambiguities**: Based on what you could gather, see if there's any need for clarifications. If so, ask the user targeted questions before proceeding.
 3. **Break Down & Plan**: Break down the task at hand and chalk out a rough plan for carrying it out, referencing project conventions and best practices.
 4. **Trivial Tasks**: If the plan/request is trivial, go ahead and get started immediately.
-5. **Non-Trivial Tasks**: Otherwise, present the plan to the user for review and iterate based on their feedback.
-
-5a. **Gate 2 — Implementation Confirmation**: After the plan is approved, present a final confirmation before writing any code:
-    ```
-    Ready to implement:
-    - [ ] {file1} (~{loc} LOC)
-    - [ ] {file2} (~{loc} LOC)
-
-    Begin? [y/n]
-    ```
-
-    **Valid confirmations**: "y", "yes", "proceed", "do it", "implement", "go ahead"
-
-    **Ambiguous responses** (require clarification):
-    | Response | Action |
-    |----------|--------|
-    | "go" | Ask: "Proceed with implementation? [y/n]" |
-    | "ok", "sure", "fine" | Ask: "Shall I begin writing files? [y/n]" |
-    | "looks good" | Ask: "Ready to implement? [y/n]" |
-
-5b. **Gate 3 — Task Tracking**: Before writing any files, create a tracking task in the configured workflow backend. Read `.agent/config.json` to determine the backend, then create the task (e.g., `bd create "description" --json` for Beads). **Every change gets a task — no exceptions based on size.** Skip only when already working within an existing tracked issue, or user explicitly says "don't track".
-
-5c. **Gate 4 — Review/QA**: After implementation, verify the work before committing. Run build, tests, spec compliance check, and code review. **Auto-loop** on clear failures (build breaks, tests fail) — fix immediately without user intervention. Only consult user when unsure or when all checks pass. Verify PR size stays under ~500 LOC; if exceeded, stop and suggest splitting.
-
-    **Task existence is checked first** — if no task exists for this work, auto-loop: create one retroactively (`bd create "..." --json`), note the ID, then continue. No work is committed without a task ID.
-
-5d. **Gate 5 — Task Closure**: After committing work, close the tracking task with a summary. For Beads: `bd close <task-id> --reason "Summary. Commit <hash>."`. Include what was accomplished and the commit hash. Skip only when no task was created or work is incomplete.
-
+5. **Non-Trivial Tasks**: Otherwise, present the plan to the user for review and iterate based on their feedback. Then apply Gate 2 (implementation confirmation) and Gate 3 (ship: build + tests + commit + task closure) per `agent/workflow-first.md`.
 6. **Track Progress**: Use a to-do list (internally, or optionally in a `TODOS.md` file) to keep track of your progress on multi-step or complex tasks.
 7. **If Stuck, Re-plan**: If you get stuck or blocked, return to step 3 to re-evaluate and adjust your plan.
 8. **Update Documentation**: Once the user's request is fulfilled, update relevant anchor comments (`AIDEV-NOTE`, etc.) and `AGENTS.md` files in the files and directories you touched.

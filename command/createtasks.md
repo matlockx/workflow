@@ -1,12 +1,13 @@
 ---
-description: Create implementation tasks from an approved spec using the configured workflow backend
+description: Create implementation tasks for an issue using the configured workflow backend
 agent: create-tasks
 mode: plan
 ---
 
-# Create implementation tasks from spec
+# Create implementation tasks
 
-Create backend-managed implementation tasks from an approved spec.
+Create backend-managed implementation tasks for an issue. The task descriptions
+come from the issue itself — no separate spec file is required.
 
 ## Input
 
@@ -25,48 +26,32 @@ Create backend-managed implementation tasks from an approved spec.
    - Preserve backend-specific prefixes.
    - Store it as `issueId`.
 
-3. **Resolve the spec through the backend**
-   - Call `backend.getSpec(issueId)`.
-   - If the spec does not exist, stop and tell the user to create one first with `/spec <issueId>`.
-   - Use the returned object as the canonical source for:
-     - `spec.id`
-     - `spec.filePath`
-     - `spec.state`
+3. **Fetch the issue**
+   - Call `backend.getIssue(issueId)`.
+   - If not found, stop and tell the user.
+   - The issue summary and description are the primary input for task generation.
 
-4. **Validate the spec state**
-   - If `spec.state !== 'approved'`:
-     - Warn the user that task generation should only happen from an approved spec.
-     - Stop and tell them to finish and approve the spec with `/spec <issueId>`.
-   - Do not bypass approval in the generic workflow.
-
-5. **Read the spec file for operator context**
-   - Read `spec.filePath`.
-   - Confirm the spec includes both `## Requirements` and `## Design`.
-   - If either section is missing or clearly incomplete, stop and tell the user to complete the spec first.
-   - Use the file contents only to summarize what is about to be generated; the backend remains responsible for actual task creation.
-
-6. **Check for existing implementation tasks**
+4. **Check for existing implementation tasks**
    - Call `backend.getTasks({ issueId, tags: ['impl'] })`.
    - If implementation tasks already exist:
      - Show a concise summary of the existing tasks.
      - Stop and tell the user tasks already exist for this issue.
    - Do not delete or recreate tasks here because the generic backend interface does not yet expose task deletion.
 
-7. **Preview the task-generation scope**
-   - Summarize the spec before creating tasks:
+5. **Preview the task-generation scope**
+   - Summarize before creating tasks:
      - issue ID
-     - spec path
-     - notable requirement themes
-     - notable design components/files
-   - Tell the user you are creating backend-managed implementation tasks from the approved spec.
+     - issue summary
+     - key themes from the issue description
+   - Tell the user you are creating backend-managed implementation tasks for this issue.
 
-8. **Create tasks through the backend**
-   - Call `backend.createTasks(spec.id)`.
+6. **Create tasks through the backend**
+   - Call `backend.createTasks(issueId)`.
    - Let the backend decide how phases, dependencies, metadata, and backend-specific fields are created.
    - If the backend throws `INVALID_STATE`, surface that clearly.
    - If the backend throws `ALREADY_EXISTS`, tell the user tasks already exist.
 
-9. **Summarize the created task set**
+7. **Summarize the created task set**
    - Split the returned tasks into:
      - phase tasks: `task.isPhase === true`
      - implementation tasks: `task.isPhase === false`
@@ -74,18 +59,19 @@ Create backend-managed implementation tasks from an approved spec.
      - total task count
      - number of phases
      - number of implementation tasks
-     - spec path
    - For each phase, list the tasks whose dependencies or metadata indicate they belong to that phase when available.
    - If phase grouping cannot be reconstructed cleanly, report a flat list ordered by returned task order.
 
-10. **Give next-step guidance**
-   - Tell the user to begin implementation with the backend's ready or todo tasks.
+8. **Give next-step guidance**
+   - Tell the user to begin implementation with `/implement <issueId>`.
    - If the backend is `jira-taskwarrior`, mention they can inspect the created tasks with Taskwarrior commands.
 
 ## AIDEV-NOTE: backend-owned task generation
 
-- The generic command should use `backend.getSpec()` and `backend.createTasks()` instead of recreating backend logic in markdown instructions.
-- Existing-task detection uses `backend.getTasks({ issueId, tags: ['impl'] })` because both current backends attach `impl` to generated implementation work.
+- No spec file is required. Task generation works from the issue description stored in the backend.
+- `backend.createTasks(issueId)` is called with the issue ID directly (not a spec ID).
+- Existing-task detection uses `backend.getTasks({ issueId, tags: ['impl'] })` because both
+  current backends attach `impl` to generated implementation work.
 - Regeneration is intentionally not handled here until the interface grows delete/archive support.
 - Support optional command-time backend selection via `--backend=<type>`.
 
@@ -93,4 +79,3 @@ Create backend-managed implementation tasks from an approved spec.
 
 - Task creation is backend-owned; this command is the orchestrator.
 - Keep the command backend-agnostic even if one backend currently uses Taskwarrior under the hood.
-- This command replaces the legacy Jira-specific / Taskwarrior-specific flow.

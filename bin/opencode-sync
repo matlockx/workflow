@@ -85,16 +85,15 @@ What is updated:
   .agent/commands/     All slash commands (synced, stale removed)
   .opencode            Symlink to .agent (ensured)
   .agent/agents/       All agents from source repo (synced, stale removed)
-  .agent/lib/          backend-loader, workflow-state, plan-state (replaced)
-  .agent/backends/     Active backend index.js + README, interface.ts (replaced)
+  .agent/lib/          backend-loader, plan-state (replaced)
+  .agent/backends/     Active backend index.js + README (replaced)
   .agent/skills/       All skills from source repo (synced, stale removed)
 
 What is preserved:
   .agent/config.json   Your backend configuration
-  .agent/state/        Runtime workflow state (issues, tasks, specs)
+  .agent/state/        Runtime workflow state (issues, tasks)
   AGENTS.md            Your project context (user-editable)
   opencode.json        Your OpenCode provider/model config
-  specs/               Your spec documents
   plans/               Your plan documents
 
 With --force:
@@ -553,7 +552,6 @@ log_success "Lib synced: $UPDATED_LIB JS files"
 log_info "Syncing backend: $BACKEND..."
 sync_file "$OPENCODE_ROOT/backends/$BACKEND/index.js"  "$TARGET_DIR/.agent/backends/$BACKEND/index.js"
 sync_file "$OPENCODE_ROOT/backends/$BACKEND/README.md" "$TARGET_DIR/.agent/backends/$BACKEND/README.md"
-sync_file "$OPENCODE_ROOT/backends/interface.ts"       "$TARGET_DIR/.agent/backends/interface.ts"
 log_success "Backend synced: $BACKEND"
 
 # ============================================
@@ -650,7 +648,6 @@ if [[ -n "$FORCE" ]]; then
   echo "Preserved (restored from backup):"
   echo "  .agent/config.json   — your backend config"
   echo "  .agent/state/        — your workflow runtime state"
-  echo "  specs/               — your spec documents"
   echo "  plans/               — your plan documents"
 else
   echo "Preserved (not touched):"
@@ -658,7 +655,6 @@ else
   echo "  .agent/state/        — your workflow runtime state"
   echo "  AGENTS.md            — your project AI context"
   echo "  opencode.json        — your OpenCode config"
-  echo "  specs/               — your spec documents"
   echo "  plans/               — your plan documents"
 fi
 echo

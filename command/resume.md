@@ -1,19 +1,18 @@
 ---
-description: Resume a previously started /feature or /fix workflow from where it left off
-agent: spec-mode
+description: Resume a previously started /feature workflow from where it left off
+agent: build
 mode: plan
 ---
 
 # /resume — Resume an in-progress workflow
 
-Pick up where you left off on any active work item. If a specific issue ID is
-given, resume it directly. If no argument is given, show a picker for all
-active items.
+Pick up where you left off on any active work item. The backend owns all state,
+so resuming is simply re-entering `/feature` with the right issue ID.
 
 ## Input
 
 - `$ARGUMENTS`: optional issue ID, optionally with `--backend=<type>` or `--yolo`
-  - Examples: `ISSUE-3`, `IN-9821`, `ISSUE-3 --yolo`, *(empty — show picker)*
+  - Examples: `ISSUE-3`, `IN-9821`, `ISSUE-3 --yolo`, *(empty — list open items)*
 
 ---
 
@@ -22,118 +21,64 @@ active items.
 1. **Parse arguments**
 
    ```js
-   const { parseBackendOverride } = require('./lib/backend-loader.js')
-   const wf = require('./lib/workflow-state.js')
+   const { parseBackendOverride, getBackend } = require('./lib/backend-loader.js')
 
    const { backendType, cleanedArguments } = parseBackendOverride($ARGUMENTS)
    const tokens = cleanedArguments.trim().split(/\s+/).filter(Boolean)
    const yoloFlag = tokens.some(t => t === '--yolo')
    const issueId = tokens.filter(t => !t.startsWith('--'))[0] || null
+   const backend = getBackend(backendType)
    ```
 
-2. **Load active items**
+2. **If no issue ID given — list open items**
 
-   ```js
-   const activeItems = wf.getAllActiveItems()
+   Call `backend.listIssues({ status: 'open' })` (or equivalent for the configured
+   backend). If none are returned, print and stop:
    ```
-
-3. **If no active items exist**
-
-   Print and stop:
-   ```
-   No active work items found.
+   No open work items found.
    Start one with: /feature <issueId>
    ```
 
-4. **If a specific issueId was given**
-
-   ```js
-   const item = wf.getActiveItem(issueId)
+   Otherwise, present a numbered list:
    ```
+   Open work items:
 
-   - If not found in active items:
-     - Check if it appears in `history` (completed items).
-     - If in history: print `[ISSUE-X] is already complete.` and stop.
-     - If not found at all: print `No work item found for ${issueId}.` and stop.
-   - If found: jump to **Step 6**.
-
-5. **Picker — show active items and let user choose**
-
-   Format each item using `wf.formatItemSummary(item)` and present as a
-   numbered list:
-
-   ```
-   Active work items:
-
-     1. [ISSUE-3] Add search API — spec › design-review  (started 2d ago)
-     2. [ISSUE-7] Fix null pointer crash — implement › in-phase  (started 5h ago)
-     3. [ISSUE-9] Improve error messages — tasks › pending  (started 1h ago)
+     1. ISSUE-3  — Add search API
+     2. ISSUE-7  — Fix null pointer crash
+     3. ISSUE-9  — Improve error messages
 
    Enter a number to resume, or press Enter to cancel:
    ```
 
    - Wait for user input.
-   - If input is empty or non-numeric: print `Cancelled.` and stop.
-   - If input is out of range: print `Invalid selection.` and stop.
-   - Set `issueId` to the selected item's `issueId`.
+   - If empty or non-numeric: print `Cancelled.` and stop.
+   - If out of range: print `Invalid selection.` and stop.
+   - Set `issueId` to the selected issue's ID.
 
-6. **Show resume summary**
+3. **Verify the issue exists**
 
-   Load the work item and display its current state:
+   Call `backend.getIssue(issueId)`.
+   - If not found: print `No work item found for ${issueId}.` and stop.
 
-   ```js
-   const item = wf.getActiveItem(issueId)
+4. **Delegate to /feature**
 
-   // Upgrade to YOLO mode if --yolo flag is passed
-   if (yoloFlag && !item.yolo) {
-     wf.updateWorkItem(issueId, { yolo: true })
-     item.yolo = true
-   }
+   Re-enter the `/feature` workflow with the resolved issue ID, forwarding any flags:
 
-   const next = wf.getNextStep(item)
-   const skips = wf.formatSkips(item)
+   ```
+   Resuming [ISSUE-3] "Add search API"...
    ```
 
-   Print:
-   ```
-   ══════════════════════════════════════════
-   Resuming [ISSUE-3] "Add search API"
-   Stage:    spec › design-review
-   Next:     Review design
-   ══════════════════════════════════════════
-   ```
+   If `--yolo` was passed, append `--yolo` when delegating so YOLO mode is active.
 
-   If `item.yolo` is true, also print:
-   ```
-   ⚡ YOLO mode — skipping all approval gates, executing end-to-end.
-   ```
-
-   If there are skipped steps, append:
-   ```
-   Skipped steps:
-     - [SKIPPED] Review requirements: deferred (spec/requirements-review)
-   ```
-
-7. **Re-enter the /feature workflow at the current position**
-
-   Delegate to `command/feature.md` starting from the **Interaction Protocol**
-   section, using the already-loaded `item.stage` and `item.substage` to skip
-   directly to the right step.
-
-   - Load the backend: `getBackend(backendType)`.
-   - Fetch the issue: `backend.getIssue(issueId)`.
-   - Do **not** call `wf.createWorkItem` — the item already exists.
-   - Execute the stage handler that matches `item.stage`/`item.substage`.
+   The `/feature` command reads backend task state to determine where work left off
+   and continues from there automatically.
 
 ---
 
-## AIDEV-NOTE: re-entry design
+## AIDEV-NOTE: stateless resume design
 
-`/resume` is deliberately a thin redirect — it finds the right work item,
-prints a summary, and then falls into the exact same stage/substage logic that
-`/feature` uses. There is no separate "resume mode"; the stage machine in
-`feature.md` is stateless and reads position from `feature-progress.json` every time.
-
-YOLO mode is persisted on the work item (`item.yolo`) so `/resume` inherits
-it automatically. Passing `--yolo` on `/resume` upgrades a normal workflow
-to YOLO mode for the remainder of its lifecycle.
+`/resume` is a thin lookup-and-redirect. The backend is the sole source of truth
+for issue and task state — there is no local cursor file to read or update.
+Passing `--yolo` here simply forwards the flag to `/feature`, which handles it.
+Re-entering `/feature` with the same issue ID is always safe: it checks existing
+task states and picks up from the first non-terminal task.

@@ -1,18 +1,18 @@
 ---
-description: Show the current status of all active (and recently completed) workflow items
-agent: spec-mode
+description: Show the current status of open issues and their implementation tasks
+agent: build
 mode: plan
 ---
 
 # /status — Workflow status dashboard
 
-Read-only view of all active work items and their progress. Does not modify
-any state.
+Read-only view of open work items and their task progress. Queries the configured
+backend directly — no local state files.
 
 ## Input
 
-- `$ARGUMENTS`: optional issue ID for focused view, or `--all` to include history
-  - Examples: *(empty — all active items)*, `ISSUE-3`, `--all`
+- `$ARGUMENTS`: optional issue ID for focused view, or `--all` to include closed items
+  - Examples: *(empty — all open items)*, `ISSUE-3`, `--all`
 
 ---
 
@@ -21,48 +21,35 @@ any state.
 1. **Parse arguments**
 
    ```js
-   const wf = require('./lib/workflow-state.js')
+   const { parseBackendOverride, getBackend } = require('./lib/backend-loader.js')
 
-   const tokens = ($ARGUMENTS || '').trim().split(/\s+/).filter(Boolean)
+   const { backendType, cleanedArguments } = parseBackendOverride($ARGUMENTS)
+   const tokens = (cleanedArguments || '').trim().split(/\s+/).filter(Boolean)
    const showAll = tokens.includes('--all')
    const issueId = tokens.find(t => !t.startsWith('--')) || null
+   const backend = getBackend(backendType)
    ```
 
-2. **Load state**
-
-   ```js
-   const state = wf.loadWorkflowState()
-   ```
-
-3. **Focused view — single issue**
+2. **Focused view — single issue**
 
    If `issueId` was given:
-
-   ```js
-   const item = state.activeItems.find(i => i.issueId === issueId)
-            || (showAll && state.history?.find(i => i.issueId === issueId))
-   ```
-
+   - Call `backend.getIssue(issueId)`.
    - If not found: print `No work item found for ${issueId}.` and stop.
-   - Print the detailed view (see format below).
-   - Stop.
+   - Call `backend.getTasks({ issueId, tags: ['impl'] })`.
+   - Print the detailed view (see format below) and stop.
 
-4. **Dashboard view — all active items**
+3. **Dashboard view — all issues**
 
    If no `issueId`:
-
-   ```js
-   const items = state.activeItems
-   const history = showAll ? (state.history || []) : []
-   ```
-
-   - If no active items and no history: print:
+   - Call `backend.listIssues({ status: showAll ? 'all' : 'open' })`.
+   - If no items returned: print:
      ```
-     No active work items.
+     No open work items.
      Start one with: /feature <issueId>
      ```
      Stop.
-
+   - For each issue, call `backend.getTasks({ issueId: issue.id, tags: ['impl'] })`
+     to get task progress.
    - Print the summary table (see format below).
 
 ---
@@ -72,56 +59,47 @@ any state.
 ### Summary table (dashboard view)
 
 ```
-Active work items  (3)
+Open work items  (3)
 ══════════════════════════════════════════════════════════
 
-  TYPE     ID          STAGE              NEXT STEP             STARTED
-  feature  ISSUE-3     spec/design-review Review design         2d ago
-  bug      ISSUE-7     implement/in-phase  Implement tasks       5h ago
-  feature  ISSUE-9     tasks/pending      Create tasks          1h ago
+  ID          SUMMARY                        TASKS           PHASE
+  ISSUE-3     Add search API                 3/8 done        Phase 2
+  ISSUE-7     Fix null pointer crash         0/4 done        Phase 1
+  ISSUE-9     Improve error messages         8/8 done        complete
 
 ══════════════════════════════════════════════════════════
 Run /resume <issueId> to continue any item.
 ```
 
-If `--all` was passed, append a **Completed** section:
+If `--all` was passed, closed items appear below the open ones:
 
 ```
-Completed  (2)
+Closed  (2)
 ──────────────────────────────────────────────────────────
 
-  TYPE     ID          COMPLETED
-  feature  ISSUE-1     3d ago
-  bug      ISSUE-2     1w ago
-```
-
-If any item has skipped steps, add a warning footer:
-
-```
-⚠ Items with skipped steps: ISSUE-3 (1 skip), ISSUE-7 (2 skips)
-  Run /status <issueId> for details.
+  ID          SUMMARY                        STATUS
+  ISSUE-1     Dark mode toggle               closed/done
+  ISSUE-2     Auth bug fix                   closed/done
 ```
 
 ### Detailed view (single issue)
 
 ```
 ══════════════════════════════════════════════════════════
-[ISSUE-3]  Add search API  (feature)
+[ISSUE-3]  Add search API
 ══════════════════════════════════════════════════════════
 
-  Stage:      spec › design-review
-  Next step:  Review design — confirm the technical design is sound
-  Started:    2d ago  (2024-01-15T10:23:00Z)
-  Updated:    4h ago
+  Status:     open
+  Tasks:      3/8 done
 
-  Stage history:
-    ✓ spec/drafting            completed
-    ✓ spec/requirements-review completed
-    → spec/design-review       IN PROGRESS
-
-  Skipped steps (1):
-    - [SKIPPED] Review requirements: "requirements were obvious, skipped"
-                at spec/requirements-review  (2d ago)
+  Phases:
+    ✓ Phase 1: Foundation          (3/3 tasks done)
+    → Phase 2: Core Implementation  (0/4 tasks — IN PROGRESS)
+      • [ ] Implement search index
+      • [ ] Add result ranking
+      • [ ] Write unit tests
+      • [ ] Integration test
+    · Phase 3: Polish               (not started)
 
 ══════════════════════════════════════════════════════════
 Run /resume ISSUE-3 to continue.
@@ -129,24 +107,11 @@ Run /resume ISSUE-3 to continue.
 
 ---
 
-## Formatting helpers
+## AIDEV-NOTE: backend-driven, read-only
 
-Use these `workflow-state.js` helpers:
-- `wf.getNextStep(item)` — get `{ label, hint }` for the current position
-- `wf.formatItemSummary(item)` — one-line summary string
-- `wf.formatSkips(item)` — multi-line skip detail
+This command reads exclusively from the configured backend — no local state files.
+It must never call any state-mutating backend method. All task progress is derived
+from backend task states (`todo`, `inprogress`, `done`, `approved`).
 
-For the stage history, reconstruct progress by comparing the item's current
-`stage`/`substage` against the ordered `wf.STAGES` and `wf.SUBSTAGES` arrays:
-- Stages before the current one are complete.
-- The current stage/substage is `IN PROGRESS`.
-- Stages after are not yet started.
-
----
-
-## AIDEV-NOTE: read-only contract
-
-This command must NEVER call `wf.updateWorkItem`, `wf.advanceSubstage`,
-`wf.createWorkItem`, `wf.completeWorkItem`, or any other state-mutating
-function. It only reads `feature-progress.json` and formats the data for display.
-This ensures `/status` is always safe to run at any point.
+Phase grouping is reconstructed from task dependency or metadata returned by the
+backend. If the backend does not expose phase grouping, fall back to a flat task list.

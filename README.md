@@ -7,14 +7,14 @@ A pluggable, agent-assisted development workflow for OpenCode. Covers the full l
 ## What it does
 
 - **`/plan`** — brainstorm features, prioritize a backlog, bulk-create issues (with optional Epic)
-- **`/feature`** — full lifecycle orchestrator: issue → spec → tasks → implement → review
+- **`/feature`** — full lifecycle orchestrator: issue → tasks → implement → review
 - **`/fix`** — same flow, tuned for bug fixes
 - **`/resume`** — pick up any in-progress work item across sessions
 - **`/status`** — dashboard of all active work items and their stages
-- Step-by-step commands: `/issue`, `/spec`, `/createtasks`, `/implement`
+- Step-by-step commands: `/issue`, `/createtasks`, `/implement`
 - Utility commands: `/git`, `/test`, `/codereview`, `/PR-summary`
 
-Workflow state persists in `.agent/state/` so you can close the terminal and resume days later.
+Workflow state is tracked in the configured backend so you can close the terminal and resume days later.
 
 ---
 
@@ -57,8 +57,7 @@ Our workflow agents are **subagents** — specialized assistants invoked by slas
 | Subagent | Invoked by | Purpose |
 |----------|------------|---------|
 | `plan-mode` | `/plan` | Brainstorm features, create backlog |
-| `spec-mode` | `/spec`, `/feature` | Draft requirements and design |
-| `create-tasks` | `/createtasks`, `/feature` | Break spec into phased tasks |
+| `create-tasks` | `/createtasks`, `/feature` | Break issue into phased tasks |
 | `build` | `/implement`, `/feature` | Implement tasks with TDD |
 | `code-reviewer` | `/codereview`, `/feature` | Review code changes |
 | `test-agent` | `/test` | Run and fix tests |
@@ -70,7 +69,7 @@ Our workflow agents are **subagents** — specialized assistants invoked by slas
 │  1. Use Tab to switch to Plan mode (read-only)     │
 │  2. Run /plan "improve onboarding" → plan-mode     │
 │  3. Switch to Build mode with Tab                   │
-│  4. Run /feature ISSUE-1 → spec-mode → create-tasks │
+│  4. Run /feature ISSUE-1 → create-tasks             │
 │     → build → code-reviewer                         │
 └─────────────────────────────────────────────────────┘
 ```
@@ -128,8 +127,7 @@ Lightweight local-first task manager using the `bd` CLI. Issues and tasks stored
     "type": "beads",
     "config": {
       "workspaceDir": "/path/to/project",
-      "beadsDir": "/path/to/project/.beads",
-      "specsDir": "./specs"
+      "beadsDir": "/path/to/project/.beads"
     }
   }
 }
@@ -162,8 +160,7 @@ Uses Atlassian CLI (ACLI) for Jira and Taskwarrior for local task execution.
       "jiraProject": "PROJ",
       "jiraEmail": "you@example.com",
       "taskrcPath": "~/.taskrc",
-      "taskDataLocation": "~/.task",
-      "specsDir": "./specs"
+      "taskDataLocation": "~/.task"
     }
   }
 }
@@ -183,10 +180,9 @@ See [`backends/jira-taskwarrior/README.md`](backends/jira-taskwarrior/README.md)
 
 Drives you through every stage with pause points:
 
-1. **spec** — agent drafts Requirements + Design; you approve
-2. **tasks** — agent breaks spec into phased implementation tasks; you approve
-3. **implement** — agent implements task by task (TDD); phase review gates after each phase
-4. **review** — final code review + PR summary
+1. **tasks** — agent breaks the issue into phased implementation tasks; you approve
+2. **implement** — agent implements task by task (TDD); phase review gates after each phase
+3. **review** — final code review + PR summary
 
 At each gate you choose: `[c]ontinue  [s]kip  [a]uto-run  [q]uit`
 
@@ -202,15 +198,13 @@ Skip **all** approval gates — the AI executes the entire lifecycle end-to-end
 without stopping for human review. Tests are still run; failures are fixed
 automatically rather than reported. Only unrecoverable errors cause a stop.
 
-The flag is persisted on the work item in `feature-progress.json`, so `/resume`
-inherits it automatically. You can also upgrade a running workflow to YOLO
-mode mid-flight with `/resume ISSUE-1 --yolo`.
+The `--yolo` flag is a session flag passed at invocation time and is not persisted
+between sessions. Pass it again with `/resume` to continue in YOLO mode.
 
 ### Option B — Step by step
 
 ```bash
 /issue "Add CSV export to reports"   # create issue
-/spec  ISSUE-1                       # draft + approve spec
 /createtasks ISSUE-1                 # generate phased tasks
 /implement   ISSUE-1                 # implement phase by phase
 /test                                # run tests
@@ -232,11 +226,11 @@ mode mid-flight with `/resume ISSUE-1 --yolo`.
 
 ## Workflow Diagrams
 
-### Five-Gate System
+### Three-Gate System
 
-Every non-trivial task passes through five gates before completion.
-Gate 1 and Gate 3 may be skipped in specific conditions (shown as dotted lines); **Gate 2 is never skipped**.
-Gate 4 also checks spec compliance, code quality, and PR size (~500 LOC limit) — build and test failures auto-loop; PR size violations stop for user decision.
+Every non-trivial task passes through three gates before completion.
+Gate 1 may be skipped in specific conditions (shown as dotted lines); **Gate 2 is never skipped**.
+Gate 3 auto-loops on build/test failures and verifies PR size (~500 LOC limit) before committing.
 
 ```mermaid
 flowchart TD
@@ -247,23 +241,16 @@ flowchart TD
     G1 -.->|"skip: slash command,<br/>question, or mid-workflow"| G2
 
     G2{{"Gate 2<br/>Implementation Confirmation"}}
-    G2 -->|confirmed| G3
-
-    G3{{"Gate 3<br/>Task Tracking"}}
-    G3 -->|"create task in backend"| Impl
-    G3 -.->|"skip: trivial &lt; 30 LOC"| Impl
+    G2 -->|confirmed| Impl
 
     Impl["Implementation"]
-    Impl --> G4
+    Impl --> G3
 
-    G4{{"Gate 4<br/>Review / QA"}}
-    G4 -->|"build or tests fail"| Impl
-    G4 -->|"all checks pass"| Commit
+    G3{{"Gate 3<br/>Ship: Build + Tests + Commit"}}
+    G3 -->|"build or tests fail"| Impl
+    G3 -->|"all checks pass"| Commit
 
-    Commit["Commit"] --> G5
-
-    G5{{"Gate 5<br/>Task Closure"}}
-    G5 --> Done(["Done"])
+    Commit["Commit + Task Closure"] --> Done(["Done"])
 ```
 
 ### Workflow Types
@@ -279,12 +266,12 @@ flowchart LR
 
     subgraph F [" feature — full workflow"]
         direction LR
-        F1[Issue] --> F2["Spec<br/>requirements"] --> F3["Spec<br/>design"] --> F4[Tasks] --> F5[Implement] --> F6[Review]
+        F1[Issue] --> F2[Tasks] --> F3[Implement] --> F4[Review]
     end
 
     subgraph B [" fix — quick workflow"]
         direction LR
-        X1[Issue] --> X2[Quick spec] --> X3[Implement] --> X4[Review]
+        X1[Issue] --> X2[Implement] --> X3[Review]
     end
 
     subgraph R [" review — analysis workflow"]
@@ -298,21 +285,13 @@ flowchart LR
     end
 ```
 
-### Spec and Task Lifecycle
+### Task Lifecycle
 
 State machines for the core entities:
 
 ```mermaid
 stateDiagram-v2
     direction LR
-
-    state "Spec Lifecycle" as spec {
-        [*] --> draft
-        draft --> approved
-        approved --> rejected
-        approved --> draft : revise
-        rejected --> draft
-    }
 
     state "Phase Lifecycle" as phase {
         [*] --> p_todo : created
@@ -348,26 +327,16 @@ flowchart TD
     G1(["Gate 1 — Intent confirmed"]) --> Issue
 
     Issue["/issue<br/>Create or select issue"]
-    Issue --> Spec
-
-    subgraph Spec ["Spec Phase"]
-        direction TB
-        S1["Draft requirements"] --> S2["User approves requirements"]
-        S2 --> S3["Draft design"]
-        S3 --> S4["User approves design"]
-    end
-
-    Spec --> G2(["Gate 2 — Implementation plan confirmed"])
+    Issue --> G2(["Gate 2 — Implementation plan confirmed"])
     G2 --> Tasks
 
-    Tasks["/createtasks<br/>Break spec into phased tasks"]
-    Tasks --> G3(["Gate 3 — Task tracked"])
-    G3 --> Phases
+    Tasks["/createtasks<br/>Break issue into phased tasks"]
+    Tasks --> Phases
 
     subgraph Phases ["Implementation — repeats per phase"]
         direction TB
         P1["Start phase"] --> P2["Implement tasks via TDD"]
-        P2 --> P3{"Gate 4 — QA"}
+        P2 --> P3{"Gate 3 — Build + Tests"}
         P3 -->|"fail"| P2
         P3 -->|"pass"| P4["Phase review gate"]
         P4 --> P5["Next phase"]
@@ -378,8 +347,7 @@ flowchart TD
 
     Review["/codereview<br/>Final code review"]
     Review --> Commit["/git commit<br/>+ /PR-summary"]
-    Commit --> G5(["Gate 5 — Task closed"])
-    G5 --> Done(["Complete"])
+    Commit --> Done(["Complete — task closed"])
 ```
 
 ---
@@ -405,13 +373,12 @@ What gets installed into `.agent/`:
 ```
 .agent/
   command/        all workflow commands
-  agent/          spec-mode, create-tasks, plan-mode, build,
+  agent/          create-tasks, plan-mode, build,
                   test-agent, code-reviewer
-  backends/       chosen backend implementation + interface.ts
-  lib/            backend-loader.js, workflow-state.js, plan-state.js
+  backends/       chosen backend implementation
+  lib/            backend-loader.js, plan-state.js
   config.json     workflow backend configuration
   skills/         workflow-backend (always), plus any --stack/--skills/--lang extras
-specs/            spec documents (committed to git)
 plans/            backlog markdowns from /plan (committed to git)
 opencode.json     OpenCode configuration ($schema, instructions, providers)
 AGENTS.md         AI assistant context (customize for your project)
@@ -438,8 +405,8 @@ What is updated:
 ```
 .agent/commands/     All slash commands (synced from source, stale removed)
 .agent/agents/       All agents (synced from source, stale removed)
-.agent/lib/          backend-loader.js, workflow-state.js, plan-state.js
-.agent/backends/     Active backend implementation + interface.ts
+.agent/lib/          backend-loader.js, plan-state.js
+.agent/backends/     Active backend implementation
 .agent/skills/       All skill packs (synced from source)
 ```
 
@@ -447,10 +414,9 @@ What is **never** touched:
 
 ```
 .agent/config.json   Your backend configuration
-.agent/state/        Runtime workflow data (issues, specs, tasks)
+.agent/state/        Runtime workflow data (issues, tasks)
 AGENTS.md            Your project AI context
 opencode.json        Your OpenCode provider/model config
-specs/               Your spec documents
 plans/               Your plan documents
 ```
 
@@ -466,7 +432,6 @@ backends/
   file/             zero-dependency local backend
   beads/            Beads local-first backend
   jira-taskwarrior/ Jira + Taskwarrior backend
-  interface.ts      WorkflowBackend interface
 bin/
   opencode-init     project initializer
   opencode-sync     sync workflow files into an initialized project
@@ -474,7 +439,6 @@ bin/
 command/            slash command definitions
 lib/
   backend-loader.js runtime backend selection
-  workflow-state.js cross-session state persistence
   plan-state.js     plan + epic state persistence
 skills/             reusable skill packs (postgres, kafka, coding-standards, …)
 templates/
@@ -483,37 +447,18 @@ templates/
 
 ---
 
-## Workflow state
-
-Stages and valid substages tracked per work item:
-
-| Stage | Substages |
-|-------|-----------|
-| `spec` | `drafting` → `requirements-review` → `design-review` → `approved` |
-| `tasks` | `pending` → `created` |
-| `implement` | `in-phase` → `phase-review` → `phase-approved` (repeats per phase) |
-| `review` | `pending` → `done` |
-| `done` | — |
-
-State file: `.agent/state/feature-progress.json` (gitignored).
-
----
-
 ## Adding a custom backend
 
-Implement the `WorkflowBackend` interface in `backends/interface.ts`:
+Implement the `WorkflowBackend` interface (see `backends/beads/index.js` as a reference):
 
 ```typescript
 interface WorkflowBackend {
   getIssue(id: string): Promise<Issue>
-  getSpec(issueId: string): Promise<Spec | null>
-  createSpec(issueId: string): Promise<Spec>
-  approveSpec(specId: string): Promise<Spec>
   getTasks(filter: TaskFilter): Promise<Task[]>
-  createTasks(specId: string): Promise<Task[]>
+  createTasks(issueId: string): Promise<Task[]>
   updateTaskState(taskId: string, state: string): Promise<Task>
   linkIssueToEpic(issueId: string, epicId: string): Promise<Issue>
-  // … see interface.ts for the full contract
+  // … see backends/beads/index.js for the full contract
 }
 ```
 
@@ -531,9 +476,8 @@ This project is a fork of [opencode by Geert Theys](https://github.com/gtheys/op
 
 **What this fork adds on top:**
 
-- Backend-agnostic workflow engine (`beads`, `jira-taskwarrior`, `mock`) with a common `WorkflowBackend` interface
-- Full slash command suite: `/plan`, `/feature`, `/fix`, `/resume`, `/status`, `/issue`, `/spec`, `/createtasks`, `/implement`, `/git`, `/test`, `/codereview`, `/PR-summary`
-- Cross-session workflow state persistence (`.agent/state/feature-progress.json`)
+- Backend-agnostic workflow engine (`beads`, `jira-taskwarrior`, `mock`) with a common backend interface
+- Full slash command suite: `/plan`, `/feature`, `/fix`, `/resume`, `/status`, `/issue`, `/createtasks`, `/implement`, `/git`, `/test`, `/codereview`, `/PR-summary`
 - Epic auto-creation and issue-to-epic linking across all backends
 - `opencode-init` installer with language tooling, startup library detection, and multi-backend support
 - `opencode-sync` for keeping workflow files up to date in initialized projects

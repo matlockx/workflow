@@ -15,7 +15,7 @@ Before responding to ANY task request, follow this checklist:
 | <30 LOC, single file | `Quick fix (~{loc} LOC, {files} file). Proceed? [y/n/?]` |
 | <10 LOC (typo/rename) | `Trivial change. Proceed? [y/n]` |
 
-## CRITICAL: Five-Gate Workflow System
+## CRITICAL: Three-Gate Workflow System
 
 ### Gate 1: Intent Acknowledgment (this checklist)
 
@@ -45,50 +45,37 @@ When the user provides text after their confirmation, treat it as additional ins
 - `sure and run tests after` → proceed, run tests when done
 - `y don't forget to update the exports` → proceed, make sure exports are updated
 
-### Gate 3: Task Tracking (Every Change)
+### Gate 3: Ship (Build + Tests + Commit)
 
-**CRITICAL**: Before writing any files, create a tracking task in the configured workflow backend. **Every change gets a task — no exceptions based on size.**
+After implementation is complete, run the quality checks and close the loop.
+This gate uses an **auto-loop** — fix clear failures immediately without user
+intervention; only stop when unsure or all checks pass.
 
-1. Read `.agent/config.json` to determine the backend type
-2. Create a task to track this work:
-   - **Beads backend**: `bd create "Brief description of work" --json`
-   - **Jira-Taskwarrior**: Use appropriate task creation
-   - **Other backends**: Follow backend-specific task creation
-3. Note the task ID for reference in commits and summaries
-
-**Skip task creation only when**:
-- Already working within an existing tracked task/issue (task ID already recorded)
-- User explicitly says "don't track" for this specific change
-
-This ensures every piece of work — no matter how small — is captured in the workflow system for history and continuity.
-
-### Gate 4: Review/QA (After Implementation)
-
-After implementation is complete, verify the work before committing. This gate uses an **auto-loop** — the agent automatically fixes clear failures without user intervention, only consulting the user when unsure or when presenting completion.
-
-#### Review Steps
+#### Steps
 
 1. **Task existence check** — Verify a tracking task exists in the backend for this work
    - If missing → auto-loop: create the task retroactively (`bd create "..." --json`), note the ID, then continue
    - This is a **hard requirement** — no work is committed without a task ID
 
 2. **Build check** — Compile/build the project
-   - If fails → auto-loop back to implementation, fix the issue
-   
+   - If fails → auto-loop back to implementation, fix immediately
+
 3. **Test check** — Run tests (use `/test` or project test command)
    - If fails → auto-loop back to implementation, fix failing tests
-   
-4. **Spec compliance** — If a spec exists for this work, verify requirements are met
-   - Use the `spec-reviewer` agent or manually check acceptance criteria
-   - If clear gaps → auto-loop back to implementation (or planning if design was wrong)
-   
-5. **Code review** — Self-review the diff for quality issues
+
+4. **Code review** — Self-review the diff for quality issues
    - Use the `code-reviewer` agent or apply the review checklist
    - Fix obvious issues (naming, error handling, security) automatically
-   
-6. **PR size check** — Verify total diff is under ~500 LOC
+
+5. **PR size check** — Verify total diff is under ~500 LOC
    - If exceeds → warn user, suggest splitting into smaller PRs/features
    - This is a **hard gate** — PRs over 500 LOC should not proceed without user decision
+
+6. **Commit** — Commit with a Conventional Commit message
+
+7. **Task closure** — Close the tracking task with a summary:
+   - **Beads backend**: `bd close <task-id> --reason "Summary of changes. Commit <hash>."`
+   - Include what was accomplished and the commit hash for traceability
 
 #### Auto-Loop Rules
 
@@ -97,11 +84,10 @@ After implementation is complete, verify the work before committing. This gate u
 | No task exists | Auto-loop: create task retroactively (`bd create "..." --json`), note the ID, then continue |
 | Build fails | Auto-loop to implementation, fix immediately |
 | Tests fail | Auto-loop to implementation, fix immediately |
-| Spec gaps (clear) | Auto-loop to implementation or planning (agent decides based on whether it's a code issue or design issue) |
 | Code review issues (obvious) | Auto-fix in implementation |
 | PR too large (>500 LOC) | Stop, present to user, suggest split strategy |
 | Unsure about any failure | Stop, ask user for guidance |
-| All checks pass | Present summary, proceed to user approval |
+| All checks pass | Present summary, proceed to commit |
 
 #### Completion Summary
 
@@ -112,7 +98,6 @@ When all checks pass, present a summary to the user:
 ✓ Task: opencode-xyz tracked
 ✓ Build: passing
 ✓ Tests: 42 passing, 0 failing
-✓ Spec: 8/8 requirements met
 ✓ Code review: no issues
 ✓ PR size: ~180 LOC (under limit)
 
@@ -123,24 +108,6 @@ If any checks required auto-fix loops, mention them:
 ```
 Note: Fixed 2 failing tests during review (see above).
 ```
-
-### Gate 5: Task Closure (After Commit)
-
-After committing work, close the tracking task with a summary:
-
-1. **Close the task** with a brief summary of what was done:
-   - **Beads backend**: `bd close <task-id> --reason "Summary of changes. Commit <hash>."`
-   - **Jira-Taskwarrior**: Transition the task to done
-   - **Other backends**: Follow backend-specific closure
-
-2. **Include in the closure reason**:
-   - What was accomplished
-   - Commit hash for traceability
-   - Any notable decisions or follow-ups
-
-**Skip task closure only when**:
-- No task was created (user explicitly said "don't track")
-- Work is incomplete and will continue in the next session
 
 ### Ambiguous Responses Require Clarification
 
@@ -153,7 +120,7 @@ After committing work, close the tracking task with a summary:
 ## Skip Conditions
 
 Skip Gate 1 ONLY when:
-- User invoked an explicit slash command (`/spec`, `/feature`, `/implement`)
+- User invoked an explicit slash command (`/feature`, `/implement`, etc.)
 - User is asking a question, not requesting work
 - User is continuing mid-workflow (already confirmed earlier)
 - User already confirmed in this conversation turn
@@ -170,10 +137,10 @@ After the user confirms at Gate 2, orchestrate the appropriate workflow based on
 
 | Intent | Workflow | Steps |
 |--------|----------|-------|
-| **feature** | Full workflow | Issue → Spec (requirements) → Spec (design) → Tasks → Implement → Review |
-| **fix/bug** | Quick workflow | Issue → Quick spec → Implement → Review |
+| **feature** | Full workflow | Issue → Tasks → Implement → Review |
+| **fix/bug** | Quick workflow | Issue → Implement → Review |
 | **review/optimize** | Analysis workflow | Issue → Analyze → Tasks → Implement → Benchmark |
-| **quick/trivial** | Minimal | Implement directly (no spec, no issue) |
+| **quick/trivial** | Minimal | Implement directly (no issue) |
 
 ### Confidence-Based Routing
 
@@ -182,8 +149,8 @@ After the user confirms at Gate 2, orchestrate the appropriate workflow based on
 **Medium confidence (0.5–0.8)**: Offer workflow options:
 ```
 This could be handled as:
-[1] New feature — full spec → tasks → implement
-[2] Bug fix — quick spec → implement
+[1] New feature — issue → tasks → implement
+[2] Bug fix — issue → implement
 [3] Code review — analyze → optimize
 [4] Quick change — just implement
 
@@ -198,15 +165,14 @@ At each workflow checkpoint, provide a concise summary and options:
 
 ```
 ━━━ {Phase} Summary ━━━
-• {key metrics: requirements count, estimated LOC, files}
+• {key metrics: task count, estimated LOC, files}
 
 [c]ontinue  [s]kip  [m]odify  [d]etails  [q]uit
 ```
 
 **Smart skip suggestions**: For small changes (<50 LOC, ≤2 files), suggest skipping heavyweight steps:
-- Skip design review for straightforward fixes
-- Skip formal spec for trivial changes
 - Skip task breakdown for single-task work
+- Skip phase review for trivial implementation
 
 ### Delegation Rules
 
@@ -234,7 +200,7 @@ Recognize these natural language patterns to detect intent:
 User: I want to add dark mode to the settings page
 
 Agent: **Detected**: feature — 85%
-       **Workflow**: full (6 steps)
+       **Workflow**: full (4 steps)
        **Scope**: ~120 LOC, 5 files
 
        Proceed? [y/n/?]
@@ -244,11 +210,9 @@ User: y
 Agent: ━━━ Workflow Plan ━━━
        Steps:
          1. Create issue
-         2. Spec (requirements)
-         3. Spec (design)
-         4. Task breakdown
-         5. Implementation
-         6. Review
+         2. Task breakdown
+         3. Implementation
+         4. Review
 
        Starting with issue creation...
        [Delegates to /feature]
@@ -270,15 +234,14 @@ Agent: Fixed "Sing In" → "Sign In" in src/components/LoginButton.tsx:23
 
 ## AIDEV-NOTE: Unified workflow-first behavior
 
-This file enforces workflow-first behavior with a five-gate confirmation system
-and post-confirmation orchestration. It combines:
+This file enforces workflow-first behavior with a three-gate confirmation system
+and post-confirmation orchestration. The pipeline is: issue → tasks → implement → review.
+The backend IS the state — no local cursor files, no spec stage.
 
+Gates:
 1. Gate 1: Intent acknowledgment (confirm user wants to work on this)
 2. Gate 2: Implementation confirmation (confirm the plan before writing files)
-3. Gate 3: Task tracking (create backend task for EVERY change — no size exceptions)
-4. Gate 4: Review/QA (auto-loop on failures, task-existence check is step 0)
-5. Gate 5: Task closure (close task after commit with summary)
-6. Orchestration: Route to appropriate workflow based on intent and scope
+3. Gate 3: Ship (build + tests + commit + task closure — auto-loop on failures)
 
 The intent detection is deliberately conservative — when unsure, ask rather than guess.
 This preserves user trust and prevents mis-routing.

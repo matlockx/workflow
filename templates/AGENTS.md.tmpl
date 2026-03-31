@@ -91,16 +91,15 @@ Once a task is finished, provide a git commit message example and **wait for inp
 
 ## Workflow Directory [FIXED]
 
-All OpenCode workflow machinery lives in `.agent/` (hidden, gitignored state) and `specs/` (committed, user-visible).
+All OpenCode workflow machinery lives in `.agent/` (hidden, gitignored state) and `plans/` (committed, user-visible).
 
 ```
 {{PROJECT_NAME}}/
 ├── AGENTS.md                   ← this file
 ├── opencode.json               ← workflow configuration
-├── specs/                      ← committed to git (human-readable specs)
-│   └── ISSUE-1.md
+├── plans/                      ← committed to git (backlog markdowns from /plan)
 └── .agent/                     ← gitignored workflow machinery
-    ├── commands/               ← /spec, /createtasks, /implement, /issue
+    ├── commands/               ← /createtasks, /implement, /issue, /feature
     ├── agents/                 ← AI agent persona definitions
     ├── skills/                 ← domain knowledge injected per-command
     ├── backends/               ← workflow backend implementation
@@ -111,7 +110,7 @@ All OpenCode workflow machinery lives in `.agent/` (hidden, gitignored state) an
             └── counter.json
 ```
 
-Use `/issue`, `/spec`, `/createtasks`, and `/implement` to drive all workflow.
+Use `/issue`, `/createtasks`, and `/implement` to drive all workflow.
 
 ---
 
@@ -120,8 +119,7 @@ Use `/issue`, `/spec`, `/createtasks`, and `/implement` to drive all workflow.
 - **Agent**: AI entity with memory, tools, and defined behavior
 - **Backend**: Pluggable workflow engine (`beads`, `jira-taskwarrior`, `mock`)
 - **Issue**: High-level work item (user story, bug, epic) tracked by the backend
-- **Spec**: Technical specification document (markdown) derived from an issue — lives in `specs/`
-- **Task**: Granular implementation work item created from an approved spec
+- **Task**: Granular implementation work item created from an issue
 - **Phase**: Container for related tasks (sequential execution)
 - **Work State**: Fine-grained state tracking (`draft`, `todo`, `inprogress`, `review`, `approved`, `done`)
 - **Session**: Conversation context with memory

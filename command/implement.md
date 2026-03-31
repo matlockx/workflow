@@ -1,5 +1,5 @@
 ---
-description: Implement tasks from an approved spec using the configured workflow backend
+description: Implement tasks for an issue using the configured workflow backend
 agent: build
 mode: build
 ---
@@ -10,22 +10,22 @@ Execute implementation tasks for an issue sequentially using the configured work
 
 ## Input
 
-- `$ARGUMENTS`: issue ID (examples: `IMP-7070`, `MOCK-1`, `beads:123`)
+- `$ARGUMENTS`: issue ID, optionally with `--yolo` or `--backend=<type>`
+  - Examples: `IMP-7070`, `MOCK-1 --yolo`, `beads:123`
 
 ## Workflow
 
 1. **Load and validate the backend**
    - Parse raw arguments with `require('./lib/backend-loader.js').parseBackendOverride($ARGUMENTS)`.
+   - Extract flags: `--yolo` enables auto-approve mode for this session.
    - If a `--backend` override is provided, use it.
    - Load the backend with `require('./lib/backend-loader.js').getBackend(backendType)`.
    - If initialization fails, stop and show the error.
 
-2. **Resolve the issue and spec**
+2. **Resolve the issue**
    - Read the full issue ID from the cleaned arguments returned by `parseBackendOverride()`.
    - Call `backend.getIssue(issueId)` to confirm the issue exists.
-   - Call `backend.getSpec(issueId)` to confirm a spec exists.
-   - If no spec exists, stop and tell the user to create one first with `/spec <issueId>`.
-   - If `spec.state !== 'approved'`, stop and tell the user the spec must be approved before implementation begins.
+   - If not found, stop and tell the user.
 
 3. **Load all implementation tasks**
    - Call `backend.getTasks({ issueId, tags: ['impl'] })`.
@@ -63,20 +63,17 @@ Execute implementation tasks for an issue sequentially using the configured work
      - Otherwise stop and tell the user the phase is blocked by dependencies.
 
 7. **Present the task and implement it**
-   - Read `spec.filePath` for context as needed.
    - Present the next task with:
      - issue ID
      - phase name
      - task ID
      - task description
      - dependency summary
-     - spec path
-   - **YOLO mode check:** If the work item has `yolo: true` in `feature-progress.json`,
-     skip the prompt and auto-implement immediately. Do not ask for confirmation.
+   - **YOLO mode:** Skip the prompt and auto-implement immediately.
    - **Normal mode:** Ask: `Ready to implement? (yes/no/edit)`
      - If `no`, stop and tell the user they can resume with `/implement <issueId>`.
      - If `edit`, incorporate the user guidance and re-present the task.
-     - If `yes`, implement the task following the approved spec.
+     - If `yes`, implement the task following the task description and existing code patterns.
 
 8. **Mark the task complete**
    - After implementation, summarize what changed.
@@ -107,14 +104,13 @@ Execute implementation tasks for an issue sequentially using the configured work
 
 ### Before coding
 
-- Confirm the spec is approved.
 - Confirm the active task is ready based on dependencies.
-- Read the relevant sections of `spec.filePath` before changing code.
+- Read relevant code context before changing anything.
 
 ### Task routing
 
 - Tasks involving tests or TDD: write failing tests first.
-- Tasks involving implementation: follow the spec design and existing code patterns.
+- Tasks involving implementation: follow existing code patterns.
 - Tasks involving integration or validation: verify behavior across boundaries, not just isolated units.
 
 ### Completion quality gate
@@ -130,15 +126,14 @@ Execute implementation tasks for an issue sequentially using the configured work
 
 - `/implement` should never query Taskwarrior directly.
 - Phase and task state changes must flow through `backend.updateTaskState()`.
-- Resumability comes from backend task states, not command-local memory.
+- Resumability comes from backend task states — the backend is the sole source of truth.
 - Use backend task dependency data to determine readiness.
 - Support optional command-time backend selection via `--backend=<type>`.
-- YOLO mode is read from the work item's `yolo` field in `feature-progress.json`,
-  set by `/feature --yolo`. When active, all prompts (ready to implement,
-  mark complete, phase review) are auto-approved.
+- YOLO mode is a session flag (`--yolo`) passed at invocation time. It is NOT
+  read from any local file. When active, all prompts are auto-approved.
 
 ## Notes
 
-- This command preserves the original resumable workflow, but the backend now owns state transitions.
-- Phase approval remains a human checkpoint after tests and commit hygiene.
+- This command preserves the original resumable workflow, but the backend now owns all state.
+- Phase approval remains a human checkpoint after tests and commit hygiene (unless `--yolo`).
 - Backend-specific inspection commands may still be suggested in user output, but not used as the command's core logic.

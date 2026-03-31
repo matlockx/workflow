@@ -7,9 +7,6 @@
 const {
   detectIntent,
   shouldSkipStep,
-  generateCheckpointSummary,
-  formatCheckpointPrompt,
-  getWorkflowRecommendation,
   INTENT_PATTERNS,
   SKIP_THRESHOLDS,
 } = require('../../lib/intent-router.js')
@@ -131,10 +128,10 @@ describe('detectIntent', () => {
 
   describe('explicit commands', () => {
     test('returns explicit type for slash commands', () => {
-      const result = detectIntent('/spec PROJ-123')
+      const result = detectIntent('/feature PROJ-123')
       expect(result.type).toBe('explicit')
       expect(result.confidence).toBe(1.0)
-      expect(result.command).toBe('/spec')
+      expect(result.command).toBe('/feature')
     })
 
     test('handles various slash commands', () => {
@@ -236,131 +233,6 @@ describe('shouldSkipStep', () => {
       })
       expect(result.suggest).toBe(false)
     })
-  })
-})
-
-describe('generateCheckpointSummary', () => {
-  test('generates spec summary with counts', () => {
-    const summary = generateCheckpointSummary('spec', {
-      requirementsCount: 3,
-      apiChanges: 2,
-      estimatedLOC: 150,
-      fileCount: 4,
-    })
-
-    expect(summary).toContain('Spec Summary')
-    expect(summary).toContain('3 requirements')
-    expect(summary).toContain('2 API changes')
-    expect(summary).toContain('150 LOC')
-    expect(summary).toContain('4 files')
-  })
-
-  test('generates task summary with phases', () => {
-    const summary = generateCheckpointSummary('tasks', {
-      phaseCount: 3,
-      taskCount: 8,
-      phases: [
-        { name: 'Setup', taskCount: 2 },
-        { name: 'Implementation', taskCount: 4 },
-        { name: 'Testing', taskCount: 2 },
-      ],
-    })
-
-    expect(summary).toContain('Task Summary')
-    expect(summary).toContain('3 phases')
-    expect(summary).toContain('8 tasks')
-    expect(summary).toContain('Setup')
-    expect(summary).toContain('Implementation')
-    expect(summary).toContain('Testing')
-  })
-
-  test('generates implement summary with progress', () => {
-    const summary = generateCheckpointSummary('implement', {
-      currentPhase: 'Phase 2: Implementation',
-      tasksCompleted: 3,
-      tasksTotal: 8,
-      filesChanged: 5,
-    })
-
-    expect(summary).toContain('Implementation Progress')
-    expect(summary).toContain('Phase 2')
-    expect(summary).toContain('3/8')
-    expect(summary).toContain('5')
-  })
-
-  test('handles missing data gracefully', () => {
-    const summary = generateCheckpointSummary('spec', {})
-    expect(summary).toContain('Spec Summary')
-    // Should not throw, just show what's available
-  })
-})
-
-describe('formatCheckpointPrompt', () => {
-  test('includes skip suggestion when suggested', () => {
-    const prompt = formatCheckpointPrompt('design-review', {
-      skipSuggested: true,
-      skipReason: 'Small change (~30 LOC)',
-    })
-
-    expect(prompt).toContain('Skip this step')
-    expect(prompt).toContain('30 LOC')
-  })
-
-  test('shows appropriate options for each stage', () => {
-    expect(formatCheckpointPrompt('requirements-review', {})).toContain('Design')
-    expect(formatCheckpointPrompt('design-review', {})).toContain('Tasks')
-    expect(formatCheckpointPrompt('tasks', {})).toContain('Implement')
-    expect(formatCheckpointPrompt('phase-review', {})).toContain('approve phase')
-  })
-})
-
-describe('getWorkflowRecommendation', () => {
-  test('returns full workflow for feature type', () => {
-    const intent = { type: 'feature', command: '/feature', confidence: 0.9 }
-    const rec = getWorkflowRecommendation(intent)
-
-    expect(rec.workflow).toBe('full')
-    expect(rec.steps).toContain('spec (requirements)')
-    expect(rec.steps).toContain('spec (design)')
-    expect(rec.steps).toContain('tasks')
-    expect(rec.steps).toContain('implement')
-  })
-
-  test('returns fix workflow for fix type', () => {
-    const intent = { type: 'fix', command: '/feature', confidence: 0.9 }
-    const rec = getWorkflowRecommendation(intent)
-
-    expect(rec.workflow).toBe('fix')
-    expect(rec.canSkip).toContain('spec (requirements)')
-  })
-
-  test('returns quick workflow for quick type', () => {
-    const intent = { type: 'quick', command: '/implement', confidence: 0.7 }
-    const rec = getWorkflowRecommendation(intent)
-
-    expect(rec.workflow).toBe('quick')
-    expect(rec.steps).toEqual(['implement', 'review'])
-  })
-
-  test('returns research workflow for research type', () => {
-    const intent = { type: 'research', command: '/feature', confidence: 0.8 }
-    const rec = getWorkflowRecommendation(intent)
-
-    expect(rec.workflow).toBe('research')
-    expect(rec.steps).toContain('research')
-    expect(rec.steps).toContain('decision')
-    expect(rec.agent).toBe('research-agent')
-  })
-
-  test('returns unknown for null intent', () => {
-    const rec = getWorkflowRecommendation(null)
-    expect(rec.workflow).toBe('unknown')
-    expect(rec.steps).toEqual([])
-  })
-
-  test('returns unknown for intent without type', () => {
-    const rec = getWorkflowRecommendation({ command: null, confidence: 0 })
-    expect(rec.workflow).toBe('unknown')
   })
 })
 

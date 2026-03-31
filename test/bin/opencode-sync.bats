@@ -77,20 +77,20 @@ teardown() {
 }
 
 @test "opencode-sync installs agents that were added after init" {
-  # opencode-init only copies 10 core agents
+  # opencode-init only copies 7 core agents
   # opencode-sync should add all remaining agents
-  
-  # Count agents before sync (should be 10 from init)
+
+  # Count agents before sync (should be 7 from init)
   before_count=$(ls -1 "$TEST_DIR/.agent/agents/"*.md 2>/dev/null | wc -l | tr -d ' ')
-  [ "$before_count" -eq 10 ]
-  
+  [ "$before_count" -eq 7 ]
+
   run "$OPENCODE_ROOT/bin/opencode-sync" "$TEST_DIR"
   [ "$status" -eq 0 ]
-  
-  # Count agents after sync (should be all 23)
+
+  # Count agents after sync (should be all from source)
   after_count=$(ls -1 "$TEST_DIR/.agent/agents/"*.md 2>/dev/null | wc -l | tr -d ' ')
   source_count=$(ls -1 "$OPENCODE_ROOT/agent/"*.md 2>/dev/null | wc -l | tr -d ' ')
-  
+
   [ "$after_count" -eq "$source_count" ]
 }
 
@@ -210,14 +210,15 @@ teardown() {
   [ "$status" -eq 0 ]
 }
 
-@test "opencode-sync preserves specs/ directory" {
-  # Create spec file
+@test "opencode-sync does not touch user specs/ directory" {
+  # Create a spec file manually (user-managed, not created by init)
+  mkdir -p "$TEST_DIR/specs"
   echo "# Test spec" > "$TEST_DIR/specs/test-spec.md"
-  
+
   run "$OPENCODE_ROOT/bin/opencode-sync" "$TEST_DIR"
   [ "$status" -eq 0 ]
-  
-  # Spec should be preserved
+
+  # User-created spec files should be untouched (sync never manages specs/)
   [ -f "$TEST_DIR/specs/test-spec.md" ]
 }
 
