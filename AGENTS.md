@@ -96,7 +96,23 @@ You will receive a prompt to execute a task. Once the task is finished provide a
 
 - **Clear commit messages**: Explain the _why_; link to issues/ADRs if architectural.
 - **Review AI-generated code**: Never merge code you don't understand.
-- NEVER push or do any ations on the remote branch.
+- NEVER push or do any actions on the remote branch.
+
+### Architecture Decision Records (ADRs)
+
+ADRs capture significant architectural choices so future contributors understand *why* the system is shaped the way it is.
+
+**Write an ADR when** the change involves any of:
+- A new architectural pattern or cross-cutting design decision
+- A significant deletion or replacement of a system component
+- A behavioral change that future contributors would otherwise have to reverse-engineer
+
+**Skip the ADR** only for purely mechanical changes (renaming, formatting, dependency bumps, doc-only edits, bug fixes with no design trade-off).
+
+**ADR location**: `docs/architecture/adr/ADR-NNN-<slug>.md`  
+**Template**: `docs/architecture/adr/TEMPLATE.md`
+
+ADRs must be committed in the **same commit** as the code they document.
 
 ---
 

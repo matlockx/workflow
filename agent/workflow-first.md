@@ -67,13 +67,26 @@ intervention; only stop when unsure or all checks pass.
    - Use the `code-reviewer` agent or apply the review checklist
    - Fix obvious issues (naming, error handling, security) automatically
 
-5. **PR size check** — Verify total diff is under ~500 LOC
+5. **Documentation & script check** *(hard gate)* — Verify all user-facing surfaces are up to date:
+   - **README / docs**: Does any changed behavior, CLI flag, config option, or file layout need a doc update? If yes → update before committing.
+   - **Helper / build scripts** (`bin/`, `Makefile`, `scripts/`, etc.): Do any scripts need updating to reflect the changes (new flags, removed commands, renamed files)? If yes → update.
+   - **AGENTS.md** (root + directory-specific): Do any workflow rules, glossary entries, or directory descriptions need updating? If yes → update.
+   - If unsure whether a doc update is needed → err on the side of updating.
+
+6. **ADR check** *(hard gate)* — Decide if an Architecture Decision Record is needed:
+   - **Write an ADR** when the change involves any of: a new architectural pattern, a significant deletion or replacement of a system component, a cross-cutting behavioral change, or a decision that future contributors would otherwise have to reverse-engineer.
+   - **Skip the ADR** only for purely mechanical changes (renaming, formatting, dependency bumps, doc-only edits, bug fixes with no design trade-off).
+   - When in doubt → write a short ADR. Short is better than missing.
+   - ADRs live in `docs/architecture/adr/ADR-NNN-<slug>.md`. Use the template at `docs/architecture/adr/TEMPLATE.md`.
+   - The ADR must be committed in the **same commit** as the code it documents.
+
+7. **PR size check** — Verify total diff is under ~500 LOC
    - If exceeds → warn user, suggest splitting into smaller PRs/features
    - This is a **hard gate** — PRs over 500 LOC should not proceed without user decision
 
-6. **Commit** — Commit with a Conventional Commit message
+8. **Commit** — Commit with a Conventional Commit message
 
-7. **Task closure** — Close the tracking task with a summary:
+9. **Task closure** — Close the tracking task with a summary:
    - **Beads backend**: `bd close <task-id> --reason "Summary of changes. Commit <hash>."`
    - Include what was accomplished and the commit hash for traceability
 
@@ -85,6 +98,8 @@ intervention; only stop when unsure or all checks pass.
 | Build fails | Auto-loop to implementation, fix immediately |
 | Tests fail | Auto-loop to implementation, fix immediately |
 | Code review issues (obvious) | Auto-fix in implementation |
+| Docs/scripts out of date | Auto-fix: update before committing |
+| ADR needed but missing | Auto-loop: write ADR, add to commit |
 | PR too large (>500 LOC) | Stop, present to user, suggest split strategy |
 | Unsure about any failure | Stop, ask user for guidance |
 | All checks pass | Present summary, proceed to commit |
@@ -99,6 +114,8 @@ When all checks pass, present a summary to the user:
 ✓ Build: passing
 ✓ Tests: 42 passing, 0 failing
 ✓ Code review: no issues
+✓ Docs/scripts: up to date
+✓ ADR: not needed (mechanical change) | ADR-004 written
 ✓ PR size: ~180 LOC (under limit)
 
 Ready to commit? [y/n]
@@ -107,6 +124,7 @@ Ready to commit? [y/n]
 If any checks required auto-fix loops, mention them:
 ```
 Note: Fixed 2 failing tests during review (see above).
+Note: Updated README usage section (new --flag added).
 ```
 
 ### Ambiguous Responses Require Clarification
@@ -242,6 +260,8 @@ Gates:
 1. Gate 1: Intent acknowledgment (confirm user wants to work on this)
 2. Gate 2: Implementation confirmation (confirm the plan before writing files)
 3. Gate 3: Ship (build + tests + commit + task closure — auto-loop on failures)
+   Steps: task-check → build → tests → code-review → docs/scripts → ADR → PR-size → commit → close
 
+Gate 3 doc/script check and ADR check are **hard gates** — they block commit if skipped.
 The intent detection is deliberately conservative — when unsure, ask rather than guess.
 This preserves user trust and prevents mis-routing.
