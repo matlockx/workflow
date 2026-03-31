@@ -9,10 +9,13 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:bash": "bats test/bin/",
-    "test:all": "npm run test && npm run test:bash"
+    "test:all": "npm run test && npm run test:bash",
+    "lint": "echo 'No linter configured yet'",
+    "prepare": "lefthook install"
   },
   "devDependencies": {
-    "jest": "^29.7.0"
+    "jest": "^29.7.0",
+    "lefthook": "^1.6.1"
   },
   "jest": {
     "testEnvironment": "node",

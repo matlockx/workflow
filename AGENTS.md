@@ -16,6 +16,7 @@ When unsure about implementation details, ALWAYS ask the developer.
 | G-3 | For changes >300 LOC or >3 files, **ask for confirmation**.                                                                                                                        | ❌ Refactor large modules without human guidance.                                                                                                     |
 | G-4 | Stay within the current task context. Inform the dev if it'd be better to start afresh.                                                                                            | ❌ Continue work from a prior prompt after "new task" – start a fresh session.                                                                        |
 | G-5 | **Update README/docs** whenever you change behavior, add features, or modify CLI flags.                                                                                            | ❌ Leave documentation out of sync with code changes.                                                                                                 |
+| G-6 | **Every code change MUST include tests.** Write tests first (TDD), or add tests alongside implementation. No test = no commit.                                                    | ❌ Commit code changes without corresponding test coverage. This is enforced by pre-commit hooks and cannot be bypassed.                              |
 
 ---
 
@@ -50,6 +51,22 @@ When committing changes, docs should be part of the **same commit** as the code 
 - **Lint:** `yarn lint`
 - **Test:** `yarn test`
 - **Run a single test file:** `yarn jest <path_to_test_file>`
+- **Run BATS tests:** `bats test/bin/*.bats`
+
+### Pre-commit Hooks (Enforced)
+
+This repo uses [lefthook](https://github.com/evilmartians/lefthook) for pre-commit hooks. These hooks **cannot be bypassed** by the AI -- they run at the git level before any commit succeeds.
+
+**What runs on every commit:**
+- `yarn lint` -- ESLint checks
+- `yarn test` -- Jest unit tests
+
+**What runs when relevant files change:**
+- `bats test/bin/*.bats` -- BATS integration tests (when bin/, command/, agent/, lib/, or test/bin/ files are staged)
+
+**Setup:** Run `lefthook install` after cloning (or `yarn prepare` which does this automatically).
+
+**NEVER use `--no-verify`** to skip these hooks. If tests fail, fix them before committing.
 
 ---
 

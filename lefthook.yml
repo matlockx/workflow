@@ -1,0 +1,26 @@
+# Lefthook pre-commit hooks configuration
+# https://github.com/evilmartians/lefthook
+#
+# AIDEV-NOTE: These hooks enforce G-6 (tests required) at the git level.
+# The LLM cannot bypass these -- they run before any commit succeeds.
+# If tests fail, the commit is rejected. Fix tests before committing.
+
+pre-commit:
+  parallel: false
+  commands:
+    lint:
+      glob: "*.{js,ts,jsx,tsx,mjs,cjs}"
+      run: yarn lint
+      stage_fixed: true
+
+    jest:
+      glob: "*.{js,ts,jsx,tsx,mjs,cjs}"
+      run: yarn test
+      fail_text: "Jest tests failed. Fix failing tests before committing."
+
+    # BATS tests only run when relevant files are staged
+    # This keeps commits fast when only editing docs or config
+    bats:
+      glob: "{bin/*,command/*.md,agent/*.md,lib/*.js,test/bin/*.bats}"
+      run: bats test/bin/*.bats
+      fail_text: "BATS integration tests failed. Fix failing tests before committing."
