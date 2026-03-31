@@ -268,9 +268,11 @@ When responding to user instructions, the AI assistant (Opencode, Claude, Cursor
     | "ok", "sure", "fine" | Ask: "Shall I begin writing files? [y/n]" |
     | "looks good" | Ask: "Ready to implement? [y/n]" |
 
-5b. **Gate 3 — Task Tracking**: Before writing files for non-trivial work (>30 LOC or multi-file), create a tracking task in the configured workflow backend. Read `.agent/config.json` to determine the backend, then create the task (e.g., `bd create "description" --json` for Beads). Skip only for trivial work (<30 LOC), explicit "don't track" requests, or when already working within a tracked issue.
+5b. **Gate 3 — Task Tracking**: Before writing any files, create a tracking task in the configured workflow backend. Read `.agent/config.json` to determine the backend, then create the task (e.g., `bd create "description" --json` for Beads). **Every change gets a task — no exceptions based on size.** Skip only when already working within an existing tracked issue, or user explicitly says "don't track".
 
 5c. **Gate 4 — Review/QA**: After implementation, verify the work before committing. Run build, tests, spec compliance check, and code review. **Auto-loop** on clear failures (build breaks, tests fail) — fix immediately without user intervention. Only consult user when unsure or when all checks pass. Verify PR size stays under ~500 LOC; if exceeded, stop and suggest splitting.
+
+    **Task existence is checked first** — if no task exists for this work, auto-loop: create one retroactively (`bd create "..." --json`), note the ID, then continue. No work is committed without a task ID.
 
 5d. **Gate 5 — Task Closure**: After committing work, close the tracking task with a summary. For Beads: `bd close <task-id> --reason "Summary. Commit <hash>."`. Include what was accomplished and the commit hash. Skip only when no task was created or work is incomplete.
 

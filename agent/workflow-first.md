@@ -45,9 +45,9 @@ When the user provides text after their confirmation, treat it as additional ins
 - `sure and run tests after` → proceed, run tests when done
 - `y don't forget to update the exports` → proceed, make sure exports are updated
 
-### Gate 3: Task Tracking (Non-Trivial Work)
+### Gate 3: Task Tracking (Every Change)
 
-**CRITICAL**: Before writing any files for non-trivial work (>30 LOC or multi-file), create a tracking task in the configured workflow backend.
+**CRITICAL**: Before writing any files, create a tracking task in the configured workflow backend. **Every change gets a task — no exceptions based on size.**
 
 1. Read `.agent/config.json` to determine the backend type
 2. Create a task to track this work:
@@ -57,11 +57,10 @@ When the user provides text after their confirmation, treat it as additional ins
 3. Note the task ID for reference in commits and summaries
 
 **Skip task creation only when**:
-- Work is trivial (<30 LOC, single file, typo/rename)
-- User explicitly says "don't track" or "quick fix"
-- Already working within an existing tracked task/issue
+- Already working within an existing tracked task/issue (task ID already recorded)
+- User explicitly says "don't track" for this specific change
 
-This ensures all meaningful work is captured in the workflow system for history and continuity.
+This ensures every piece of work — no matter how small — is captured in the workflow system for history and continuity.
 
 ### Gate 4: Review/QA (After Implementation)
 
@@ -69,21 +68,25 @@ After implementation is complete, verify the work before committing. This gate u
 
 #### Review Steps
 
-1. **Build check** — Compile/build the project
+1. **Task existence check** — Verify a tracking task exists in the backend for this work
+   - If missing → auto-loop: create the task retroactively (`bd create "..." --json`), note the ID, then continue
+   - This is a **hard requirement** — no work is committed without a task ID
+
+2. **Build check** — Compile/build the project
    - If fails → auto-loop back to implementation, fix the issue
    
-2. **Test check** — Run tests (use `/test` or project test command)
+3. **Test check** — Run tests (use `/test` or project test command)
    - If fails → auto-loop back to implementation, fix failing tests
    
-3. **Spec compliance** — If a spec exists for this work, verify requirements are met
+4. **Spec compliance** — If a spec exists for this work, verify requirements are met
    - Use the `spec-reviewer` agent or manually check acceptance criteria
    - If clear gaps → auto-loop back to implementation (or planning if design was wrong)
    
-4. **Code review** — Self-review the diff for quality issues
+5. **Code review** — Self-review the diff for quality issues
    - Use the `code-reviewer` agent or apply the review checklist
    - Fix obvious issues (naming, error handling, security) automatically
    
-5. **PR size check** — Verify total diff is under ~500 LOC
+6. **PR size check** — Verify total diff is under ~500 LOC
    - If exceeds → warn user, suggest splitting into smaller PRs/features
    - This is a **hard gate** — PRs over 500 LOC should not proceed without user decision
 
@@ -91,6 +94,7 @@ After implementation is complete, verify the work before committing. This gate u
 
 | Condition | Action |
 |-----------|--------|
+| No task exists | Auto-loop: create task retroactively (`bd create "..." --json`), note the ID, then continue |
 | Build fails | Auto-loop to implementation, fix immediately |
 | Tests fail | Auto-loop to implementation, fix immediately |
 | Spec gaps (clear) | Auto-loop to implementation or planning (agent decides based on whether it's a code issue or design issue) |
@@ -105,6 +109,7 @@ When all checks pass, present a summary to the user:
 
 ```
 ━━━ Review Complete ━━━
+✓ Task: opencode-xyz tracked
 ✓ Build: passing
 ✓ Tests: 42 passing, 0 failing
 ✓ Spec: 8/8 requirements met
@@ -134,7 +139,7 @@ After committing work, close the tracking task with a summary:
    - Any notable decisions or follow-ups
 
 **Skip task closure only when**:
-- No task was created (trivial work)
+- No task was created (user explicitly said "don't track")
 - Work is incomplete and will continue in the next session
 
 ### Ambiguous Responses Require Clarification
@@ -270,8 +275,8 @@ and post-confirmation orchestration. It combines:
 
 1. Gate 1: Intent acknowledgment (confirm user wants to work on this)
 2. Gate 2: Implementation confirmation (confirm the plan before writing files)
-3. Gate 3: Task tracking (create backend task for non-trivial work)
-4. Gate 4: Review/QA (auto-loop on failures, verify before commit)
+3. Gate 3: Task tracking (create backend task for EVERY change — no size exceptions)
+4. Gate 4: Review/QA (auto-loop on failures, task-existence check is step 0)
 5. Gate 5: Task closure (close task after commit with summary)
 6. Orchestration: Route to appropriate workflow based on intent and scope
 
