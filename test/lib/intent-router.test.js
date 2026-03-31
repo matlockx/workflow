@@ -77,8 +77,7 @@ describe('detectIntent', () => {
       "Let's plan the Q3 roadmap",
       'plan the new architecture',
       'brainstorm ideas for the redesign',
-      'explore options for the migration',
-      'research the best approach',
+      // Note: 'explore options' now matches research intent (more specific)
     ]
 
     test.each(planInputs)('detects plan intent from "%s"', (input) => {
@@ -86,6 +85,30 @@ describe('detectIntent', () => {
       expect(result.type).toBe('plan')
       expect(result.confidence).toBeGreaterThanOrEqual(0.7)
       expect(result.command).toBe('/plan')
+    })
+  })
+
+  describe('research intent', () => {
+    const researchInputs = [
+      'research how to implement OAuth',
+      'research the best approach',
+      'investigate whether we should use Redis',
+      'what are the options for caching',
+      'compare different database options',
+      'evaluate the trade-offs of microservices',
+      'should we use GraphQL or REST',
+      'which is better: Postgres or MySQL',
+      "what's the best way to handle authentication",
+      'is it possible to run this without Docker',
+      'pros and cons of serverless',
+      'explore options for the migration',
+    ]
+
+    test.each(researchInputs)('detects research intent from "%s"', (input) => {
+      const result = detectIntent(input)
+      expect(result.type).toBe('research')
+      expect(result.confidence).toBeGreaterThanOrEqual(0.75)
+      expect(result.command).toBe('/feature')
     })
   })
 
@@ -317,6 +340,16 @@ describe('getWorkflowRecommendation', () => {
 
     expect(rec.workflow).toBe('quick')
     expect(rec.steps).toEqual(['implement', 'review'])
+  })
+
+  test('returns research workflow for research type', () => {
+    const intent = { type: 'research', command: '/feature', confidence: 0.8 }
+    const rec = getWorkflowRecommendation(intent)
+
+    expect(rec.workflow).toBe('research')
+    expect(rec.steps).toContain('research')
+    expect(rec.steps).toContain('decision')
+    expect(rec.agent).toBe('research-agent')
   })
 
   test('returns unknown for null intent', () => {

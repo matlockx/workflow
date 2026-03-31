@@ -116,9 +116,10 @@ If `description` is set (no issue ID provided):
    [1] New feature (full spec → tasks → implement)
    [2] Bug fix (quick spec → implement)
    [3] Code review (analyze → optimize)
-   [4] Quick change (just implement)
+   [4] Research first (investigate options → then spec)
+   [5] Quick change (just implement)
 
-   Which workflow fits your needs? [1-4]
+   Which workflow fits your needs? [1-5]
    ```
 
    **Low confidence (<0.5):**
@@ -286,6 +287,93 @@ Example output:
 
 ---
 
+## Stage: research (optional)
+
+**Entry condition:** `item.stage === 'research'` (only entered when intent.type === 'research')
+
+Switch the active agent to **research-agent** for this stage.
+
+This stage produces a decision-grade research artifact before committing to a spec.
+Use it when the work involves technical decisions, vendor evaluation, architectural
+choices, or any situation where options need investigation.
+
+### research / pending
+
+1. Pause — unless YOLO mode, show:
+   ```
+   Starting research phase for ${issueId}
+
+   I'll investigate:
+   • Available options and approaches
+   • Trade-offs and constraints
+   • Risks and unknowns
+
+   [c]ontinue  [s]kip to spec  [q]uit
+   ```
+   In YOLO mode, proceed immediately.
+
+2. On **c** (or auto in YOLO): invoke the research-agent workflow:
+   - Clarify the decision being supported
+   - Decompose into research questions
+   - Produce a structured research note:
+
+   ```markdown
+   # Research Note: {topic}
+
+   ## Context
+   {background and why this decision matters}
+
+   ## Decision to Support
+   {what decision will this research enable}
+
+   ## Key Questions
+   - {question 1}
+   - {question 2}
+
+   ## Verified Facts
+   {with sources or explicit uncertainty markers}
+
+   ## Constraints & Non-Negotiables
+   {hard requirements that constrain options}
+
+   ## Option Space
+   | Option | Pros | Cons | Risk |
+   |--------|------|------|------|
+   | ... | ... | ... | ... |
+
+   ## Risks & Unknowns
+   {what we still don't know}
+
+   ## Recommendation
+   {if evidence supports one, otherwise "Needs more investigation"}
+
+   ## Follow-Up Research Tasks
+   - {if any gaps remain}
+   ```
+
+3. Save research note to `specs/{issueId}-research.md`
+4. Advance: `wf.advanceSubstage(issueId)` → `decision`.
+
+### research / decision
+
+1. Pause — show:
+   ```
+   Research complete. Please review the findings above.
+
+   [c]ontinue to Spec (with recommendation)
+   [r]evise research
+   [s]kip to spec (ignore research)
+   [q]uit
+   ```
+
+2. On **c**: proceed to spec stage with research context loaded.
+3. Advance:
+   ```js
+   wf.updateStage(issueId, 'spec', 'drafting')
+   ```
+
+---
+
 ## Stage: spec
 
 **Entry condition:** `item.stage === 'spec'` (skipped in quick mode)
@@ -314,11 +402,16 @@ Switch the active agent to **spec-mode** for this stage.
    Please review the requirements above.
    Are they accurate and complete?
 
-   [c]ontinue to Design  [s]kip  [m]odify  [a]uto-run  [q]uit
+   [c]ontinue to Design  [s]kip  [m]odify  [r]ewrite (polish)  [a]uto-run  [q]uit
    ```
    In YOLO mode, auto-approve requirements and proceed immediately.
-2. On **c/a** (or auto in YOLO): write the Design section of the spec.
-3. Advance: `wf.advanceSubstage(issueId)` → `design-review`.
+2. On **r** (rewrite): invoke the **rewrite-agent** to polish the requirements:
+   - Preserve meaning and technical accuracy
+   - Improve clarity, structure, and readability
+   - Fix grammar without changing intent
+   - After rewrite, return to this review stage
+3. On **c/a** (or auto in YOLO): write the Design section of the spec.
+4. Advance: `wf.advanceSubstage(issueId)` → `design-review`.
 
 ### spec / design-review
 
@@ -327,13 +420,18 @@ Switch the active agent to **spec-mode** for this stage.
    Please review the design above.
    Is it accurate and complete?
 
-   [c]ontinue to approval  [s]kip  [m]odify  [a]uto-run  [q]uit
+   [c]ontinue to approval  [s]kip  [m]odify  [r]ewrite (polish)  [a]uto-run  [q]uit
    ```
    In YOLO mode, auto-approve design and proceed immediately.
-2. On **c/a** (or auto in YOLO):
+2. On **r** (rewrite): invoke the **rewrite-agent** to polish the design section:
+   - Preserve technical decisions and architecture
+   - Improve clarity and readability
+   - Structure for easy scanning
+   - After rewrite, return to this review stage
+3. On **c/a** (or auto in YOLO):
    - Update spec frontmatter: `work_state: approved`, `approvedAt: <ISO8601>`.
    - Call `backend.approveSpec(spec.id)`.
-3. Advance: `wf.advanceSubstage(issueId)` → `approved`.
+4. Advance: `wf.advanceSubstage(issueId)` → `approved`.
 
 ### spec / approved
 
@@ -546,9 +644,11 @@ This command acts as a thin orchestrator. It does NOT implement spec writing,
 task decomposition, or coding itself — it delegates to the appropriate agent
 at each stage boundary:
 
-- `spec-mode`     → requirements & design authoring
-- `create-tasks`  → task breakdown
-- `build`         → implementation loop
+- `research-agent` → decision-grade research (optional, before spec)
+- `spec-mode`      → requirements & design authoring
+- `rewrite-agent`  → polish specs during review (on-demand via [r]ewrite)
+- `create-tasks`   → task breakdown
+- `build`          → implementation loop
 
 The spec file is the durable context shared between all agents. Feature progress state
 in `feature-progress.json` only tracks position (stage/substage/phase) and skip records.

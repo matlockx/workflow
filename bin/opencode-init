@@ -441,7 +441,9 @@ cp "$OPENCODE_ROOT/agent/test-agent.md"      "$TARGET_DIR/.agent/agents/"
 cp "$OPENCODE_ROOT/agent/code-reviewer.md"   "$TARGET_DIR/.agent/agents/"
 cp "$OPENCODE_ROOT/agent/workflow-first.md"  "$TARGET_DIR/.agent/agents/"
 cp "$OPENCODE_ROOT/agent/spec-reviewer.md"   "$TARGET_DIR/.agent/agents/"
-log_success "Copied core agents (8 files)"
+cp "$OPENCODE_ROOT/agent/research-agent.md"  "$TARGET_DIR/.agent/agents/"
+cp "$OPENCODE_ROOT/agent/rewrite-agent.md"   "$TARGET_DIR/.agent/agents/"
+log_success "Copied core agents (10 files)"
 
 # Copy all skills
 # AIDEV-NOTE: Skills are small markdown reference docs loaded on demand by the
