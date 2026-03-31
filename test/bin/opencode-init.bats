@@ -143,13 +143,13 @@ teardown() {
   [ -f "$TEST_DIR/.agent/agents/workflow-first.md" ]
 }
 
-@test "opencode-init copies 7 core agents" {
+@test "opencode-init copies 8 core agents" {
   run "$OPENCODE_ROOT/bin/opencode-init" --backend="$TEST_BACKEND" "$TEST_DIR"
   [ "$status" -eq 0 ]
   
-  # Count agents in target (should be exactly 7 core agents)
+  # Count agents in target (should be exactly 8 core agents)
   agent_count=$(ls -1 "$TEST_DIR/.agent/agents/"*.md 2>/dev/null | wc -l | tr -d ' ')
-  [ "$agent_count" -eq 7 ]
+  [ "$agent_count" -eq 8 ]
 }
 
 # =============================================================================

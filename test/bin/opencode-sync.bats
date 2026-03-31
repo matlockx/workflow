@@ -77,12 +77,12 @@ teardown() {
 }
 
 @test "opencode-sync installs agents that were added after init" {
-  # opencode-init only copies 7 core agents
+  # opencode-init only copies 8 core agents
   # opencode-sync should add all remaining agents
   
-  # Count agents before sync (should be 7 from init)
+  # Count agents before sync (should be 8 from init)
   before_count=$(ls -1 "$TEST_DIR/.agent/agents/"*.md 2>/dev/null | wc -l | tr -d ' ')
-  [ "$before_count" -eq 7 ]
+  [ "$before_count" -eq 8 ]
   
   run "$OPENCODE_ROOT/bin/opencode-sync" "$TEST_DIR"
   [ "$status" -eq 0 ]

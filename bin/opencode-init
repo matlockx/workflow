@@ -440,7 +440,8 @@ cp "$OPENCODE_ROOT/agent/build.md"           "$TARGET_DIR/.agent/agents/"
 cp "$OPENCODE_ROOT/agent/test-agent.md"      "$TARGET_DIR/.agent/agents/"
 cp "$OPENCODE_ROOT/agent/code-reviewer.md"   "$TARGET_DIR/.agent/agents/"
 cp "$OPENCODE_ROOT/agent/workflow-first.md"  "$TARGET_DIR/.agent/agents/"
-log_success "Copied core agents (7 files)"
+cp "$OPENCODE_ROOT/agent/spec-reviewer.md"   "$TARGET_DIR/.agent/agents/"
+log_success "Copied core agents (8 files)"
 
 # Copy all skills
 # AIDEV-NOTE: Skills are small markdown reference docs loaded on demand by the
@@ -603,7 +604,8 @@ cat > "$TARGET_DIR/opencode.json" <<'EOF'
 {
   "$schema": "https://opencode.ai/config.json",
   "instructions": [
-    "AGENTS.md"
+    "AGENTS.md",
+    ".agent/agents/workflow-first.md"
   ]
 }
 EOF
