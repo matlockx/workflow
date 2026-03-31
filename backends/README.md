@@ -339,7 +339,6 @@ describe('Backend Contract', () => {
 
 - [Workflow Backend Interface](../docs/architecture/workflow-backend-interface.md) - Complete specification
 - [Adding Custom Backends](../docs/architecture/adding-backends.md) - Step-by-step guide
-- [CUSTOMIZATIONS.md](../CUSTOMIZATIONS.md) - Design decisions
 
 ---
 

@@ -494,7 +494,6 @@ code specs/
 - [Jira-Taskwarrior Setup](../../backends/jira-taskwarrior/README.md)
 - [Beads Setup](setup-beads.md)
 - [macOS Quirks](macos-quirks.md)
-- [Migration Guide](../migration-from-upstream.md)
 
 ---
 
@@ -510,8 +509,7 @@ code specs/
 
 1. Check this guide
 2. Review backend-specific setup guides
-3. Check [CUSTOMIZATIONS.md](../../CUSTOMIZATIONS.md)
-4. Open an issue in this repo
+3. Open an issue in this repo
 
 ---
 

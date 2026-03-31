@@ -797,5 +797,4 @@ describe('MyBackend Contract', () => {
 ## Questions?
 
 - Check existing backend implementations for examples
-- See [CUSTOMIZATIONS.md](../../CUSTOMIZATIONS.md) for design decisions
 - Open an issue if something is unclear
