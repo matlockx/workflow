@@ -15,7 +15,7 @@ Before responding to ANY task request, follow this checklist:
 | <30 LOC, single file | `Quick fix (~{loc} LOC, {files} file). Proceed? [y/n/?]` |
 | <10 LOC (typo/rename) | `Trivial change. Proceed? [y/n]` |
 
-## CRITICAL: Two-Gate Confirmation System
+## CRITICAL: Five-Gate Workflow System
 
 ### Gate 1: Intent Acknowledgment (this checklist)
 
@@ -63,7 +63,63 @@ When the user provides text after their confirmation, treat it as additional ins
 
 This ensures all meaningful work is captured in the workflow system for history and continuity.
 
-### Gate 4: Task Closure (After Commit)
+### Gate 4: Review/QA (After Implementation)
+
+After implementation is complete, verify the work before committing. This gate uses an **auto-loop** — the agent automatically fixes clear failures without user intervention, only consulting the user when unsure or when presenting completion.
+
+#### Review Steps
+
+1. **Build check** — Compile/build the project
+   - If fails → auto-loop back to implementation, fix the issue
+   
+2. **Test check** — Run tests (use `/test` or project test command)
+   - If fails → auto-loop back to implementation, fix failing tests
+   
+3. **Spec compliance** — If a spec exists for this work, verify requirements are met
+   - Use the `spec-reviewer` agent or manually check acceptance criteria
+   - If clear gaps → auto-loop back to implementation (or planning if design was wrong)
+   
+4. **Code review** — Self-review the diff for quality issues
+   - Use the `code-reviewer` agent or apply the review checklist
+   - Fix obvious issues (naming, error handling, security) automatically
+   
+5. **PR size check** — Verify total diff is under ~500 LOC
+   - If exceeds → warn user, suggest splitting into smaller PRs/features
+   - This is a **hard gate** — PRs over 500 LOC should not proceed without user decision
+
+#### Auto-Loop Rules
+
+| Condition | Action |
+|-----------|--------|
+| Build fails | Auto-loop to implementation, fix immediately |
+| Tests fail | Auto-loop to implementation, fix immediately |
+| Spec gaps (clear) | Auto-loop to implementation or planning (agent decides based on whether it's a code issue or design issue) |
+| Code review issues (obvious) | Auto-fix in implementation |
+| PR too large (>500 LOC) | Stop, present to user, suggest split strategy |
+| Unsure about any failure | Stop, ask user for guidance |
+| All checks pass | Present summary, proceed to user approval |
+
+#### Completion Summary
+
+When all checks pass, present a summary to the user:
+
+```
+━━━ Review Complete ━━━
+✓ Build: passing
+✓ Tests: 42 passing, 0 failing
+✓ Spec: 8/8 requirements met
+✓ Code review: no issues
+✓ PR size: ~180 LOC (under limit)
+
+Ready to commit? [y/n]
+```
+
+If any checks required auto-fix loops, mention them:
+```
+Note: Fixed 2 failing tests during review (see above).
+```
+
+### Gate 5: Task Closure (After Commit)
 
 After committing work, close the tracking task with a summary:
 
@@ -209,14 +265,15 @@ Agent: Fixed "Sing In" → "Sign In" in src/components/LoginButton.tsx:23
 
 ## AIDEV-NOTE: Unified workflow-first behavior
 
-This file enforces workflow-first behavior with a four-gate confirmation system
+This file enforces workflow-first behavior with a five-gate confirmation system
 and post-confirmation orchestration. It combines:
 
 1. Gate 1: Intent acknowledgment (confirm user wants to work on this)
 2. Gate 2: Implementation confirmation (confirm the plan before writing files)
 3. Gate 3: Task tracking (create backend task for non-trivial work)
-4. Gate 4: Task closure (close task after commit with summary)
-5. Orchestration: Route to appropriate workflow based on intent and scope
+4. Gate 4: Review/QA (auto-loop on failures, verify before commit)
+5. Gate 5: Task closure (close task after commit with summary)
+6. Orchestration: Route to appropriate workflow based on intent and scope
 
 The intent detection is deliberately conservative — when unsure, ask rather than guess.
 This preserves user trust and prevents mis-routing.
