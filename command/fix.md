@@ -1,7 +1,6 @@
 ---
 description: Alias for /feature --type=fix — drive a bug fix through the full lifecycle
-agent: spec-mode
-mode: plan
+agent: build
 ---
 
 # /fix — Bug fix lifecycle alias

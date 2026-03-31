@@ -537,13 +537,39 @@ fi
 log_info "Syncing lib..."
 # Copy all JS files from lib/ (excludes non-workflow data files like go-modernizers.json)
 UPDATED_LIB=0
+if [[ -z "$DRY_RUN" ]]; then
+  mkdir -p "$TARGET_DIR/.agent/lib"
+fi
 for lib_src in "$OPENCODE_ROOT/lib/"*.js; do
   [[ -f "$lib_src" ]] || continue
   fname="$(basename "$lib_src")"
   sync_file "$lib_src" "$TARGET_DIR/.agent/lib/$fname"
   UPDATED_LIB=$((UPDATED_LIB + 1))
 done
-log_success "Lib synced: $UPDATED_LIB JS files"
+
+# AIDEV-NOTE: Remove stale lib files that no longer exist in the source repo.
+# This prevents ghost files (e.g. workflow-state.js deleted in ADR-001 cleanup)
+# from lingering in installed projects after an opencode-sync.
+REMOVED_LIB=0
+for installed_lib in "$TARGET_DIR/.agent/lib/"*.js; do
+  [[ -f "$installed_lib" ]] || continue
+  lib_name="$(basename "$installed_lib")"
+  if [[ ! -f "$OPENCODE_ROOT/lib/$lib_name" ]]; then
+    if [[ -n "$DRY_RUN" ]]; then
+      log_verbose "would remove stale lib file: $lib_name"
+    else
+      rm "$installed_lib"
+      log_verbose "removed stale lib file: $lib_name"
+    fi
+    REMOVED_LIB=$((REMOVED_LIB + 1))
+  fi
+done
+
+if [[ "$REMOVED_LIB" -gt 0 ]]; then
+  log_success "Lib synced: $UPDATED_LIB JS files ($REMOVED_LIB stale removed)"
+else
+  log_success "Lib synced: $UPDATED_LIB JS files"
+fi
 
 # ============================================
 # Sync Backend

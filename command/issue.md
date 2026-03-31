@@ -1,12 +1,11 @@
 ---
-description: Create a new issue and start writing a spec
-agent: spec-mode
-mode: plan
+description: Create a new issue and hand off to /createtasks
+agent: build
 ---
 
-# Create issue and start spec
+# Create issue
 
-Create a new issue in the configured workflow backend and immediately begin the spec workflow.
+Create a new issue in the configured workflow backend and immediately hand off to the `/createtasks` workflow.
 
 ## Input
 
@@ -44,22 +43,15 @@ Create a new issue in the configured workflow backend and immediately begin the 
      - Suggest checking backend configuration or connectivity.
      - Stop.
 
-4. **Store the issue ID and continue with spec workflow**
+4. **Hand off to /createtasks**
    - Set `issueId = issue.id`.
    - Report:
      ```
-     Starting spec workflow for {issueId}...
+     Issue {issueId} created. Starting task creation...
      ```
-
-5. **Continue with /spec workflow (steps 3-10)**
-   - From here, follow the exact workflow defined in `/spec`:
-     - Call `backend.getSpec(issueId)` to check for existing spec.
-     - If no spec exists, call `backend.createSpec(issueId)`.
-     - Write the spec document with Requirements and Design sections.
-     - Follow step-by-step planning mode:
-       - Draft Requirements first, pause for review.
-       - Draft Design after approval, pause for review.
-       - Mark spec as approved when user confirms.
+   - Follow the complete `/createtasks` workflow for `issueId`.
+   - This will prompt the user to describe the implementation tasks,
+     create them in the backend, and display the task list.
 
 ## Example Session
 
