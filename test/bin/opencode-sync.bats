@@ -9,8 +9,8 @@
 BATS_TEST_DIRNAME="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
 OPENCODE_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
 
-# Use 'file' backend for tests - it requires no external tools
-TEST_BACKEND="file"
+# Use 'mock' backend for tests - it requires no external tools
+TEST_BACKEND="mock"
 
 setup() {
   # Create a temporary directory for each test
@@ -77,12 +77,12 @@ teardown() {
 }
 
 @test "opencode-sync installs agents that were added after init" {
-  # opencode-init only copies 8 core agents
+  # opencode-init only copies 7 core agents
   # opencode-sync should add all remaining agents
   
-  # Count agents before sync (should be 8 from init)
+  # Count agents before sync (should be 7 from init)
   before_count=$(ls -1 "$TEST_DIR/.agent/agents/"*.md 2>/dev/null | wc -l | tr -d ' ')
-  [ "$before_count" -eq 8 ]
+  [ "$before_count" -eq 7 ]
   
   run "$OPENCODE_ROOT/bin/opencode-sync" "$TEST_DIR"
   [ "$status" -eq 0 ]
@@ -151,8 +151,8 @@ teardown() {
 # =============================================================================
 
 @test "opencode-sync preserves .agent/config.json" {
-  # Add custom content to config
-  echo '{"type":"file","custom":"value"}' > "$TEST_DIR/.agent/config.json"
+  # Add custom content to config (must use valid backend type)
+  echo '{"backend":{"type":"mock"},"custom":"value"}' > "$TEST_DIR/.agent/config.json"
   
   run "$OPENCODE_ROOT/bin/opencode-sync" "$TEST_DIR"
   [ "$status" -eq 0 ]
