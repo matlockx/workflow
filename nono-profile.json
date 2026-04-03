@@ -1,0 +1,17 @@
+{
+  "meta": {
+    "name": "opencode-dev",
+    "version": "1.0.0",
+    "description": "Project-local nono profile for opencode. Extends the built-in opencode profile with the minimum set of binaries required by pre-commit hooks (lefthook, jest, bats) and the beads workflow backend (bd)."
+  },
+  "extends": "opencode",
+  "filesystem": {
+    "allow_file": [
+      "$HOME/.gitconfig",
+      "/opt/homebrew/bin/git",
+      "/opt/homebrew/bin/node",
+      "/opt/homebrew/bin/bats",
+      "/opt/homebrew/bin/bd"
+    ]
+  }
+}
