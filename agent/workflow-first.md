@@ -62,8 +62,11 @@ intervention; only stop when unsure or all checks pass.
 2. **Build check** — Compile/build the project
    - If fails → auto-loop back to implementation, fix immediately
 
-3. **Test check** — Run tests (use `/test` or project test command)
-   - If fails → auto-loop back to implementation, fix failing tests
+3. **Test check** *(hard gate)* — Verify tests exist AND pass
+   - **First: check for test coverage** — Does the changed code have corresponding tests? Look for test files (`*_test.py`, `*.test.ts`, `*_test.go`, `test_*.py`, `*.spec.*`, etc.) covering the changed logic.
+   - **If no tests exist** → auto-loop back to implementation: **write tests before proceeding**. This is non-negotiable (see G-6 in AGENTS.md). Do not skip, do not continue, do not ask the user — just write the tests.
+   - **If tests exist but fail** → auto-loop back to implementation, fix failing tests
+   - Only continue to the next step once tests both exist and pass
 
 4. **Code review** — Self-review the diff for quality issues
    - Use the `code-reviewer` agent or apply the review checklist
@@ -99,6 +102,7 @@ intervention; only stop when unsure or all checks pass.
 | No task exists | Auto-loop: create task retroactively (`bd create "..." --json`), note the ID, then continue |
 | Task has no description | Auto-loop: add description via `bd edit <id> --notes "..."` before continuing |
 | Build fails | Auto-loop to implementation, fix immediately |
+| **No tests exist for changed code** | **Auto-loop to implementation: write tests immediately — this is a hard block, no exceptions** |
 | Tests fail | Auto-loop to implementation, fix immediately |
 | Code review issues (obvious) | Auto-fix in implementation |
 | Docs/scripts out of date | Auto-fix: update before committing |
@@ -266,5 +270,6 @@ Gates:
    Steps: task-check → build → tests → code-review → docs/scripts → ADR → PR-size → commit → close
 
 Gate 3 doc/script check and ADR check are **hard gates** — they block commit if skipped.
+The test check is also a **hard gate** — missing tests are treated the same as failing tests: auto-loop to write them first, no exceptions.
 The intent detection is deliberately conservative — when unsure, ask rather than guess.
 This preserves user trust and prevents mis-routing.
