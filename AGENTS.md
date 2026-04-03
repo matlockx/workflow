@@ -17,6 +17,7 @@ When unsure about implementation details, ALWAYS ask the developer.
 | G-4 | Stay within the current task context. Inform the dev if it'd be better to start afresh.                                                                                            | ❌ Continue work from a prior prompt after "new task" – start a fresh session.                                                                        |
 | G-5 | **Update README/docs** whenever you change behavior, add features, or modify CLI flags.                                                                                            | ❌ Leave documentation out of sync with code changes.                                                                                                 |
 | G-6 | **Every code change MUST include tests.** Write tests first (TDD), or add tests alongside implementation. No test = no commit.                                                    | ❌ Commit code changes without corresponding test coverage. This is enforced by pre-commit hooks and cannot be bypassed.                              |
+| G-7 | **Every task MUST have a self-contained description** in the backend before work begins or is committed. The description must include: what the work entails, acceptance criteria or findings, and any links/references needed to execute it without session context. | ❌ Create or close a task with only a title. A title-only task is not actionable and leaves future sessions without context. |
 
 ---
 

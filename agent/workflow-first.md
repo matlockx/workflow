@@ -53,9 +53,11 @@ intervention; only stop when unsure or all checks pass.
 
 #### Steps
 
-1. **Task existence check** — Verify a tracking task exists in the backend for this work
+1. **Task existence + detail check** — Verify a tracking task exists in the backend for this work AND has a meaningful description
    - If missing → auto-loop: create the task retroactively (`bd create "..." --json`), note the ID, then continue
-   - This is a **hard requirement** — no work is committed without a task ID
+   - If the task title is the only content (no body/notes describing *what* needs to be done and *why*) → auto-loop: add a description via `bd edit <id> --notes "..."` before continuing
+   - The description must include: what the work entails, any acceptance criteria or findings, and links/references needed to execute it without context from the current session
+   - This is a **hard requirement** — no work is committed without a task ID **and a self-contained description**
 
 2. **Build check** — Compile/build the project
    - If fails → auto-loop back to implementation, fix immediately
@@ -95,6 +97,7 @@ intervention; only stop when unsure or all checks pass.
 | Condition | Action |
 |-----------|--------|
 | No task exists | Auto-loop: create task retroactively (`bd create "..." --json`), note the ID, then continue |
+| Task has no description | Auto-loop: add description via `bd edit <id> --notes "..."` before continuing |
 | Build fails | Auto-loop to implementation, fix immediately |
 | Tests fail | Auto-loop to implementation, fix immediately |
 | Code review issues (obvious) | Auto-fix in implementation |
