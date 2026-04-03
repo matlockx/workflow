@@ -8,7 +8,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "test:bash": "bats test/bin/",
+    "test:bash": "bin/run-bats test/bin/*.bats",
     "test:all": "npm run test && npm run test:bash",
     "lint": "eslint . --ext .js",
     "prepare": "lefthook install"

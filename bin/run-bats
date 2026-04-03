@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# bin/run-bats — wrapper around bats that guarantees full process-group cleanup
+# on interrupt or termination.
+#
+# AIDEV-NOTE: Without this wrapper, interrupted git commits (Ctrl-C, terminal
+# close, timeout) leave orphaned bats/bash subprocesses. bats spawns children
+# in the same process group as its parent and does not propagate signals to them.
+#
+# This script fixes that by:
+#   1. Enabling job-control mode (set -m) so bash assigns each background job
+#      its own process group (PGID == child PID). This makes kill -- "-$PID"
+#      kill the entire bats process tree, not just the top-level bats process.
+#   2. Registering an EXIT trap so cleanup fires on any exit path — Ctrl-C,
+#      SIGTERM, set -e abort, or normal completion where bats is somehow still
+#      alive.
+#   3. Setting the exit code correctly for SIGINT (130) and SIGTERM (143) so
+#      lefthook still reports the pre-commit hook as failed.
+#
+# Usage (same as bats):
+#   bin/run-bats test/bin/*.bats
+
+set -euo pipefail
+
+# Guard: fail fast with a clear message if bats is not installed.
+if ! command -v bats &>/dev/null; then
+  echo "run-bats: 'bats' not found in PATH" >&2
+  exit 1
+fi
+
+# AIDEV-NOTE: job-control mode (set -m) is the critical ingredient.
+# Without it, background jobs in a non-interactive script share the parent's
+# PGID, so kill -- "-$BATS_PID" would target a nonexistent process group.
+# With set -m, bash assigns PGID == PID for every backgrounded job.
+set -m
+bats "$@" &
+BATS_PID=$!
+set +m
+
+# AIDEV-NOTE: EXIT trap fires on every exit path: normal completion, set -e
+# abort, Ctrl-C, and SIGTERM. It is intentionally idempotent — kill -0 checks
+# whether the process is still alive before trying to kill it.
+cleanup() {
+  if kill -0 "$BATS_PID" 2>/dev/null; then
+    # Kill the process group rooted at BATS_PID (negative PID = process group).
+    kill -s TERM -- "-$BATS_PID" 2>/dev/null || true
+    # Give processes a moment to exit cleanly before force-killing.
+    sleep 0.2
+    kill -s KILL -- "-$BATS_PID" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT
+
+# Set correct exit codes for signals so the caller (lefthook) sees failure.
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM
+
+# Wait for bats to finish; propagate its exit code to the caller.
+wait "$BATS_PID"
