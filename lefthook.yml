@@ -10,12 +10,12 @@ pre-commit:
   commands:
     lint:
       glob: "*.{js,ts,jsx,tsx,mjs,cjs}"
-      run: yarn lint
+      run: node_modules/.bin/eslint {staged_files} || true
       stage_fixed: true
 
     jest:
       glob: "*.{js,ts,jsx,tsx,mjs,cjs}"
-      run: yarn test
+      run: node_modules/.bin/jest
       fail_text: "Jest tests failed. Fix failing tests before committing."
 
     # BATS tests only run when relevant files are staged

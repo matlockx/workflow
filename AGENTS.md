@@ -48,10 +48,10 @@ When committing changes, docs should be part of the **same commit** as the code 
 
 ## Build & Test Commands
 
-- **Build:** `yarn build`
-- **Lint:** `yarn lint`
-- **Test:** `yarn test`
-- **Run a single test file:** `yarn jest <path_to_test_file>`
+- **Build:** `npm run build`
+- **Lint:** `npm run lint`
+- **Test:** `npm test`
+- **Run a single test file:** `npx jest <path_to_test_file>`
 - **Run BATS tests:** `bats test/bin/*.bats`
 
 ### Pre-commit Hooks (Enforced)
@@ -59,13 +59,13 @@ When committing changes, docs should be part of the **same commit** as the code 
 This repo uses [lefthook](https://github.com/evilmartians/lefthook) for pre-commit hooks. These hooks **cannot be bypassed** by the AI -- they run at the git level before any commit succeeds.
 
 **What runs on every commit:**
-- `yarn lint` -- ESLint checks
-- `yarn test` -- Jest unit tests
+- `node_modules/.bin/eslint` -- ESLint checks
+- `node_modules/.bin/jest` -- Jest unit tests
 
 **What runs when relevant files change:**
 - `bats test/bin/*.bats` -- BATS integration tests (when bin/, command/, agent/, lib/, or test/bin/ files are staged)
 
-**Setup:** Run `lefthook install` after cloning (or `yarn prepare` which does this automatically).
+**Setup:** Run `lefthook install` after cloning (or `npm run prepare` which does this automatically).
 
 **NEVER use `--no-verify`** to skip these hooks. If tests fail, fix them before committing.
 

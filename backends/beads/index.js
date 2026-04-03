@@ -23,7 +23,6 @@ class BeadsBackend {
       workspaceDir: projectRoot,
       beadsDir: config.beadsDir || process.env.BEADS_DIR,
       homeDir: config.homeDir || process.env.HOME,
-      specsDir: config.specsDir || path.join(projectRoot, 'specs'),
       repository: config.repository || path.basename(projectRoot),
       defaultAssignee: config.defaultAssignee,
       ...config
@@ -235,11 +234,6 @@ class BeadsBackend {
         error
       )
     }
-  }
-
-  _buildSpecPath(issue) {
-    const fileName = `${issue.id}__${this._slugify(issue.summary)}.md`
-    return path.join(this.config.specsDir, fileName)
   }
 
   async listIssues(filter = {}) {

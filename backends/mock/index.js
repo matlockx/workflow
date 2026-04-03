@@ -4,14 +4,15 @@
  * A simple in-memory implementation of the WorkflowBackend interface.
  * Useful for testing, development, and as a reference implementation.
  * 
+ * AIDEV-NOTE: The spec stage was removed in ADR-001 (Tier 3 rebuild).
+ * This backend implements the post-spec pipeline: issue → tasks → implement.
+ * createTasks(issueId) takes an issueId directly, with no spec required.
+ * 
  * WARNING: All data is stored in memory and lost when process exits.
  * Do NOT use in production.
  * 
  * @module backends/mock
  */
-
-const fs = require('fs').promises
-const path = require('path')
 
 // ============================================
 // MOCK BACKEND IMPLEMENTATION
@@ -20,20 +21,16 @@ const path = require('path')
 class MockBackend {
   constructor(config = {}) {
     this.config = {
-      specsDir: config.specsDir || './specs',
-      autoGenerateSpecs: config.autoGenerateSpecs !== false,
       initialIssues: config.initialIssues || [],
       ...config
     }
     
     // In-memory storage
     this.issues = new Map()
-    this.specs = new Map()
     this.tasks = new Map()
     
     // Counters for ID generation
     this.issueCounter = 1
-    this.specCounter = 1
     this.taskCounter = 1
     
     // Initialize with sample data if provided
@@ -149,115 +146,15 @@ class MockBackend {
   }
   
   // ============================================
-  // SPEC MANAGEMENT
-  // ============================================
-  
-  async createSpec(issueId) {
-    // Get parent issue
-    const issue = await this.getIssue(issueId)
-    
-    // Generate spec ID and file path
-    const specId = `SPEC-${issueId}`
-    const slug = this._slugify(issue.summary)
-    const fileName = `${issueId}__${slug}.md`
-    
-    const specPath = path.join(this.config.specsDir, fileName)
-    
-    // Create spec directory if needed
-    await fs.mkdir(this.config.specsDir, { recursive: true })
-    
-    // Generate spec content
-    const content = this._generateSpecContent(issue)
-    
-    // Write spec file
-    await fs.writeFile(specPath, content, 'utf8')
-    
-    // Create spec entry
-    const spec = {
-      id: specId,
-      issueId: issueId,
-      filePath: specPath,
-      state: 'draft',
-      createdAt: new Date(),
-      metadata: {}
-    }
-    
-    this.specs.set(specId, spec)
-    return spec
-  }
-  
-  async getSpec(issueId) {
-    const specId = `SPEC-${issueId}`
-    const spec = this.specs.get(specId)
-    
-    if (!spec) {
-      throw this._createError('NOT_FOUND', `Spec for issue ${issueId} not found`)
-    }
-    
-    return spec
-  }
-  
-  async approveSpec(specId) {
-    const spec = this.specs.get(specId)
-    
-    if (!spec) {
-      throw this._createError('NOT_FOUND', `Spec ${specId} not found`)
-    }
-    
-    // Validate transition
-    if (spec.state !== 'draft' && spec.state !== 'rejected') {
-      throw this._createError(
-        'INVALID_TRANSITION',
-        `Cannot approve spec in state ${spec.state}`
-      )
-    }
-    
-    spec.state = 'approved'
-    spec.approvedAt = new Date()
-    
-    this.specs.set(specId, spec)
-    return spec
-  }
-  
-  async rejectSpec(specId, reason) {
-    const spec = this.specs.get(specId)
-    
-    if (!spec) {
-      throw this._createError('NOT_FOUND', `Spec ${specId} not found`)
-    }
-    
-    spec.state = 'rejected'
-    if (reason) {
-      spec.metadata.rejectionReason = reason
-    }
-    
-    this.specs.set(specId, spec)
-    return spec
-  }
-  
-  // ============================================
   // TASK MANAGEMENT
   // ============================================
-  
-  async createTasks(specId) {
-    const spec = this.specs.get(specId)
+
+  // AIDEV-NOTE: createTasks(issueId) — spec stage removed per ADR-001.
+  // Tasks are created directly from an issue; no spec approval gate needed.
+  async createTasks(issueId) {
+    const issue = await this.getIssue(issueId)
     
-    if (!spec) {
-      throw this._createError('NOT_FOUND', `Spec ${specId} not found`)
-    }
-    
-    if (spec.state !== 'approved') {
-      throw this._createError(
-        'INVALID_STATE',
-        `Cannot create tasks from spec in state ${spec.state}. Spec must be approved first.`
-      )
-    }
-    
-    // Read and parse spec file
-    const specContent = await fs.readFile(spec.filePath, 'utf8')
-    
-    // Generate tasks from spec (simplified)
-    const tasks = this._generateTasksFromSpec(spec, specContent)
+    const tasks = this._generateTasksForIssue(issue)
     
     // Store tasks
     for (const task of tasks) {
@@ -273,10 +170,6 @@ class MockBackend {
     // Apply filters
     if (filter.issueId) {
       tasks = tasks.filter(t => t.issueId === filter.issueId)
-    }
-    
-    if (filter.specId) {
-      tasks = tasks.filter(t => t.specId === filter.specId)
     }
     
     if (filter.state) {
@@ -411,62 +304,14 @@ class MockBackend {
       .substring(0, 50)
   }
   
-  _generateSpecContent(issue) {
-    const now = new Date().toISOString()
-    
-    return `---
-createdAt: ${now}
-work_state: draft
----
-
-# ${issue.summary}
-
-## Requirements
-
-### User Story 1
-
-**Story**: ${issue.description}
-
-**Acceptance Criteria**:
-- Functionality works as described
-- Code is tested
-- Documentation is updated
-
-## Design
-
-### Components
-
-- Main component for feature implementation
-
-### Files
-
-#### New
-- \`src/${this._slugify(issue.summary)}.ts\` - Main implementation
-
-#### Modified
-- (To be determined during implementation)
-
-### Testing Strategy
-
-- Unit tests for core functionality
-- Integration tests for workflow
-- E2E tests for user-facing features
-
-### Implementation Notes
-
-(Auto-generated spec from mock backend. Update as needed.)
-`
-  }
-  
-  _generateTasksFromSpec(spec, specContent) {
+  _generateTasksForIssue(issue) {
     const tasks = []
     
     // Create a phase task
     const phaseTask = {
       id: `TASK-${this.taskCounter++}`,
-      description: `Phase 1: Implement ${spec.issueId}`,
-      specId: spec.id,
-      issueId: spec.issueId,
+      description: `Phase 1: Implement ${issue.id}`,
+      issueId: issue.id,
       state: 'todo',
       tags: ['impl', 'phase'],
       isPhase: true,
@@ -490,8 +335,7 @@ work_state: draft
       const task = {
         id: `TASK-${this.taskCounter++}`,
         description: taskDef.description,
-        specId: spec.id,
-        issueId: spec.issueId,
+        issueId: issue.id,
         state: 'todo',
         tags: ['impl'],
         isPhase: false,
