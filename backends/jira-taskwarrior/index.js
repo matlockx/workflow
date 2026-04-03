@@ -11,6 +11,7 @@
 
 const { exec } = require('child_process')
 const { promisify } = require('util')
+const fs = require('fs')
 const path = require('path')
 const os = require('os')
 
@@ -188,7 +189,7 @@ class JiraTaskwarriorBackend {
   async _task(args, options = {}) {
     try {
       const cmd = `task ${args}`
-      const { stdout, stderr } = await execAsync(cmd, {
+      const { stdout, _stderr } = await execAsync(cmd, {
         env: {
           ...process.env,
           TASKRC: this.config.taskrcPath,
@@ -843,7 +844,10 @@ class JiraTaskwarriorBackend {
   
   async updateTask(taskId, updates) {
     try {
-      const task = await this.getTask(taskId)
+      // AIDEV-NOTE: getTask is called to validate the task exists before modifying.
+      // The returned value is intentionally unused — we only care about the side-effect
+      // of throwing NOT_FOUND if the task does not exist.
+      const _task = await this.getTask(taskId)
       
       const modifyParts = []
       

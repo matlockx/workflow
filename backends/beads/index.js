@@ -301,7 +301,9 @@ class BeadsBackend {
   // has been removed. Tasks are created directly from the issue.
   async createTasks(issueId) {
     await this._ensureWorkspace()
-    const issue = await this.getIssue(issueId)
+    // AIDEV-NOTE: getIssue validates the issue exists (throws NOT_FOUND if absent).
+    // The returned value is intentionally unused here.
+    const _issue = await this.getIssue(issueId)
 
     const created = []
     const phase = await this.createIssue({

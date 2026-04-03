@@ -10,7 +10,7 @@ module.exports = {
     ecmaVersion: 2020,
   },
   rules: {
-    'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+    'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     'no-undef': 'error',
     'no-console': 'off',
   },
@@ -18,5 +18,14 @@ module.exports = {
     'node_modules/',
     'coverage/',
     '*.md',
+  ],
+  overrides: [
+    {
+      // Jest test files — add jest globals so ESLint knows describe/test/expect etc.
+      files: ['**/*.test.js', 'test/**/*.js', 'backends/**/*test*.js'],
+      env: {
+        jest: true,
+      },
+    },
   ],
 }

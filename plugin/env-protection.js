@@ -1,7 +1,9 @@
 // AIDEV-NOTE: This file must use CommonJS (module.exports) — the project is
 // a CJS package (no "type": "module" in package.json). Using ESM `export`
 // syntax here would cause a SyntaxError at require() time (CRITICAL-4 fix).
-const EnvProtection = async ({ client, $ }) => {
+// AIDEV-NOTE: `_client` and `_$` are unused but must be present to match the
+// plugin signature expected by the plugin loader.
+const EnvProtection = async ({ client: _client, $: _$ }) => {
   return {
     tool: {
       execute: {
