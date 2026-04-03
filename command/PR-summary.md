@@ -1,5 +1,5 @@
 ---
-description: "write a detailed pr descirption inf github markdown"
+description: "write a detailed pr description in github markdown"
 model: github-copilot/claude-sonnet-4.5
 temperature: 0.1
 agent: general

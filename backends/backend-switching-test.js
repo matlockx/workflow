@@ -93,20 +93,26 @@ const repoRoot = path.resolve(__dirname, '..')
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencode-backend-switching-'))
 
 /**
- * Write a minimal opencode.json into a temp subdirectory and return that dir.
- * We symlink backends/ from repoRoot so the loader can resolve backend paths.
+ * Write a minimal .agent/config.json into a temp subdirectory and return that dir.
+ * We symlink .agent/backends/ → repoRoot/backends so the loader can resolve paths.
+ *
+ * AIDEV-NOTE: backend-loader.js reads from .agent/config.json (key: "backend")
+ * and resolves backends at .agent/backends/<type>/index.js. HIGH-1 fix: the old
+ * version wrote opencode.json with { workflow: { backend: ... } } which was wrong.
  */
 function makeConfigDir(backendConfig) {
   const dir = fs.mkdtempSync(path.join(tmpDir, 'cfg-'))
+  const agentDir = path.join(dir, '.agent')
 
-  // Write opencode.json
+  // Write .agent/config.json with { backend: backendConfig }
+  fs.mkdirSync(agentDir, { recursive: true })
   fs.writeFileSync(
-    path.join(dir, 'opencode.json'),
-    JSON.stringify({ workflow: { backend: backendConfig } }, null, 2)
+    path.join(agentDir, 'config.json'),
+    JSON.stringify({ backend: backendConfig }, null, 2)
   )
 
-  // Symlink backends/ from real repo so backend paths resolve
-  const backendsLink = path.join(dir, 'backends')
+  // Symlink .agent/backends/ → real repo backends/ so backend paths resolve
+  const backendsLink = path.join(agentDir, 'backends')
   if (!fs.existsSync(backendsLink)) {
     fs.symlinkSync(path.join(repoRoot, 'backends'), backendsLink)
   }
@@ -201,29 +207,30 @@ async function runTests() {
     assert(config.config?.foo === 'bar', `Expected foo=bar, got: ${JSON.stringify(config.config)}`)
   })
 
-  await test('2.2: throws when opencode.json is missing', () => {
+  await test('2.2: throws when .agent/config.json is missing', () => {
     const emptyDir = fs.mkdtempSync(path.join(tmpDir, 'empty-'))
     let threw = false
     try {
       withCwd(emptyDir, () => loadBackendConfig())
     } catch (err) {
       threw = true
-      assert(err.message.includes('opencode.json'), `Wrong error: ${err.message}`)
+      assert(err.message.includes('.agent/config.json'), `Wrong error: ${err.message}`)
     }
-    assert(threw, 'Expected error for missing opencode.json')
+    assert(threw, 'Expected error for missing .agent/config.json')
   })
 
-  await test('2.3: throws when workflow.backend is missing from config', () => {
+  await test('2.3: throws when backend is missing from config', () => {
     const dir = fs.mkdtempSync(path.join(tmpDir, 'nobk-'))
-    fs.writeFileSync(path.join(dir, 'opencode.json'), JSON.stringify({ other: true }))
+    fs.mkdirSync(path.join(dir, '.agent'), { recursive: true })
+    fs.writeFileSync(path.join(dir, '.agent', 'config.json'), JSON.stringify({ other: true }))
     let threw = false
     try {
       withCwd(dir, () => loadBackendConfig())
     } catch (err) {
       threw = true
-      assert(err.message.includes('workflow.backend'), `Wrong error: ${err.message}`)
+      assert(err.message.includes('backend'), `Wrong error: ${err.message}`)
     }
-    assert(threw, 'Expected error for missing workflow.backend')
+    assert(threw, 'Expected error for missing backend key')
   })
 
   // ----------------------------------------------------------
@@ -232,27 +239,32 @@ async function runTests() {
   console.log('\n3. listBackends()')
 
   await test('3.1: returns array of backend names from repo root', () => {
-    const backends = withCwd(repoRoot, () => listBackends())
+    // Need to simulate a .agent/backends/ layout pointing at real backends
+    const dir = makeConfigDir({ type: 'mock', config: {} })
+    const backends = withCwd(dir, () => listBackends())
     assert(Array.isArray(backends), 'Expected array')
     assert(backends.length >= 1, `Expected at least 1 backend, got ${backends.length}`)
   })
 
   await test('3.2: mock backend is listed', () => {
-    const backends = withCwd(repoRoot, () => listBackends())
+    const dir = makeConfigDir({ type: 'mock', config: {} })
+    const backends = withCwd(dir, () => listBackends())
     assert(backends.includes('mock'), `Expected mock in: ${backends.join(', ')}`)
   })
 
   await test('3.3: beads backend is listed', () => {
-    const backends = withCwd(repoRoot, () => listBackends())
+    const dir = makeConfigDir({ type: 'mock', config: {} })
+    const backends = withCwd(dir, () => listBackends())
     assert(backends.includes('beads'), `Expected beads in: ${backends.join(', ')}`)
   })
 
   await test('3.4: jira-taskwarrior backend is listed', () => {
-    const backends = withCwd(repoRoot, () => listBackends())
+    const dir = makeConfigDir({ type: 'mock', config: {} })
+    const backends = withCwd(dir, () => listBackends())
     assert(backends.includes('jira-taskwarrior'), `Expected jira-taskwarrior in: ${backends.join(', ')}`)
   })
 
-  await test('3.5: returns empty array when backends/ dir does not exist', () => {
+  await test('3.5: returns empty array when .agent/backends/ dir does not exist', () => {
     const emptyDir = fs.mkdtempSync(path.join(tmpDir, 'nobe-'))
     const backends = withCwd(emptyDir, () => listBackends())
     assert(Array.isArray(backends), 'Expected array')
@@ -264,7 +276,7 @@ async function runTests() {
   // ----------------------------------------------------------
   console.log('\n4. getBackend()')
 
-  await test('4.1: loads mock backend configured in opencode.json', async () => {
+  await test('4.1: loads mock backend configured in .agent/config.json', async () => {
     const dir = makeConfigDir({
       type: 'mock',
       config: { specsDir: os.tmpdir() }
@@ -272,7 +284,7 @@ async function runTests() {
     const backend = await withCwdAsync(dir, () => getBackend())
     assert(backend, 'Expected a backend instance')
     assert(typeof backend.listIssues === 'function', 'Expected listIssues method')
-    assert(typeof backend.createSpec === 'function', 'Expected createSpec method')
+    assert(typeof backend.createTasks === 'function', 'Expected createTasks method')
   })
 
   await test('4.2: overrideType=mock loads mock regardless of config', async () => {
@@ -304,9 +316,10 @@ async function runTests() {
     const dir = makeConfigDir({ type: 'mock', config: { specsDir: os.tmpdir() } })
     const backend = withCwd(dir, () => getBackend())
 
+    // AIDEV-NOTE: Spec methods (createSpec, getSpec, approveSpec, rejectSpec)
+    // removed in ADR-001. createTasks now accepts issueId directly.
     const REQUIRED = [
       'listIssues', 'getIssue', 'createIssue', 'updateIssue',
-      'createSpec', 'getSpec', 'approveSpec', 'rejectSpec',
       'createTasks', 'getTasks', 'getTask', 'updateTaskState', 'updateTask',
       'getWorkStates', 'getValidTransitions', 'isValidTransition'
     ]

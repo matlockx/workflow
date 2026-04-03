@@ -80,25 +80,11 @@ More concrete command assumptions from source:
 - `bd show <id> --json` returns detailed issue records including dependencies, dependents, comments, labels, and parent info
 - `bd create "Title" --json` returns the created issue object
 
-### Spec management
-
-Beads does not appear to have a first-class “spec” concept in the same way Jira-Taskwarrior does, so the likely strategy is:
-
-- keep spec markdown in portable notes storage
-- create a Beads issue/task to represent the planning/spec artifact when needed
-- store spec path in Beads notes/description/metadata if supported
-
-Open question for implementation: whether specs should be represented as:
-
-1. a dedicated Beads issue type/tag,
-2. a planning child task under the issue,
-3. or file-only state with Beads issue metadata.
-
 ### Task management
 
 Likely mapping:
 
-- `createTasks(specId)` -> create Beads tasks/subtasks from spec analysis using `bd create`
+- `createTasks(issueId)` -> create Beads tasks/subtasks from issue analysis using `bd create`
 - `getTasks(filter)` -> Beads list/ready/show commands with `--json`
 - `getTask(taskId)` -> `bd show <id> --json`
 - `updateTaskState(taskId, state)` -> `bd update`, `bd close`, and claim/progress flags as appropriate
@@ -118,7 +104,6 @@ Recommended initial mapping:
 | OpenCode state | Beads status | Notes |
 |---|---|---|
 | `new` | `open` | Use only if we need a distinct pre-planning issue state |
-| `draft` | `open` | Spec/planning work likely stored as open planning issue + file state |
 | `todo` | `open` | Default pending work |
 | `inprogress` | `in_progress` | Direct mapping |
 | `review` | `hooked` or metadata-backed `open` | No exact built-in review state; avoid guessing until CLI validation |
@@ -131,7 +116,7 @@ Practical takeaway:
 - `todo` <-> `open`
 - `inprogress` <-> `in_progress`
 - `done` <-> `closed`
-- keep `draft`, `review`, `approved`, and `rejected` in backend metadata or spec-file state until a better native Beads representation is confirmed
+- keep `review`, `approved`, and `rejected` in backend metadata until a better native Beads representation is confirmed
 
 ### Dependencies
 
@@ -215,16 +200,14 @@ Important nuance from upstream source:
 
 1. create `backends/beads/index.js`
 2. wrap `bd` CLI invocations
-3. parse JSON into `Issue`, `Spec`, and `Task` objects
+3. parse JSON into `Issue` and `Task` objects
 4. implement state mapping between Beads workflow and OpenCode work states
 5. add tests with mocked `bd` output
 
 ## Open questions
 
-- What exact `bd update` flags should map to OpenCode states like `draft`, `review`, and `approved` when there is no obvious Beads-native equivalent?
-- How should spec approval be represented in Beads?
+- What exact `bd update` flags should map to OpenCode states like `review` and `approved` when there is no obvious Beads-native equivalent?
 - Does Beads expose tags, priorities, and assignee in stable JSON fields?
-- What is the best way to attach or reference spec file paths from Beads items?
 - Should OpenCode phases map to Beads parent tasks, labels/types, or plain tasks with metadata?
 
 ## Suggested implementation defaults
@@ -233,10 +216,8 @@ Until local CLI verification proves otherwise, the safest initial Beads backend 
 
 1. represent OpenCode issues and implementation tasks as Beads issues/tasks
 2. use Beads parent-child relationships for phases and tasks where possible
-3. keep spec markdown as portable file storage outside Beads
-4. represent spec tracking in Beads using metadata or a dedicated planning issue type/tag
-5. use `bd ready --json` for actionable-task selection rather than reimplementing blocker logic
-6. map only `open`, `in_progress`, and `closed` directly at first; keep richer workflow state conservative and reversible
+3. use `bd ready --json` for actionable-task selection rather than reimplementing blocker logic
+4. map only `open`, `in_progress`, and `closed` directly at first; keep richer workflow state conservative and reversible
 
 ## Installation notes
 

@@ -32,22 +32,20 @@ The mock backend provides a minimal implementation of the `WorkflowBackend` inte
 
 ## Configuration
 
-Add to `opencode.json`:
+Add to `.agent/config.json`:
 
 ```json
 {
-  "workflow": {
-    "backend": {
-      "type": "mock",
-      "config": {
-        "initialIssues": [
-          {
-            "id": "MOCK-1",
-            "summary": "Example issue",
-            "description": "This is a sample issue for testing"
-          }
-        ]
-      }
+  "backend": {
+    "type": "mock",
+    "config": {
+      "initialIssues": [
+        {
+          "id": "MOCK-1",
+          "summary": "Example issue",
+          "description": "This is a sample issue for testing"
+        }
+      ]
     }
   }
 }

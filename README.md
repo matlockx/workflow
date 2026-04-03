@@ -88,7 +88,7 @@ Agents inherit the model from your OpenCode configuration. To use different mode
     "plan-mode": {
       "model": "anthropic/claude-sonnet-4-20250514"
     },
-    "spec-mode": {
+    "create-tasks": {
       "model": "anthropic/claude-sonnet-4-20250514"
     },
     "build": {

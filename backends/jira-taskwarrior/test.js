@@ -7,6 +7,10 @@
  * to validate the backend logic without requiring actual installations.
  * 
  * Run with: node backends/jira-taskwarrior/test.js
+ *
+ * AIDEV-NOTE: ADR-001 removed the spec stage. Tests 3-6 previously tested
+ * createSpec/getSpec/approveSpec and spec-based createTasks. They are now
+ * replaced with a direct createTasks(issueId) test flow.
  */
 
 // ============================================
@@ -77,45 +81,7 @@ uda.repository.type=string
 uda.repository.label=Repository
   `,
   
-  // Task export - no spec exists
-  'task jiraid:PROJ-123 +spec export': '',
-  
-  // Task add - spec task
-  'task add': 'Created task 1 with uuid abc-def-012-345-678\n',
-  
-  // Task export - spec exists (after creation)
-  'task uuid:abc-def-012-345-678 export': JSON.stringify({
-    uuid: 'abc-def-012-345-678',
-    description: 'SPEC: Implement user authentication',
-    status: 'pending',
-    work_state: 'draft',
-    jiraid: 'PROJ-123',
-    repository: 'default',
-    project: 'PROJ-123',
-    tags: ['spec'],
-    entry: '2026-03-28T14:00:00Z',
-    modified: '2026-03-28T14:05:00Z'
-  }),
-  
-  // Task modify
-  'task abc-def-012-345-678 modify': 'Modified 1 task',
-  'task abc-def-012-345-678 done': 'Completed task 1',
-  
-  // Task export - spec approved
-  'task jiraid:PROJ-123 +spec export (after approve)': JSON.stringify({
-    uuid: 'abc-def-012-345-678',
-    description: 'SPEC: Implement user authentication',
-    status: 'completed',
-    work_state: 'approved',
-    jiraid: 'PROJ-123',
-    repository: 'default',
-    project: 'PROJ-123',
-    tags: ['spec'],
-    entry: '2026-03-28T14:00:00Z',
-    modified: '2026-03-28T14:10:00Z'
-  }),
-  
-  // Task export - no tasks exist yet
+  // Task export - no impl tasks exist yet
   'task jiraid:PROJ-123 +impl export': '',
   
   // Task export - phase and impl tasks
@@ -201,9 +167,9 @@ uda.repository.label=Repository
 }
 
 // Track task creation sequence
+// AIDEV-NOTE: No spec UUID needed — ADR-001 removed spec tasks.
 let taskAddCounter = 0
 const taskUUIDs = [
-  'abc-def-012-345-678',  // spec
   'aaa-111-222-333-444',  // phase 1
   'bbb-111-aaa-bbb-ccc',  // task 1.1
   'bbb-111-ccc-ddd-eee',  // task 1.2
@@ -252,7 +218,6 @@ require('child_process').exec = (cmd, options, callback) => {
         // Initialize state and extract task details from command
         const description = cmd.match(/"([^"]+)"/)?.[1] || 'Task'
         const tags = []
-        if (cmd.includes('+spec')) tags.push('spec')
         if (cmd.includes('+impl')) tags.push('impl')
         if (cmd.includes('+phase')) tags.push('phase')
         
@@ -307,12 +272,6 @@ require('child_process').exec = (cmd, options, callback) => {
         }
         
         stdout = `Completed task 1\n`
-      } else if (cmd.includes('task uuid:abc-def-012-345-678 export')) {
-        // Spec task export
-        const data = JSON.parse(mockOutputs['task uuid:abc-def-012-345-678 export'])
-        data.status = taskStates['abc-def-012-345-678']?.status || data.status
-        data.work_state = taskStates['abc-def-012-345-678']?.work_state || data.work_state
-        stdout = JSON.stringify(data)
       } else if (cmd.includes('task uuid:bbb-111-aaa-bbb-ccc export')) {
         // Task export
         const data = JSON.parse(mockOutputs['task uuid:bbb-111-aaa-bbb-ccc export'])
@@ -321,16 +280,6 @@ require('child_process').exec = (cmd, options, callback) => {
         stdout = JSON.stringify(data)
       } else if (cmd.includes('task uuid:aaa-111-222-333-444 export')) {
         stdout = mockOutputs['task uuid:aaa-111-222-333-444 export']
-      } else if (cmd.includes('task jiraid:PROJ-123 +spec export')) {
-        // Check if spec has been created
-        if (taskStates['abc-def-012-345-678']) {
-          const data = JSON.parse(mockOutputs['task uuid:abc-def-012-345-678 export'])
-          data.status = taskStates['abc-def-012-345-678'].status
-          data.work_state = taskStates['abc-def-012-345-678'].work_state
-          stdout = JSON.stringify(data)
-        } else {
-          stdout = ''
-        }
       } else if (cmd.includes('task jiraid:PROJ-123 +impl export')) {
         // Check if tasks have been created
         if (taskStates['aaa-111-222-333-444']) {
@@ -350,57 +299,6 @@ require('child_process').exec = (cmd, options, callback) => {
   })
 }
 
-// Mock fs for spec file operations
-const fsPromises = require('fs').promises
-const originalMkdir = fsPromises.mkdir
-const originalWriteFile = fsPromises.writeFile
-const originalReadFile = fsPromises.readFile
-const originalAccess = fsPromises.access
-
-// Track created files
-const createdFiles = new Set()
-
-fsPromises.mkdir = async (dir, options) => {
-  // Just succeed - no actual file creation
-  return Promise.resolve()
-}
-
-fsPromises.writeFile = async (filePath, content, encoding) => {
-  createdFiles.add(filePath)
-  // Store content if needed for testing
-  return Promise.resolve()
-}
-
-fsPromises.readFile = async (filePath, encoding) => {
-  if (!createdFiles.has(filePath)) {
-    throw new Error(`File not found: ${filePath}`)
-  }
-  // Return minimal spec content
-  return Promise.resolve(`---
-title: "Implement user authentication"
-jiraid: "PROJ-123"
-status: draft
----
-
-# Implement user authentication
-
-## Phase 1: Implementation
-
-Implementation tasks
-
-## Phase 2: Testing
-
-Testing tasks
-`)
-}
-
-fsPromises.access = async (filePath) => {
-  if (!createdFiles.has(filePath)) {
-    throw new Error(`File not found: ${filePath}`)
-  }
-  return Promise.resolve()
-}
-
 // NOW load the backend (after mocks are in place)
 const JiraTaskwarriorBackend = require('./index.js')
 
@@ -415,7 +313,6 @@ async function runTests() {
     jiraSite: 'test-site.atlassian.net',
     jiraProject: 'PROJ',
     jiraEmail: 'test@example.com',
-    specsDir: '/tmp/test-specs',
     repository: 'default'
   })
   
@@ -435,29 +332,9 @@ async function runTests() {
     if (issue.id !== 'PROJ-123') throw new Error('Wrong issue ID')
     if (!issue.summary) throw new Error('Issue missing summary')
     
-    // Test 3: Create spec
-    console.log('✓ Test 3: Create spec from issue')
-    const spec = await backend.createSpec('PROJ-123')
-    console.log(`  Created spec: ${spec.id}`)
-    console.log(`  Spec file: ${spec.filePath}`)
-    if (spec.id !== 'SPEC-PROJ-123') throw new Error('Wrong spec ID')
-    if (spec.state !== 'draft') throw new Error('Spec should be in draft state')
-    
-    // Test 4: Get spec
-    console.log('✓ Test 4: Get existing spec')
-    const retrievedSpec = await backend.getSpec('PROJ-123')
-    console.log(`  Retrieved spec: ${retrievedSpec.id} (state: ${retrievedSpec.state})`)
-    if (retrievedSpec.id !== 'SPEC-PROJ-123') throw new Error('Wrong spec ID')
-    
-    // Test 5: Approve spec
-    console.log('✓ Test 5: Approve spec')
-    const approvedSpec = await backend.approveSpec('SPEC-PROJ-123')
-    console.log(`  Spec state: ${approvedSpec.state}`)
-    if (approvedSpec.state !== 'approved') throw new Error('Spec should be approved')
-    
-    // Test 6: Create tasks
-    console.log('✓ Test 6: Create tasks from approved spec')
-    const tasks = await backend.createTasks('SPEC-PROJ-123')
+    // Test 3: Create tasks directly from issue (ADR-001: no spec gate)
+    console.log('✓ Test 3: Create tasks directly from issue')
+    const tasks = await backend.createTasks('PROJ-123')
     console.log(`  Created ${tasks.length} tasks`)
     if (tasks.length === 0) throw new Error('Expected some tasks')
     
@@ -465,35 +342,35 @@ async function runTests() {
     const implTasks = tasks.filter(t => !t.isPhase)
     console.log(`  Phases: ${phaseTasks.length}, Implementation tasks: ${implTasks.length}`)
     
-    // Test 7: Get tasks
-    console.log('✓ Test 7: Get tasks by filter')
+    // Test 4: Get tasks
+    console.log('✓ Test 4: Get tasks by filter')
     const allTasks = await backend.getTasks({ issueId: 'PROJ-123' })
     console.log(`  Retrieved ${allTasks.length} tasks`)
     if (allTasks.length !== tasks.length) throw new Error('Task count mismatch')
     
-    // Test 8: Get specific task
-    console.log('✓ Test 8: Get specific task')
+    // Test 5: Get specific task
+    console.log('✓ Test 5: Get specific task')
     const task = await backend.getTask('bbb-111-aaa-bbb-ccc')
-    console.log(`  Retrieved task: ${task.title}`)
+    console.log(`  Retrieved task: ${task.description}`)
     if (task.id !== 'bbb-111-aaa-bbb-ccc') throw new Error('Wrong task ID')
     if (task.state !== 'todo') throw new Error('Task should be in todo state')
     
-    // Test 9: Update task state
-    console.log('✓ Test 9: Update task state')
+    // Test 6: Update task state
+    console.log('✓ Test 6: Update task state')
     const updatedTask = await backend.updateTaskState('bbb-111-aaa-bbb-ccc', 'inprogress')
     console.log(`  Task state: ${updatedTask.state}`)
     if (updatedTask.state !== 'inprogress') throw new Error('Task should be inprogress')
     
-    // Test 10: Get work states
-    console.log('✓ Test 10: Get work states')
-    const states = await backend.getWorkStates()
+    // Test 7: Get work states
+    console.log('✓ Test 7: Get work states')
+    const states = backend.getWorkStates()
     console.log(`  Available states: ${states.join(', ')}`)
     if (states.length === 0) throw new Error('Expected work states')
     if (!states.includes('todo')) throw new Error('Missing todo state')
     if (!states.includes('inprogress')) throw new Error('Missing inprogress state')
     
-    // Test 11: Validate state transitions
-    console.log('✓ Test 11: Validate state transitions')
+    // Test 8: Validate state transitions
+    console.log('✓ Test 8: Validate state transitions')
     const canTransition = backend.isValidTransition('todo', 'inprogress')
     console.log(`  Can transition todo → inprogress: ${canTransition}`)
     if (!canTransition) throw new Error('Expected valid transition')
@@ -502,18 +379,8 @@ async function runTests() {
     console.log(`  Can transition todo → done: ${invalidTransition}`)
     if (invalidTransition) throw new Error('Expected invalid transition')
     
-    // Test 12: Error handling - duplicate spec
-    console.log('✓ Test 12: Error handling - duplicate spec')
-    try {
-      await backend.createSpec('PROJ-123')
-      throw new Error('Expected error for duplicate spec')
-    } catch (error) {
-      if (error.code !== 'ALREADY_EXISTS') throw error
-      console.log(`  Correctly threw error: ${error.message}`)
-    }
-    
-    // Test 13: Error handling - invalid state transition
-    console.log('✓ Test 13: Error handling - invalid state transition')
+    // Test 9: Error handling - invalid state transition
+    console.log('✓ Test 9: Error handling - invalid state transition')
     try {
       await backend.updateTaskState('bbb-111-aaa-bbb-ccc', 'done')
       throw new Error('Expected error for invalid transition')
@@ -522,8 +389,8 @@ async function runTests() {
       console.log(`  Correctly threw error: ${error.message}`)
     }
     
-    // Test 14: ADF conversion
-    console.log('✓ Test 14: ADF conversion')
+    // Test 10: ADF conversion
+    console.log('✓ Test 10: ADF conversion')
     const adf = backend._markdownToADF('Hello\nWorld')
     console.log(`  Converted to ADF: ${JSON.stringify(adf).substring(0, 50)}...`)
     if (!adf.content) throw new Error('ADF missing content')
@@ -547,10 +414,6 @@ runTests().then(() => {
   
   // Restore original functions
   require('child_process').exec = originalExec
-  require('fs').promises.mkdir = originalMkdir
-  require('fs').promises.writeFile = originalWriteFile
-  require('fs').promises.readFile = originalReadFile
-  require('fs').promises.access = originalAccess
   
   process.exit(0)
 }).catch(error => {

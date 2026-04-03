@@ -161,8 +161,8 @@ View with: task project:IN-1373 tree
 
 ## Backend conventions
 
-* The command layer resolves the approved spec via `backend.getSpec(issueId)`.
-* The backend owns task creation via `backend.createTasks(spec.id)`.
+* The command layer passes the issue ID directly to `backend.createTasks(issueId)`.
+* The backend owns task creation via `backend.createTasks(issueId)`.
 * The backend owns task metadata, grouping, and dependency storage.
 * The agent should focus on task quality, phase shape, and dependency logic rather than backend-specific commands.
 

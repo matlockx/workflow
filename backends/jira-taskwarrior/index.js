@@ -11,8 +11,6 @@
 
 const { exec } = require('child_process')
 const { promisify } = require('util')
-const fs = require('fs')
-const fsPromises = fs.promises
 const path = require('path')
 const os = require('os')
 
@@ -623,260 +621,14 @@ class JiraTaskwarriorBackend {
   }
   
   // ============================================
-  // SPEC MANAGEMENT
-  // ============================================
-  
-  async createSpec(issueId) {
-    try {
-      // Check if spec already exists in Taskwarrior
-      const existingSpecs = await this._taskExport(`jiraid:${issueId} +spec`)
-      
-      if (existingSpecs.length > 0) {
-        throw this._createError(
-          'ALREADY_EXISTS',
-          `Spec for issue ${issueId} already exists`
-        )
-      }
-      
-      // Get issue details from Jira
-      const issue = await this.getIssue(issueId)
-      
-      // Generate spec file
-      const specId = `SPEC-${issueId}`
-      const slug = this._slugify(issue.summary)
-      const fileName = `${issueId}__${slug}.md`
-      
-      const specPath = path.join(this.config.specsDir, fileName)
-      
-      // Create spec directory if needed
-      await fsPromises.mkdir(this.config.specsDir, { recursive: true })
-      
-      // Generate spec content
-      const content = this._generateSpecContent(issue)
-      
-      // Write spec file
-      await fsPromises.writeFile(specPath, content, 'utf8')
-      
-      // Create spec task in Taskwarrior
-      await this._task(
-        `add "SPEC: ${issue.summary}" +spec jiraid:${issueId} work_state:draft repository:${this.config.repository} project:${issueId}`
-      )
-
-      const createdSpecs = await this._taskExport(`jiraid:${issueId} +spec`)
-      const createdSpecTask = createdSpecs.find(task => task.description === `SPEC: ${issue.summary}`)
-
-      if (!createdSpecTask?.uuid) {
-        throw this._createError('PARSE_ERROR', 'Failed to resolve created spec task UUID')
-      }
-      
-      return {
-        id: specId,
-        issueId: issueId,
-        filePath: specPath,
-        state: 'draft',
-        createdAt: new Date(),
-        metadata: {
-          taskUUID: createdSpecTask.uuid,
-          repository: this.config.repository
-        }
-      }
-    } catch (error) {
-      if (error.code === 'ALREADY_EXISTS') throw error
-      
-      throw this._createError(
-        'CREATE_ERROR',
-        `Failed to create spec: ${error.message}`,
-        null,
-        error
-      )
-    }
-  }
-  
-  async getSpec(issueId) {
-    try {
-      // Find spec task in Taskwarrior
-      const specs = await this._taskExport(`jiraid:${issueId} +spec`)
-      
-      if (specs.length === 0) {
-        throw this._createError(
-          'NOT_FOUND',
-          `Spec for issue ${issueId} not found`
-        )
-      }
-      
-      const specTask = specs[0]
-      const specId = `SPEC-${issueId}`
-      
-      // Get spec file path from repository
-      const issue = await this.getIssue(issueId)
-      const slug = this._slugify(issue.summary)
-      const fileName = `${issueId}__${slug}.md`
-      const specPath = path.join(this.config.specsDir, fileName)
-      
-      // Check if file exists
-      try {
-         await fsPromises.access(specPath)
-      } catch (error) {
-        throw this._createError(
-          'NOT_FOUND',
-          `Spec file not found: ${specPath}`
-        )
-      }
-      
-      return {
-        id: specId,
-        issueId: issueId,
-        filePath: specPath,
-        state: specTask.work_state || 'draft',
-        createdAt: new Date(specTask.entry),
-        approvedAt: specTask.work_state === 'approved' ? new Date(specTask.modified) : null,
-        metadata: {
-          taskUUID: specTask.uuid,
-          repository: this.config.repository
-        }
-      }
-    } catch (error) {
-      if (error.code === 'NOT_FOUND') throw error
-      
-      throw this._createError(
-        'FETCH_ERROR',
-        `Failed to get spec: ${error.message}`,
-        null,
-        error
-      )
-    }
-  }
-  
-  async approveSpec(specId) {
-    try {
-      // Extract issueId from specId (format: SPEC-JIRA-123)
-      const issueId = specId.replace(/^SPEC-/, '')
-      
-      // Find spec task
-      const spec = await this.getSpec(issueId)
-      
-      // Validate current state
-      if (spec.state !== 'draft' && spec.state !== 'rejected') {
-        throw this._createError(
-          'INVALID_TRANSITION',
-          `Cannot approve spec in state ${spec.state}. Must be draft or rejected.`
-        )
-      }
-      
-      // Update task state to approved
-      await this._updateTaskState(spec.metadata.taskUUID, 'approved')
-      
-      return {
-        ...spec,
-        state: 'approved',
-        approvedAt: new Date()
-      }
-    } catch (error) {
-      if (error.code === 'INVALID_TRANSITION' || error.code === 'NOT_FOUND') throw error
-      
-      throw this._createError(
-        'APPROVE_ERROR',
-        `Failed to approve spec: ${error.message}`,
-        null,
-        error
-      )
-    }
-  }
-  
-  async rejectSpec(specId, reason) {
-    try {
-      const issueId = specId.replace(/^SPEC-/, '')
-      const spec = await this.getSpec(issueId)
-      
-      // Validate current state
-      if (spec.state === 'rejected') {
-        throw this._createError(
-          'INVALID_STATE',
-          'Spec is already rejected'
-        )
-      }
-      
-      // Update task state to rejected
-      await this._updateTaskState(spec.metadata.taskUUID, 'rejected')
-      
-      // Add rejection reason as annotation
-      if (reason) {
-        await this._task(`${spec.metadata.taskUUID} annotate "Rejected: ${reason}"`)
-      }
-      
-      return {
-        ...spec,
-        state: 'rejected',
-        metadata: {
-          ...spec.metadata,
-          rejectionReason: reason
-        }
-      }
-    } catch (error) {
-      if (error.code === 'INVALID_STATE' || error.code === 'NOT_FOUND') throw error
-      
-      throw this._createError(
-        'REJECT_ERROR',
-        `Failed to reject spec: ${error.message}`,
-        null,
-        error
-      )
-    }
-  }
-  
-  /**
-   * Generate spec content from issue
-   */
-  _generateSpecContent(issue) {
-    return `---
-title: "${issue.summary}"
-jiraid: "${issue.id}"
-status: draft
-created: ${new Date().toISOString()}
----
-
-# ${issue.summary}
-
-## Context
-
-${issue.description || 'No description provided.'}
-
-## Requirements
-
-<!-- List functional and non-functional requirements -->
-
-## Design
-
-<!-- Describe the technical design and approach -->
-
-## Tasks
-
-<!-- This section will be auto-generated by /createtasks -->
-
-## Notes
-
-<!-- Additional notes and considerations -->
-`
-  }
-  
-  // ============================================
   // TASK MANAGEMENT
   // ============================================
   
-  async createTasks(specId) {
+  // AIDEV-NOTE: createTasks now accepts an issueId directly (ADR-001 compliance).
+  // The old spec pipeline (createSpec → approveSpec → createTasks(specId)) has
+  // been removed. Tasks are created directly from the issue.
+  async createTasks(issueId) {
     try {
-      const issueId = specId.replace(/^SPEC-/, '')
-      
-      // Verify spec is approved
-      const spec = await this.getSpec(issueId)
-      
-      if (spec.state !== 'approved') {
-        throw this._createError(
-          'INVALID_STATE',
-          `Cannot create tasks from spec in state ${spec.state}. Spec must be approved first.`
-        )
-      }
-      
       // Check if tasks already exist
       const existingTasks = await this._taskExport(`jiraid:${issueId} +impl`)
       
@@ -887,13 +639,13 @@ ${issue.description || 'No description provided.'}
         )
       }
       
-      // Read and parse spec file
-       const specContent = await fsPromises.readFile(spec.filePath, 'utf8')
+      // Generate default phases since there is no spec to parse
+      const phases = [
+        { number: '1', name: 'Implementation' },
+        { number: '2', name: 'Testing' }
+      ]
       
-      // Generate tasks from spec content
-      // NOTE: This is a simplified version - real implementation would parse
-      // the spec markdown and extract phases/tasks from the Tasks section
-      const tasks = await this._generateTasksFromSpec(issueId, specContent)
+      const tasks = await this._generateTasksFromPhases(issueId, phases)
       
       return tasks
     } catch (error) {
@@ -909,32 +661,11 @@ ${issue.description || 'No description provided.'}
   }
   
   /**
-   * Generate tasks from spec content
-   * Simplified implementation - parses basic structure
+   * Generate tasks from a list of phases
+   * Each phase gets a phase task plus 2-3 implementation sub-tasks
    */
-  async _generateTasksFromSpec(issueId, specContent) {
+  async _generateTasksFromPhases(issueId, phases) {
     const tasks = []
-    
-    // Extract phases from spec (simplified - look for ## Phase headings)
-    const phaseRegex = /## Phase (\d+): (.+)/g
-    const phases = []
-    let match
-    
-    while ((match = phaseRegex.exec(specContent)) !== null) {
-      phases.push({
-        number: match[1],
-        name: match[2]
-      })
-    }
-    
-    // If no phases found, create default phases
-    if (phases.length === 0) {
-      phases.push(
-        { number: '1', name: 'Implementation' },
-        { number: '2', name: 'Testing' }
-      )
-    }
-    
       // Create phase tasks
       for (const phase of phases) {
         const phaseSlug = this._slugify(phase.name)
@@ -965,7 +696,6 @@ ${issue.description || 'No description provided.'}
         description: `Phase ${phase.number}: ${phase.name}`,
         state: phaseTask.work_state,
         issueId: issueId,
-        specId: `SPEC-${issueId}`,
         isPhase: true,
         tags: phaseTask.tags || [],
         depends: [],
@@ -1000,7 +730,6 @@ ${issue.description || 'No description provided.'}
           description: implTask.description,
           state: implTask.work_state,
           issueId: issueId,
-          specId: `SPEC-${issueId}`,
           isPhase: false,
           tags: implTask.tags || [],
           depends: [phaseUUID],
@@ -1020,15 +749,12 @@ ${issue.description || 'No description provided.'}
   async getTasks(filter = {}) {
     try {
       // Build Taskwarrior filter
+      // AIDEV-NOTE: specId filter removed — tasks no longer reference a specId
+      // (ADR-001: spec stage removed from pipeline).
       const filterParts = ['+impl']
       
       if (filter.issueId) {
         filterParts.push(`jiraid:${filter.issueId}`)
-      }
-      
-      if (filter.specId) {
-        const issueId = filter.specId.replace(/^SPEC-/, '')
-        filterParts.push(`jiraid:${issueId}`)
       }
       
       if (filter.state) {
@@ -1158,7 +884,6 @@ ${issue.description || 'No description provided.'}
       description: taskData.description,
       state: taskData.work_state || 'todo',
       issueId: taskData.jiraid,
-      specId: taskData.jiraid ? `SPEC-${taskData.jiraid}` : null,
       isPhase: taskData.tags && taskData.tags.includes('phase'),
       tags: taskData.tags || [],
       depends: taskData.depends || [],

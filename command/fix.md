@@ -43,7 +43,6 @@ All orchestration logic lives in `command/feature.md`.
 
 - The `type` field is stored on the work item in `feature-progress.json` and shown in
   `/status` output so the user can distinguish fixes from features at a glance.
-- Bug fix specs should emphasise **root cause analysis** and **regression test**
-  sections rather than a full design document. When drafting the spec, keep the
-  requirements section focused on reproducing the bug and the design section on
-  the minimal fix.
+- Bug fix tasks should emphasise **root cause analysis** and **regression test**
+  sections. Keep the implementation focused on the minimal fix with a corresponding
+  regression test that would have caught the bug.

@@ -123,7 +123,6 @@ class BeadsBackend {
       url: undefined,
       metadata: {
         issueType: beadsIssue.issue_type,
-        specId: beadsIssue.spec_id,
         parent: beadsIssue.parent,
         dependencyCount: beadsIssue.dependency_count,
         dependentCount: beadsIssue.dependent_count,
@@ -140,14 +139,12 @@ class BeadsBackend {
     const beadsMetadata = beadsIssue.metadata || {}
     const mappedState = this._mapBeadsStatusToWorkState(
       beadsIssue.status,
-      beadsMetadata.opencode_state,
-      beadsMetadata.opencode_kind === 'spec'
+      beadsMetadata.opencode_state
     )
 
     return {
       id: beadsIssue.id,
       description: beadsIssue.title || '',
-      specId: beadsIssue.spec_id || beadsMetadata.spec_id || '',
       issueId: beadsMetadata.issue_id || '',
       state: mappedState,
       tags: beadsIssue.labels || [],
@@ -157,7 +154,6 @@ class BeadsBackend {
       modifiedAt: beadsIssue.updated_at ? new Date(beadsIssue.updated_at) : new Date(),
       metadata: {
         beadsStatus: beadsIssue.status,
-        specId: beadsIssue.spec_id,
         parent: beadsIssue.parent,
         closeReason: beadsIssue.close_reason,
         beadsMetadata,
@@ -166,13 +162,8 @@ class BeadsBackend {
     }
   }
 
-  _mapBeadsStatusToWorkState(status, explicitState, isSpec = false) {
+  _mapBeadsStatusToWorkState(status, explicitState) {
     if (explicitState) return explicitState
-
-    if (isSpec) {
-      if (status === 'closed') return 'approved'
-      return 'draft'
-    }
 
     switch (status) {
       case 'open':
@@ -190,11 +181,7 @@ class BeadsBackend {
     }
   }
 
-  _mapWorkStateToBeadsStatus(state, isSpec = false) {
-    if (isSpec) {
-      return state === 'approved' ? 'closed' : 'open'
-    }
-
+  _mapWorkStateToBeadsStatus(state) {
     switch (state) {
       case 'new':
       case 'draft':
@@ -309,181 +296,23 @@ class BeadsBackend {
     return this._normalizeIssue(issue)
   }
 
-  async createSpec(issueId) {
+  // AIDEV-NOTE: createTasks now accepts an issueId directly (ADR-001 compliance).
+  // The old spec-based pipeline (createSpec → approveSpec → createTasks(specId))
+  // has been removed. Tasks are created directly from the issue.
+  async createTasks(issueId) {
     await this._ensureWorkspace()
     const issue = await this.getIssue(issueId)
 
-    const specPath = this._buildSpecPath(issue)
-    await fs.mkdir(path.dirname(specPath), { recursive: true })
-
-    const createdAt = new Date()
-    const content = `---
-issueId: ${issue.id}
-createdAt: ${createdAt.toISOString()}
-work_state: draft
----
-
-# ${issue.summary}
-
-## Requirements
-
-${issue.description || '(Fill in requirements)'}
-
-## Design
-
-(Fill in design)
-`
-
-    await fs.writeFile(specPath, content, 'utf8')
-
-    const specIssue = await this.createIssue({
-      summary: `SPEC: ${issue.id} ${issue.summary}`,
-      description: `Spec tracking issue for ${issue.id}`,
-      issueType: 'task',
-      labels: ['spec'],
-      metadata: {
-        opencode_kind: 'spec',
-        opencode_state: 'draft',
-        issue_id: issue.id,
-        spec_path: specPath
-      }
-    })
-
-    return {
-      id: specIssue.id,
-      issueId: issue.id,
-      filePath: specPath,
-      state: 'draft',
-      createdAt,
-      metadata: {
-        trackingIssueId: specIssue.id,
-        beadsMetadata: specIssue.metadata
-      }
-    }
-  }
-
-  async getSpec(issueId) {
-    await this._ensureWorkspace()
-    const issues = await this.listIssues({ labels: ['spec'] })
-    const specIssue = issues.find(issue => issue.metadata?.beadsMetadata?.issue_id === issueId)
-
-    if (!specIssue) {
-      throw this._createError('NOT_FOUND', `Spec for issue ${issueId} not found`)
-    }
-
-    const state = this._mapBeadsStatusToWorkState(
-      specIssue.status,
-      specIssue.metadata?.beadsMetadata?.opencode_state,
-      true
-    )
-
-    return {
-      id: specIssue.id,
-      issueId,
-      filePath: specIssue.metadata?.beadsMetadata?.spec_path,
-      state: state === 'approved' ? 'approved' : state === 'rejected' ? 'rejected' : 'draft',
-      createdAt: specIssue.metadata?.raw?.created_at
-        ? new Date(specIssue.metadata.raw.created_at)
-        : new Date(),
-      approvedAt: specIssue.metadata?.raw?.closed_at
-        ? new Date(specIssue.metadata.raw.closed_at)
-        : undefined,
-      metadata: {
-        trackingIssueId: specIssue.id,
-        beadsMetadata: specIssue.metadata?.beadsMetadata || {}
-      }
-    }
-  }
-
-  async approveSpec(specId) {
-    await this._ensureWorkspace()
-    const existing = await this.getTask(specId)
-
-    // AIDEV-NOTE: Validate the current state before approving. The beads
-    // backend stores opencode_state in metadata; check that explicitly.
-    const currentState = existing.metadata?.beadsMetadata?.opencode_state || existing.state
-    if (currentState === 'approved') {
-      throw this._createError(
-        'INVALID_TRANSITION',
-        `Cannot approve spec in state ${currentState}`
-      )
-    }
-
-    const updated = await this._bdJson([
-      'update',
-      specId,
-      '--metadata',
-      JSON.stringify({
-        ...(existing.metadata?.beadsMetadata || {}),
-        opencode_state: 'approved'
-      })
-    ])
-    await this._bdJson(['close', specId, '--reason', 'spec approved'])
-
-    const issue = Array.isArray(updated) ? updated[0] : updated
-    const refreshed = await this.getSpec(
-      issue.metadata?.issue_id ||
-      issue.metadata?.beadsMetadata?.issue_id ||
-      existing.issueId
-    )
-    return refreshed
-  }
-
-  async rejectSpec(specId, reason) {
-    await this._ensureWorkspace()
-    const existing = await this.getTask(specId)
-    const result = await this._bdJson([
-      'update',
-      specId,
-      '--status', 'open',
-      '--metadata',
-      JSON.stringify({
-        ...(existing.metadata?.beadsMetadata || {}),
-        opencode_state: 'rejected',
-        rejection_reason: reason || 'Rejected'
-      })
-    ])
-    const issue = Array.isArray(result) ? result[0] : result
-    return {
-      id: issue.id,
-      issueId: issue.metadata?.issue_id || existing.issueId || '',
-      filePath: issue.metadata?.spec_path || existing.metadata?.beadsMetadata?.spec_path,
-      state: 'rejected',
-      createdAt: issue.created_at ? new Date(issue.created_at) : new Date(),
-      metadata: { trackingIssueId: issue.id, beadsMetadata: issue.metadata || {} }
-    }
-  }
-
-  async createTasks(specId) {
-    await this._ensureWorkspace()
-    const spec = await this.getTask(specId).catch(() => null)
-    const specIssueId = spec?.metadata?.beadsMetadata?.issue_id
-
-    if (!specIssueId) {
-      throw this._createError('INVALID_STATE', 'Spec issue not found or not mappable for task creation')
-    }
-
-    // AIDEV-NOTE: Check spec is approved before creating tasks, matching the
-    // interface contract (throws INVALID_STATE if spec not in approved state).
-    const specState = spec?.metadata?.beadsMetadata?.opencode_state || spec?.state
-    if (specState !== 'approved') {
-      throw this._createError(
-        'INVALID_STATE',
-        `Cannot create tasks from spec in state '${specState}'. Spec must be approved first.`
-      )
-    }
-
     const created = []
     const phase = await this.createIssue({
-      summary: `Phase 1: ${specIssueId}`,
-      description: `Implementation phase for ${specIssueId}`,
+      summary: `Phase 1: ${issueId}`,
+      description: `Implementation phase for ${issueId}`,
       issueType: 'task',
       labels: ['impl', 'phase'],
       metadata: {
         opencode_kind: 'phase',
         opencode_state: 'todo',
-        issue_id: specIssueId,
-        spec_id: specId,
+        issue_id: issueId,
         depends: []
       }
     })
@@ -498,30 +327,29 @@ ${issue.description || '(Fill in requirements)'}
     }))
 
     for (const title of ['Setup and preparation', 'Core implementation', 'Write tests']) {
-      const issue = await this.createIssue({
+      const task = await this.createIssue({
         summary: title,
-        description: `${title} for ${specIssueId}`,
+        description: `${title} for ${issueId}`,
         issueType: 'task',
         labels: ['impl'],
         metadata: {
           opencode_kind: 'task',
           opencode_state: 'todo',
-          issue_id: specIssueId,
-          spec_id: specId,
+          issue_id: issueId,
           depends: [phase.id]
         }
       })
 
-      await this._bd(['dep', 'add', issue.id, phase.id], { json: false })
+      await this._bd(['dep', 'add', task.id, phase.id], { json: false })
 
       created.push(this._normalizeTask({
-        ...issue.metadata.raw,
-        id: issue.id,
-        title: issue.summary,
-        description: issue.description,
+        ...task.metadata.raw,
+        id: task.id,
+        title: task.summary,
+        description: task.description,
         status: 'open',
-        labels: issue.labels,
-        metadata: issue.metadata.beadsMetadata
+        labels: task.labels,
+        metadata: task.metadata.beadsMetadata
       }))
     }
 
@@ -538,14 +366,12 @@ ${issue.description || '(Fill in requirements)'}
         args.push('--label', tag)
       }
     }
-    // AIDEV-NOTE: specId is stored in JSON metadata (not native spec_id field),
-    // so we filter in memory rather than using --spec which applies to the native
-    // spec_id column. Same pattern as issueId filtering below.
-
+    // AIDEV-NOTE: issueId is stored in JSON metadata (not a native column),
+    // so we filter in memory. specId filtering is removed — tasks no longer
+    // reference a specId (ADR-001: spec stage removed from pipeline).
     const result = await this._bdJson(args)
     let tasks = Array.isArray(result) ? result.map(issue => this._normalizeTask(issue)) : []
 
-    if (filter.specId) tasks = tasks.filter(task => task.specId === filter.specId)
     if (filter.issueId) tasks = tasks.filter(task => task.issueId === filter.issueId)
     if (filter.state) tasks = tasks.filter(task => task.state === filter.state)
     if (filter.isPhase !== undefined) tasks = tasks.filter(task => task.isPhase === filter.isPhase)

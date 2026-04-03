@@ -14,7 +14,7 @@ run the command:
 - don't add any other files
 - NO push
 
-# Structuree the commit
+# Structure the commit
 
 Conventional Commits for or commit convention and PR title.
 

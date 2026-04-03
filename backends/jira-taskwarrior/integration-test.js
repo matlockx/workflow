@@ -4,7 +4,7 @@
  * Integration tests for Jira-Taskwarrior backend
  *
  * Exercises the full workflow end-to-end using mocked exec and fs operations:
- *   createIssue → createSpec → approveSpec → createTasks → updateTaskState
+ *   createIssue → createTasks → updateTaskState
  *
  * Complements test.js (unit tests) by focusing on:
  *   - Cross-method workflow continuity (state threads through calls)
@@ -12,6 +12,10 @@
  *   - State-machine enforcement across the full issue lifecycle
  *
  * Run with: node backends/jira-taskwarrior/integration-test.js
+ *
+ * AIDEV-NOTE: ADR-001 removed the spec stage from the pipeline.
+ * Tests previously covering createSpec/approveSpec/spec-based createTasks
+ * are replaced by direct createTasks(issueId) tests.
  *
  * AIDEV-NOTE: Mocks are applied BEFORE require('./index.js') to intercept
  * the module-level `exec` reference captured by promisify(exec).
@@ -22,13 +26,6 @@
 // ============================================
 
 const originalExec = require('child_process').exec
-const fsPromises = require('fs').promises
-const originalFsMethods = {
-  mkdir: fsPromises.mkdir,
-  writeFile: fsPromises.writeFile,
-  readFile: fsPromises.readFile,
-  access: fsPromises.access
-}
 
 // ---- In-memory task store ----
 let taskStore = {}         // uuid → task object
@@ -36,32 +33,14 @@ let taskAddCounter = 0
 
 // Deterministic UUIDs for integration scenario
 const UUID = {
-  spec:    'integ-spec-0001-0000-000000000001',
-  phase1:  'integ-ph1--0002-0000-000000000002',
-  task1_1: 'integ-t11--0003-0000-000000000003',
-  task1_2: 'integ-t12--0004-0000-000000000004',
-  phase2:  'integ-ph2--0005-0000-000000000005',
-  task2_1: 'integ-t21--0006-0000-000000000006'
+  phase1:  'integ-ph1--0001-0000-000000000001',
+  task1_1: 'integ-t11--0002-0000-000000000002',
+  task1_2: 'integ-t12--0003-0000-000000000003',
+  phase2:  'integ-ph2--0004-0000-000000000004',
+  task2_1: 'integ-t21--0005-0000-000000000005',
+  task2_2: 'integ-t22--0006-0000-000000000006'
 }
 const UUID_SEQ = Object.values(UUID)
-
-// ---- Mock fs ----
-const fileContents = {}
-
-fsPromises.mkdir = async () => {}
-
-fsPromises.writeFile = async (filePath, content) => {
-  fileContents[filePath] = content
-}
-
-fsPromises.readFile = async (filePath) => {
-  if (!(filePath in fileContents)) throw Object.assign(new Error(`ENOENT: ${filePath}`), { code: 'ENOENT' })
-  return fileContents[filePath]
-}
-
-fsPromises.access = async (filePath) => {
-  if (!(filePath in fileContents)) throw Object.assign(new Error(`ENOENT: ${filePath}`), { code: 'ENOENT' })
-}
 
 // ---- Issue data used by ACLI mocks ----
 const ISSUE_CREATED = {
@@ -133,7 +112,6 @@ uda.repository.label=Repository
         const depends = (cmd.match(/depends:(\S+)/) || [])[1] || null
 
         const tags = []
-        if (cmd.includes('+spec'))  tags.push('spec')
         if (cmd.includes('+impl'))  tags.push('impl')
         if (cmd.includes('+phase')) tags.push('phase')
 
@@ -194,7 +172,7 @@ uda.repository.label=Repository
 /**
  * Match tasks from taskStore for a Taskwarrior `export` command.
  * Handles the key filter patterns used by the backend:
- *   jiraid:X +spec / jiraid:X +impl / uuid:X / jiraid:X +impl +phase project:P
+ *   jiraid:X +impl / uuid:X / jiraid:X +impl +phase project:P
  *
  * AIDEV-NOTE: This intentionally mirrors only the filter patterns the backend
  * actually emits — not the full Taskwarrior filter grammar.
@@ -261,7 +239,6 @@ function makeBackend() {
     jiraSite: 'test.atlassian.net',
     jiraProject: 'INT',
     jiraEmail: 'tester@example.com',
-    specsDir: '/tmp/integ-specs',
     repository: 'integration'
   })
 }
@@ -277,17 +254,17 @@ async function runIntegrationTests() {
 
   // ----------------------------------------------------------
   // SCENARIO A: Full happy-path workflow
+  // AIDEV-NOTE: ADR-001 pipeline: createIssue → createTasks(issueId) → updateTaskState
   // ----------------------------------------------------------
-  console.log('\nScenario A: Full workflow — createIssue → spec → approve → tasks → state update')
+  console.log('\nScenario A: Full workflow — createIssue → createTasks → updateTaskState')
 
   const backend = makeBackend()
 
   // Reset store for clean run
   taskStore = {}
   taskAddCounter = 0
-  Object.keys(fileContents).forEach(k => delete fileContents[k])
 
-  let createdIssue, spec, approvedSpec, tasks
+  let createdIssue, tasks
 
   await test('A1: createIssue returns normalized issue with id/summary', async () => {
     createdIssue = await backend.createIssue({
@@ -299,28 +276,8 @@ async function runIntegrationTests() {
     assert(typeof createdIssue.url === 'string', 'Missing issue url')
   })
 
-  await test('A2: createSpec creates draft spec with correct issueId', async () => {
-    spec = await backend.createSpec(ISSUE_CREATED.key)
-    assert(spec.id === `SPEC-${ISSUE_CREATED.key}`, `Wrong specId: ${spec.id}`)
-    assert(spec.state === 'draft', `Wrong state: ${spec.state}`)
-    assert(spec.filePath, 'Missing filePath')
-    assert(spec.issueId === ISSUE_CREATED.key, `Wrong issueId: ${spec.issueId}`)
-  })
-
-  await test('A3: getSpec retrieves the same spec from taskStore', async () => {
-    const fetched = await backend.getSpec(ISSUE_CREATED.key)
-    assert(fetched.id === spec.id, `Spec ID mismatch: ${fetched.id}`)
-    assert(fetched.state === 'draft', `State should be draft, got: ${fetched.state}`)
-  })
-
-  await test('A4: approveSpec transitions spec to approved', async () => {
-    approvedSpec = await backend.approveSpec(spec.id)
-    assert(approvedSpec.state === 'approved', `State should be approved, got: ${approvedSpec.state}`)
-    assert(approvedSpec.approvedAt instanceof Date, 'Missing approvedAt timestamp')
-  })
-
-  await test('A5: createTasks from approved spec returns at least 2 tasks (phases + impl)', async () => {
-    tasks = await backend.createTasks(spec.id)
+  await test('A2: createTasks from issue returns at least 2 tasks (phases + impl)', async () => {
+    tasks = await backend.createTasks(ISSUE_CREATED.key)
     assert(Array.isArray(tasks), 'Expected array')
     assert(tasks.length >= 2, `Expected at least 2 tasks, got ${tasks.length}`)
 
@@ -330,22 +287,22 @@ async function runIntegrationTests() {
     assert(impls.length  >= 1, 'Expected at least one impl task')
   })
 
-  await test('A6: all created tasks have required fields', () => {
+  await test('A3: all created tasks have required fields', () => {
     for (const task of tasks) {
       assert(task.id,      `Task missing id`)
-      assert(task.title,   `Task missing title (id=${task.id})`)
+      assert(task.description, `Task missing description (id=${task.id})`)
       assert(task.state,   `Task missing state (id=${task.id})`)
       assert(task.issueId === ISSUE_CREATED.key, `Task issueId mismatch (id=${task.id})`)
     }
   })
 
-  await test('A7: getTasks by issueId returns all created tasks', async () => {
+  await test('A4: getTasks by issueId returns all created tasks', async () => {
     const fetched = await backend.getTasks({ issueId: ISSUE_CREATED.key })
     assert(fetched.length >= tasks.length,
       `Expected >= ${tasks.length} tasks, got ${fetched.length}`)
   })
 
-  await test('A8: getTask returns a specific task by UUID', async () => {
+  await test('A5: getTask returns a specific task by UUID', async () => {
     const implTask = tasks.find(t => !t.isPhase)
     assert(implTask, 'No impl task found')
     const fetched = await backend.getTask(implTask.id)
@@ -353,13 +310,13 @@ async function runIntegrationTests() {
     assert(fetched.state === 'todo', `Expected todo, got: ${fetched.state}`)
   })
 
-  await test('A9: updateTaskState(todo → inprogress) succeeds', async () => {
+  await test('A6: updateTaskState(todo → inprogress) succeeds', async () => {
     const implTask = tasks.find(t => !t.isPhase)
     const updated = await backend.updateTaskState(implTask.id, 'inprogress')
     assert(updated.state === 'inprogress', `Expected inprogress, got: ${updated.state}`)
   })
 
-  await test('A10: updateTaskState(inprogress → review) succeeds', async () => {
+  await test('A7: updateTaskState(inprogress → review) succeeds', async () => {
     const implTask = tasks.find(t => !t.isPhase)
     const updated = await backend.updateTaskState(implTask.id, 'review')
     assert(updated.state === 'review', `Expected review, got: ${updated.state}`)
@@ -370,40 +327,19 @@ async function runIntegrationTests() {
   // ----------------------------------------------------------
   console.log('\nScenario B: Error path tests')
 
-  // Fresh backend; spec/tasks already exist in store from Scenario A
+  // Fresh backend; tasks already exist in store from Scenario A
   const b2 = makeBackend()
 
-  await test('B1: createSpec on issue with existing spec throws ALREADY_EXISTS', async () => {
+  await test('B1: createTasks when tasks already exist throws ALREADY_EXISTS', async () => {
     try {
-      await b2.createSpec(ISSUE_CREATED.key)
+      await b2.createTasks(ISSUE_CREATED.key)
       assert(false, 'Should have thrown')
     } catch (err) {
       assert(err.code === 'ALREADY_EXISTS', `Expected ALREADY_EXISTS, got: ${err.code}`)
     }
   })
 
-  await test('B2: approveSpec on already-approved spec throws INVALID_TRANSITION', async () => {
-    try {
-      await b2.approveSpec(spec.id)
-      assert(false, 'Should have thrown')
-    } catch (err) {
-      assert(
-        err.code === 'INVALID_TRANSITION',
-        `Expected INVALID_TRANSITION, got: ${err.code} — ${err.message}`
-      )
-    }
-  })
-
-  await test('B3: createTasks when tasks already exist throws ALREADY_EXISTS', async () => {
-    try {
-      await b2.createTasks(spec.id)
-      assert(false, 'Should have thrown')
-    } catch (err) {
-      assert(err.code === 'ALREADY_EXISTS', `Expected ALREADY_EXISTS, got: ${err.code}`)
-    }
-  })
-
-  await test('B4: getTask with unknown UUID throws NOT_FOUND', async () => {
+  await test('B2: getTask with unknown UUID throws NOT_FOUND', async () => {
     try {
       await b2.getTask('00000000-dead-beef-0000-000000000000')
       assert(false, 'Should have thrown')
@@ -412,7 +348,7 @@ async function runIntegrationTests() {
     }
   })
 
-  await test('B5: updateTaskState with invalid transition throws INVALID_TRANSITION', async () => {
+  await test('B3: updateTaskState with invalid transition throws INVALID_TRANSITION', async () => {
     const implTask = tasks.find(t => !t.isPhase)
     // task is currently in 'review'; skip straight to 'done' is invalid per state machine
     // but review → done is NOT in the machine; review can go approved or rejected only
@@ -425,86 +361,32 @@ async function runIntegrationTests() {
   })
 
   // ----------------------------------------------------------
-  // SCENARIO C: createTasks on unapproved spec
+  // SCENARIO C: State machine validation
   // ----------------------------------------------------------
-  console.log('\nScenario C: createTasks on unapproved spec')
-
-  // Fresh store; create a spec but do NOT approve it
-  taskStore = {}
-  taskAddCounter = 0
-  Object.keys(fileContents).forEach(k => delete fileContents[k])
+  console.log('\nScenario C: State machine contract')
 
   const b3 = makeBackend()
 
-  await test('C1: createSpec succeeds on clean store', async () => {
-    const s = await b3.createSpec(ISSUE_CREATED.key)
-    assert(s.state === 'draft', `Expected draft, got: ${s.state}`)
-  })
-
-  await test('C2: createTasks on draft spec throws INVALID_STATE', async () => {
-    try {
-      await b3.createTasks(`SPEC-${ISSUE_CREATED.key}`)
-      assert(false, 'Should have thrown')
-    } catch (err) {
-      assert(err.code === 'INVALID_STATE', `Expected INVALID_STATE, got: ${err.code}`)
-    }
-  })
-
-  // ----------------------------------------------------------
-  // SCENARIO D: rejectSpec → re-draft → approve flow
-  // ----------------------------------------------------------
-  console.log('\nScenario D: rejectSpec → approve flow')
-
-  taskStore = {}
-  taskAddCounter = 0
-  Object.keys(fileContents).forEach(k => delete fileContents[k])
-
-  const b4 = makeBackend()
-  let rejectedSpec
-
-  await test('D1: createSpec succeeds', async () => {
-    rejectedSpec = await b4.createSpec(ISSUE_CREATED.key)
-    assert(rejectedSpec.state === 'draft')
-  })
-
-  await test('D2: rejectSpec transitions to rejected', async () => {
-    const r = await b4.rejectSpec(rejectedSpec.id, 'Needs more detail')
-    assert(r.state === 'rejected', `Expected rejected, got: ${r.state}`)
-  })
-
-  await test('D3: approveSpec on rejected spec (draft or rejected allowed) succeeds', async () => {
-    // The state machine allows draft|rejected → approved
-    const a = await b4.approveSpec(rejectedSpec.id)
-    assert(a.state === 'approved', `Expected approved, got: ${a.state}`)
-  })
-
-  // ----------------------------------------------------------
-  // SCENARIO E: State machine validation
-  // ----------------------------------------------------------
-  console.log('\nScenario E: State machine contract')
-
-  const b5 = makeBackend()
-
-  await test('E1: getWorkStates() returns all 8 core states', () => {
-    const states = b5.getWorkStates()
+  await test('C1: getWorkStates() returns all 8 core states', () => {
+    const states = b3.getWorkStates()
     const CORE = ['new','draft','todo','inprogress','review','approved','rejected','done']
     for (const s of CORE) {
       assert(states.includes(s), `Missing state: ${s}`)
     }
   })
 
-  await test('E2: valid transitions are symmetric with isValidTransition', () => {
-    const states = b5.getWorkStates()
+  await test('C2: valid transitions are symmetric with isValidTransition', () => {
+    const states = b3.getWorkStates()
     for (const from of states) {
-      const valid = b5.getValidTransitions(from)
+      const valid = b3.getValidTransitions(from)
       for (const to of valid) {
-        assert(b5.isValidTransition(from, to), `isValidTransition(${from}, ${to}) should be true`)
+        assert(b3.isValidTransition(from, to), `isValidTransition(${from}, ${to}) should be true`)
       }
     }
   })
 
-  await test('E3: done state has no valid transitions', () => {
-    const transitions = b5.getValidTransitions('done')
+  await test('C3: done state has no valid transitions', () => {
+    const transitions = b3.getValidTransitions('done')
     assert(transitions.length === 0, `Expected 0 transitions from done, got: ${transitions.join(', ')}`)
   })
 
@@ -537,10 +419,6 @@ runIntegrationTests()
     process.exit(1)
   })
   .finally(() => {
-    // Restore real implementations
+    // Restore real exec
     require('child_process').exec = originalExec
-    fsPromises.mkdir     = originalFsMethods.mkdir
-    fsPromises.writeFile = originalFsMethods.writeFile
-    fsPromises.readFile  = originalFsMethods.readFile
-    fsPromises.access    = originalFsMethods.access
   })

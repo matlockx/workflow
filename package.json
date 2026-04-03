@@ -10,10 +10,11 @@
     "test:coverage": "jest --coverage",
     "test:bash": "bats test/bin/",
     "test:all": "npm run test && npm run test:bash",
-    "lint": "echo 'No linter configured yet'",
+    "lint": "eslint . --ext .js",
     "prepare": "lefthook install"
   },
   "devDependencies": {
+    "eslint": "^8.57.1",
     "jest": "^29.7.0",
     "lefthook": "^1.6.1"
   },

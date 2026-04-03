@@ -99,23 +99,21 @@ bugwarrior-pull
 
 ## Configuration
 
-Add to your `opencode.json`:
+Add to your `.agent/config.json`:
 
 ```json
 {
-  "workflow": {
-    "backend": {
-      "type": "jira-taskwarrior",
-      "config": {
-        "jiraSite": "your-site.atlassian.net",
-        "jiraProject": "PROJ",
-        "jiraEmail": "you@example.com",
-        "taskrcPath": "~/.taskrc",
-        "taskDataLocation": "~/.task",
-        "repository": "my-project",
-        "useBugwarrior": true,
-        "bugwarriorConfig": "~/.config/bugwarrior/bugwarrior.toml"
-      }
+  "backend": {
+    "type": "jira-taskwarrior",
+    "config": {
+      "jiraSite": "your-site.atlassian.net",
+      "jiraProject": "PROJ",
+      "jiraEmail": "you@example.com",
+      "taskrcPath": "~/.taskrc",
+      "taskDataLocation": "~/.task",
+      "repository": "my-project",
+      "useBugwarrior": true,
+      "bugwarriorConfig": "~/.config/bugwarrior/bugwarrior.toml"
     }
   }
 }
@@ -155,33 +153,13 @@ const issues = await backend.listIssues({
 console.log(`Found ${issues.length} issues`)
 ```
 
-### Create Spec
+### Create Tasks
 
 ```javascript
-// Create tasks from Jira issue
+// Create tasks directly from a Jira issue
 const tasks = await backend.createTasks('PROJ-123')
 
 console.log(`Tasks created: ${tasks.length}`)
-// Creates:
-// - Phase tasks with +impl +phase tags
-// - Implementation tasks with dependencies on phases
-```
-
-### Approve Spec
-
-```javascript
-const approved = await backend.approveSpec('SPEC-PROJ-123')
-
-console.log(`Spec approved: ${approved.state}`)
-// Updates Taskwarrior task: work_state:approved + status:completed
-```
-
-### Generate Tasks
-
-```javascript
-const tasks = await backend.createTasks('SPEC-PROJ-123')
-
-console.log(`Created ${tasks.length} tasks`)
 // Creates:
 // - Phase tasks with +impl +phase tags
 // - Implementation tasks with dependencies on phases
@@ -220,7 +198,6 @@ Jira Issue (PROJ-123)
 | Tag | Purpose |
 |-----|---------|
 | `+jira` | Synced from Jira via Bugwarrior |
-| `+spec` | Specification task |
 | `+impl` | Implementation work (includes phases) |
 | `+phase` | Phase container task |
 | `+conditional` | Optional task (may be skipped) |
@@ -240,10 +217,6 @@ new ────────► todo ────────► inprogress ─�
   │             ▲                                    │                 │
   │             │                                    │                 │
   │             └────────────── rejected ────────────┴─────────────────┘
-  │
-  └─────────► draft ───────► approved (specs only)
-                  │
-                  └─────────► rejected
 ```
 
 ## Dual-Field State Management
@@ -270,12 +243,6 @@ task <uuid> done                           # Missing work_state update!
 The backend's `_updateTaskState()` method handles this automatically.
 
 ## Query Patterns
-
-### Find Spec for Issue
-
-```bash
-task jiraid:PROJ-123 +spec export
-```
 
 ### Find Active Phase
 
@@ -312,7 +279,7 @@ The backend throws `BackendError` with these codes:
 
 | Code | Meaning | Recovery |
 |------|---------|----------|
-| `CONFIG_ERROR` | Missing/invalid configuration | Check opencode.json or env vars |
+| `CONFIG_ERROR` | Missing/invalid configuration | Check `.agent/config.json` or env vars |
 | `AUTH_ERROR` | ACLI not authenticated | Run: `acli jira auth login --web` |
 | `ACLI_ERROR` | ACLI command failed | Check ACLI installation |
 | `TASKWARRIOR_ERROR` | Taskwarrior command failed | Check Taskwarrior installation & UDAs |
@@ -326,11 +293,10 @@ Example:
 
 ```javascript
 try {
-  await backend.createSpec('PROJ-123')
+  await backend.createTasks('PROJ-123')
 } catch (error) {
   if (error.code === 'ALREADY_EXISTS') {
-    console.log('Spec already exists, fetching...')
-    const spec = await backend.getSpec('PROJ-123')
+    console.log('Tasks already exist for this issue')
   } else {
     console.error(`Error: ${error.message}`)
     if (error.recovery) {
@@ -386,11 +352,11 @@ task <uuid> modify depends:
 If you were using the original hardcoded Jira-Taskwarrior workflow:
 
 1. **No code changes needed** - your existing Taskwarrior data works as-is
-2. **Update config** - add backend configuration to `opencode.json`
-3. **Commands work the same** - `/spec`, `/createtasks`, `/implement` use this backend
+2. **Update config** - add backend configuration to `.agent/config.json`
+3. **Commands work the same** - `/createtasks`, `/implement` use this backend
 4. **Skills preserved** - taskwarrior and acli skills reference this backend
 
-Your existing tasks, specs, and workflow state are fully compatible.
+Your existing tasks and workflow state are fully compatible.
 
 ## Development
 

@@ -1,4 +1,7 @@
-export const EnvProtection = async ({ client, $ }) => {
+// AIDEV-NOTE: This file must use CommonJS (module.exports) — the project is
+// a CJS package (no "type": "module" in package.json). Using ESM `export`
+// syntax here would cause a SyntaxError at require() time (CRITICAL-4 fix).
+const EnvProtection = async ({ client, $ }) => {
   return {
     tool: {
       execute: {
@@ -11,3 +14,5 @@ export const EnvProtection = async ({ client, $ }) => {
     }
   }
 }
+
+module.exports = { EnvProtection }

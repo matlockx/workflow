@@ -3,6 +3,10 @@
 /**
  * Simple test file for mock backend validation
  * Run with: node backends/mock/test.js
+ *
+ * AIDEV-NOTE: HIGH-2/3 fix — removed spec pipeline tests (createSpec, getSpec,
+ * approveSpec). createTasks now takes issueId directly. getWorkStates() is
+ * synchronous (returns string[], not Promise<{name}[]>).
  */
 
 const MockBackend = require('./index.js')
@@ -12,7 +16,6 @@ async function runTests() {
 
   const backend = new MockBackend({
     projectKey: 'TEST',
-    autoGenerateSpecs: true,
     autoGenerateTasks: true,
     initialIssues: [
       {
@@ -52,61 +55,42 @@ async function runTests() {
     console.log(`  Retrieved issue: ${issue.id} - ${issue.summary}`)
     if (!issue) throw new Error('Expected to retrieve issue')
 
-    // Test 3: Create spec
-    console.log('✓ Test 3: Create spec')
-    const spec = await backend.createSpec(issue.id)
-    console.log(`  Created spec: ${spec.id}`)
-    if (!spec.id) throw new Error('Expected spec ID')
-
-    // Test 4: Get spec
-    console.log('✓ Test 4: Get spec')
-    const retrievedSpec = await backend.getSpec(issue.id)
-    console.log(`  Retrieved spec: ${retrievedSpec.id} (state: ${retrievedSpec.state})`)
-    if (retrievedSpec.id !== spec.id) throw new Error('Spec ID mismatch')
-    if (retrievedSpec.state !== 'draft') throw new Error('Expected draft state')
-
-    // Test 5: Approve spec
-    console.log('✓ Test 5: Approve spec')
-    const approvedSpec = await backend.approveSpec(spec.id)
-    console.log(`  Spec state: ${approvedSpec.state}`)
-    if (approvedSpec.state !== 'approved') throw new Error('Expected approved state')
-
-    // Test 6: Create tasks
-    console.log('✓ Test 6: Create tasks')
-    const tasks = await backend.createTasks(spec.id)
+    // Test 3: Create tasks directly from issue (no spec stage)
+    console.log('✓ Test 3: Create tasks from issue')
+    const tasks = await backend.createTasks(issue.id)
     console.log(`  Created ${tasks.length} tasks`)
     if (tasks.length === 0) throw new Error('Expected some tasks')
 
-    // Test 7: Get tasks
-    console.log('✓ Test 7: Get tasks')
-    const allTasks = await backend.getTasks({ specId: spec.id })
+    // Test 4: Get tasks by issueId
+    console.log('✓ Test 4: Get tasks by issueId')
+    const allTasks = await backend.getTasks({ issueId: issue.id })
     console.log(`  Retrieved ${allTasks.length} tasks`)
     if (allTasks.length !== tasks.length) throw new Error(`Expected ${tasks.length} tasks`)
 
-    // Test 8: Update task state
-    console.log('✓ Test 8: Update task state')
+    // Test 5: Update task state
+    console.log('✓ Test 5: Update task state')
     const updatedTask = await backend.updateTaskState(tasks[0].id, 'inprogress')
     console.log(`  Task state: ${updatedTask.state}`)
     if (updatedTask.state !== 'inprogress') throw new Error('Expected inprogress state')
 
-    // Test 9: Get work states
-    console.log('✓ Test 9: Get work states')
-    const states = await backend.getWorkStates()
-    console.log(`  Available states: ${states.map(s => s.name).join(', ')}`)
+    // Test 6: Get work states (synchronous — returns string[])
+    console.log('✓ Test 6: Get work states')
+    const states = backend.getWorkStates()
+    console.log(`  Available states: ${states.join(', ')}`)
     if (states.length === 0) throw new Error('Expected work states')
 
-    // Test 10: Validate state transitions
-    console.log('✓ Test 10: Validate state transitions')
-    const canTransition = await backend.isValidTransition('todo', 'inprogress')
+    // Test 7: Validate state transitions (synchronous)
+    console.log('✓ Test 7: Validate state transitions')
+    const canTransition = backend.isValidTransition('todo', 'inprogress')
     console.log(`  Can transition todo → inprogress: ${canTransition}`)
     if (!canTransition) throw new Error('Expected valid transition')
 
-    const invalidTransition = await backend.isValidTransition('todo', 'done')
+    const invalidTransition = backend.isValidTransition('todo', 'done')
     console.log(`  Can transition todo → done: ${invalidTransition}`)
     if (invalidTransition) throw new Error('Expected invalid transition')
 
-    // Test 11: Error handling - invalid issue key
-    console.log('✓ Test 11: Error handling - invalid issue key')
+    // Test 8: Error handling - invalid issue key
+    console.log('✓ Test 8: Error handling - invalid issue key')
     try {
       await backend.getIssue('INVALID-999')
       throw new Error('Expected error for invalid issue key')
@@ -115,8 +99,8 @@ async function runTests() {
       console.log(`  Correctly threw error: ${error.message}`)
     }
 
-    // Test 12: Error handling - invalid state transition
-    console.log('✓ Test 12: Error handling - invalid state transition')
+    // Test 9: Error handling - invalid state transition
+    console.log('✓ Test 9: Error handling - invalid state transition')
     try {
       // Try to transition from inprogress to draft (invalid)
       await backend.updateTaskState(tasks[0].id, 'draft')

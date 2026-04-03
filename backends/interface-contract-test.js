@@ -26,6 +26,9 @@ const { execSync } = require('child_process')
 // ============================================
 // REQUIRED INTERFACE METHODS
 // (sourced from backends/interface.ts WorkflowBackend)
+// AIDEV-NOTE: ADR-001 removed the spec stage from the pipeline.
+// createSpec/getSpec/approveSpec/rejectSpec are no longer required methods.
+// createTasks now takes an issueId directly, not a specId.
 // ============================================
 
 const REQUIRED_METHODS = [
@@ -33,10 +36,6 @@ const REQUIRED_METHODS = [
   'getIssue',
   'createIssue',
   'updateIssue',
-  'createSpec',
-  'getSpec',
-  'approveSpec',
-  'rejectSpec',
   'createTasks',
   'getTasks',
   'getTask',
@@ -268,141 +267,36 @@ async function runContractTests(backend, label) {
   })
 
   // ----------------------------------------
-  // SECTION 4: Spec lifecycle + return shapes
+  // SECTION 4: Task lifecycle + return shapes
+  // AIDEV-NOTE: ADR-001 — no spec stage. createTasks(issueId) is called
+  // directly on the issue; there is no approve-spec gate before task creation.
   // ----------------------------------------
-  await section('4. Spec lifecycle and return shapes', async () => {
-    let issue2
-    let spec
-
-    await test('createSpec returns correct shape', async () => {
-      issue2 = await backend.createIssue({
-        summary: 'Spec lifecycle test issue',
-        description: 'Testing spec workflow'
-      })
-      spec = await backend.createSpec(issue2.id)
-      assertHasFields(spec, ['id', 'issueId', 'filePath', 'state', 'createdAt', 'metadata'], 'Spec')
-      assert(spec.issueId === issue2.id, `issueId mismatch: ${spec.issueId} vs ${issue2.id}`)
-      assert(spec.state === 'draft', `Expected initial state 'draft', got '${spec.state}'`)
-      assert(typeof spec.filePath === 'string', 'filePath must be a string')
-      assert(spec.createdAt instanceof Date, 'createdAt must be a Date')
-      assert(typeof spec.metadata === 'object', 'metadata must be an object')
-    })
-
-    await test('createSpec throws NOT_FOUND for unknown issue', async () => {
-      let threw = false
-      try {
-        await backend.createSpec('__nonexistent_issue_99999__')
-      } catch (err) {
-        threw = true
-        assert(
-          err.code === 'NOT_FOUND',
-          `Expected NOT_FOUND, got ${err.code}: ${err.message}`
-        )
-      }
-      assert(threw, 'Expected createSpec to throw NOT_FOUND')
-    })
-
-    await test('getSpec returns the created spec', async () => {
-      if (!spec) return
-      const fetched = await backend.getSpec(issue2.id)
-      assert(fetched.id === spec.id, `ID mismatch: ${fetched.id} vs ${spec.id}`)
-      assert(fetched.state === 'draft', `Expected draft, got ${fetched.state}`)
-    })
-
-    await test('getSpec throws NOT_FOUND for unknown issue', async () => {
-      let threw = false
-      try {
-        await backend.getSpec('__nonexistent_issue_99999__')
-      } catch (err) {
-        threw = true
-        assert(
-          err.code === 'NOT_FOUND',
-          `Expected NOT_FOUND, got ${err.code}: ${err.message}`
-        )
-      }
-      assert(threw, 'Expected getSpec to throw NOT_FOUND')
-    })
-
-    await test('approveSpec transitions draft → approved', async () => {
-      if (!spec) return
-      const approved = await backend.approveSpec(spec.id)
-      assert(approved.state === 'approved', `Expected 'approved', got '${approved.state}'`)
-    })
-
-    await test('approveSpec throws INVALID_TRANSITION if already approved', async () => {
-      if (!spec) return
-      let threw = false
-      try {
-        await backend.approveSpec(spec.id)
-      } catch (err) {
-        threw = true
-        assert(
-          err.code === 'INVALID_TRANSITION',
-          `Expected INVALID_TRANSITION, got ${err.code}: ${err.message}`
-        )
-      }
-      assert(threw, 'Expected approveSpec to throw INVALID_TRANSITION when already approved')
-    })
-
-    await test('rejectSpec transitions draft → rejected', async () => {
-      const issue3 = await backend.createIssue({
-        summary: 'Reject test issue',
-        description: 'For testing rejectSpec'
-      })
-      const specR = await backend.createSpec(issue3.id)
-      const rejected = await backend.rejectSpec(specR.id, 'Not ready')
-      assert(rejected.state === 'rejected', `Expected 'rejected', got '${rejected.state}'`)
-    })
-
-    await test('rejectSpec throws NOT_FOUND for unknown spec', async () => {
-      let threw = false
-      try {
-        await backend.rejectSpec('__nonexistent_spec_99999__')
-      } catch (err) {
-        threw = true
-        assert(
-          err.code === 'NOT_FOUND',
-          `Expected NOT_FOUND, got ${err.code}: ${err.message}`
-        )
-      }
-      assert(threw, 'Expected rejectSpec to throw NOT_FOUND')
-    })
-  })
-
-  // ----------------------------------------
-  // SECTION 5: Task lifecycle + return shapes
-  // ----------------------------------------
-  await section('5. Task lifecycle and return shapes', async () => {
+  await section('4. Task lifecycle and return shapes', async () => {
     let issue4
-    let spec4
     let tasks
 
-    await test('createTasks throws INVALID_STATE if spec not approved', async () => {
+    await test('createTasks returns array of tasks for an issue', async () => {
       issue4 = await backend.createIssue({
         summary: 'Task lifecycle test',
         description: 'For testing task workflow'
       })
-      spec4 = await backend.createSpec(issue4.id)
-      // spec4 is still in draft — createTasks must reject it
+      tasks = await backend.createTasks(issue4.id)
+      assert(Array.isArray(tasks), `Expected array, got ${typeof tasks}`)
+      assert(tasks.length > 0, 'Expected at least one task')
+    })
+
+    await test('createTasks throws NOT_FOUND for unknown issue', async () => {
       let threw = false
       try {
-        await backend.createTasks(spec4.id)
+        await backend.createTasks('__nonexistent_issue_99999__')
       } catch (err) {
         threw = true
         assert(
-          err.code === 'INVALID_STATE',
-          `Expected INVALID_STATE, got ${err.code}: ${err.message}`
+          err.code === 'NOT_FOUND',
+          `Expected NOT_FOUND, got ${err.code}: ${err.message}`
         )
       }
-      assert(threw, 'Expected createTasks to throw INVALID_STATE for unapproved spec')
-    })
-
-    await test('createTasks returns array of tasks after approval', async () => {
-      if (!spec4) return
-      await backend.approveSpec(spec4.id)
-      tasks = await backend.createTasks(spec4.id)
-      assert(Array.isArray(tasks), `Expected array, got ${typeof tasks}`)
-      assert(tasks.length > 0, 'Expected at least one task')
+      assert(threw, 'Expected createTasks to throw NOT_FOUND for unknown issue')
     })
 
     await test('createTasks returns tasks with correct shape', async () => {
@@ -410,7 +304,7 @@ async function runContractTests(backend, label) {
       for (const task of tasks) {
         assertHasFields(
           task,
-          ['id', 'description', 'specId', 'issueId', 'state', 'tags', 'isPhase', 'depends', 'createdAt', 'modifiedAt', 'metadata'],
+          ['id', 'description', 'issueId', 'state', 'tags', 'isPhase', 'depends', 'createdAt', 'modifiedAt', 'metadata'],
           'Task'
         )
         assert(typeof task.id === 'string', 'Task.id must be a string')
@@ -433,19 +327,10 @@ async function runContractTests(backend, label) {
       assert(Array.isArray(result), `Expected array, got ${typeof result}`)
     })
 
-    await test('getTasks filters by specId', async () => {
-      if (!spec4 || !tasks) return
-      const result = await backend.getTasks({ specId: spec4.id })
-      assert(Array.isArray(result), 'Expected array')
-      assert(result.length === tasks.length, `Expected ${tasks.length} tasks, got ${result.length}`)
-    })
-
     await test('getTasks filters by issueId', async () => {
       if (!issue4 || !tasks) return
       const result = await backend.getTasks({ issueId: issue4.id })
       assert(Array.isArray(result), 'Expected array')
-      // Result must include at least the tasks we created; may include the spec
-      // tracking issue if the backend links it to the same issueId.
       assert(
         result.length >= tasks.length,
         `Expected at least ${tasks.length} tasks, got ${result.length}`
@@ -455,7 +340,7 @@ async function runContractTests(backend, label) {
     await test('getTask returns task with correct shape', async () => {
       if (!tasks || tasks.length === 0) return
       const task = await backend.getTask(tasks[0].id)
-      assertHasFields(task, ['id', 'description', 'specId', 'issueId', 'state', 'tags', 'isPhase', 'depends'], 'Task')
+      assertHasFields(task, ['id', 'description', 'issueId', 'state', 'tags', 'isPhase', 'depends'], 'Task')
       assert(task.id === tasks[0].id, 'ID mismatch')
     })
 
@@ -522,9 +407,9 @@ async function runContractTests(backend, label) {
   })
 
   // ----------------------------------------
-  // SECTION 6: Error shape contract
+  // SECTION 5: Error shape contract
   // ----------------------------------------
-  await section('6. Error object shape', async () => {
+  await section('5. Error object shape', async () => {
     await test('BackendError has .code property (string)', async () => {
       let err
       try {
@@ -565,7 +450,7 @@ async function main() {
   try {
     // --- Mock backend ---
     const MockBackend = require('./mock/index.js')
-    const mockBackend = new MockBackend({ specsDir: tmpDir })
+    const mockBackend = new MockBackend()
     await runContractTests(mockBackend, 'mock backend')
 
     // --- Beads backend ---
@@ -592,7 +477,6 @@ async function main() {
     if (beadsAvailable) {
       const beadsBackend = new BeadsBackend({
         workspaceDir: beadsWorkspace,
-        specsDir: tmpDir,
         repository: 'contract-test'
       })
       await runContractTests(beadsBackend, 'beads backend')
