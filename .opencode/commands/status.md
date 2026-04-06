@@ -1,6 +1,6 @@
 ---
 description: Show current workflow state — open tasks, in-progress work, and recent completions
-agent: planner
+agent: plan
 ---
 
 # /status — Workflow dashboard

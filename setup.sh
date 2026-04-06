@@ -34,8 +34,7 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" || -z "${1:-}" ]]; then
     echo "Install the v2 OpenCode workflow framework into a repository."
     echo ""
     echo "What gets copied:"
-    echo "  .opencode/          Agents, commands, skills, instructions, config"
-    echo "  opencode.json       OpenCode configuration"
+    echo "  .opencode/          Agents, commands, skills, instructions, config, opencode.json"
     echo "  AGENTS.md           Project-specific template (or reference added)"
     echo "  docs/adr/           ADR system (template + index)"
     echo "  hooks/              Git pre-commit + commit-msg hooks"
@@ -148,20 +147,21 @@ copy_dir_safe "$V2_DIR/.opencode/commands" "$TARGET/.opencode/commands" "Command
 copy_dir_safe "$V2_DIR/.opencode/skills" "$TARGET/.opencode/skills" "Skills"
 
 # --- Step 2: opencode.json ---
-header "Step 2: OpenCode config (opencode.json)"
+header "Step 2: OpenCode config (.opencode/opencode.json)"
 
-if [ -e "$TARGET/opencode.json" ]; then
+DST_OPENCODE_JSON="$TARGET/.opencode/opencode.json"
+if [ -e "$DST_OPENCODE_JSON" ]; then
     # Check if it already has our instructions entries
-    if grep -q '.opencode/INSTRUCTIONS.md' "$TARGET/opencode.json" 2>/dev/null; then
+    if grep -q 'INSTRUCTIONS.md' "$DST_OPENCODE_JSON" 2>/dev/null; then
         ok "opencode.json (already configured)"
     else
-        warn "opencode.json exists but doesn't reference INSTRUCTIONS.md"
+        warn ".opencode/opencode.json exists but doesn't reference INSTRUCTIONS.md"
         echo "  Add these to your 'instructions' array:"
-        echo "    \".opencode/INSTRUCTIONS.md\""
-        echo "    \"docs/adr/INDEX.md\""
+        echo "    \"INSTRUCTIONS.md\""
+        echo "    \"../docs/adr/INDEX.md\""
     fi
 else
-    copy_safe "$V2_DIR/opencode.json" "$TARGET/opencode.json"
+    copy_safe "$V2_DIR/.opencode/opencode.json" "$DST_OPENCODE_JSON"
 fi
 
 # --- Step 3: AGENTS.md ---
@@ -223,10 +223,10 @@ echo ""
 echo "Files installed:"
 echo "  .opencode/INSTRUCTIONS.md     Portable workflow framework (don't edit)"
 echo "  .opencode/config.json         Beads backend config"
+echo "  .opencode/opencode.json       OpenCode configuration"
 echo "  .opencode/agents/             4 agents: planner, designer, developer, qa"
 echo "  .opencode/commands/           4 commands: plan, implement, review, status"
 echo "  .opencode/skills/             4 skills: golang, tdd, workflow, quality-gates"
-echo "  opencode.json                 OpenCode configuration"
 echo "  AGENTS.md                     Project-specific config (customize this!)"
 echo "  docs/adr/                     ADR system (template + index)"
 echo "  hooks/                        Git pre-commit + commit-msg hooks"

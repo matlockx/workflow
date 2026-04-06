@@ -1,6 +1,6 @@
 ---
 description: Implement tasks from the Designer's plan — TDD workflow with one task at a time
-agent: developer
+agent: build
 ---
 
 # /implement — Implement tasks
@@ -51,7 +51,7 @@ within the 500 LOC limit.
 
 5. **Implement with TDD**
 
-   Follow the Developer agent's TDD workflow:
+   Follow the Build agent's TDD workflow:
    1. Write failing test
    2. Run `go test ./...` — confirm failure
    3. Implement minimal code
@@ -76,4 +76,4 @@ within the 500 LOC limit.
 
 This command runs one task at a time. After QA approves and commits,
 call `/implement --next` for the next task, or `/implement BD-<id>`
-for a specific one. The Developer agent does the actual coding.
+for a specific one. The Build agent does the actual coding.

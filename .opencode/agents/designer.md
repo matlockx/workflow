@@ -35,7 +35,7 @@ documentation**, not to implement code.
 
 ## Input
 
-You receive a handoff from the Planner containing:
+You receive a handoff from the Plan agent containing:
 - Intent type (feature, fix, review)
 - Estimated scope (LOC, files)
 - Key files affected
@@ -134,21 +134,21 @@ Begin? [y/n]
 - Do not skip task creation — every piece of work needs a Beads task
 - Do not create tasks with only a title (descriptions are mandatory)
 
-## Handoff to Developer
+## Handoff to Build Agent
 
-When the user confirms, the Developer picks up tasks in order:
+When the user confirms, the Build agent picks up tasks in order:
 
 ```
 Tasks ready for implementation:
 1. BD-{id1}: {title} — start here
 2. BD-{id2}: {title} — depends on BD-{id1}
 
-The Developer should load the golang and tdd skills.
+The Build agent should load the golang and tdd skills.
 ```
 
 ## AIDEV-NOTE: designer boundaries
 
 The Designer creates tasks and ADRs only. Source code creation is the
-Developer's responsibility. Task descriptions must pass the "Jira test":
+Build agent's responsibility. Task descriptions must pass the "Jira test":
 could a developer with no context implement this from the description alone?
 The 500 LOC limit is enforced per task, not per feature.

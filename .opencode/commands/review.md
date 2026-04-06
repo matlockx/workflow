@@ -54,7 +54,7 @@ either commits (if all pass) or routes failures back to the responsible agent.
    Status: FAILED
    Details: {error output}
 
-   Routing to: {Developer|Designer}
+   Routing to: {Build|Designer}
    Action needed: {what to fix}
    ```
 

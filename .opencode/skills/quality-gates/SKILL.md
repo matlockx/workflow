@@ -57,7 +57,7 @@ If a task's diff exceeds 500 LOC:
 1. Stop implementation
 2. Route back to the Designer agent
 3. Designer splits the task into smaller sub-tasks
-4. Developer implements each sub-task separately
+4. Build agent implements each sub-task separately
 
 ## Loop-Back Routing
 
@@ -65,16 +65,16 @@ When a gate fails, QA routes to the responsible agent:
 
 | Failure | Responsible agent | Expected action |
 |---------|------------------|----------------|
-| Tests missing for changed code | **Developer** | Write tests (TDD: test first) |
-| Tests fail | **Developer** | Fix failing tests |
-| Lint errors | **Developer** | Fix lint issues |
+| Tests missing for changed code | **Build** | Write tests (TDD: test first) |
+| Tests fail | **Build** | Fix failing tests |
+| Lint errors | **Build** | Fix lint issues |
 | No Beads task | **Designer** | Create task retroactively |
 | Task has no description | **Designer** | Add self-contained description |
 | ADR missing for architectural change | **Designer** | Write ADR, update INDEX.md |
 | Diff >500 LOC | **Designer** | Split into smaller tasks |
-| Hardcoded secrets | **Developer** | Move to env vars / config |
-| Docs out of date | **Developer** | Update docs |
-| Commit format wrong | **Developer** | Rewrite commit message |
+| Hardcoded secrets | **Build** | Move to env vars / config |
+| Docs out of date | **Build** | Update docs |
+| Commit format wrong | **Build** | Rewrite commit message |
 
 ### Loop-Back Protocol
 

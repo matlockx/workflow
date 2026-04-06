@@ -20,13 +20,13 @@ and agent coordination.
 
 | Agent | Gate | Responsibility | Hands off to |
 |-------|------|---------------|--------------|
-| **Planner** | Gate 1 | Detect intent, estimate scope, present plan | User (for confirmation) |
-| **Designer** | Gate 2 | Create Beads tasks, write ADRs, update ADR index | Developer (to implement) |
-| **Developer** | — | TDD implementation, max 500 LOC per task | QA (for review) |
-| **QA** | Gate 3 | Quality gates, loop-back on failures | Developer or Designer |
+| **Plan** | Gate 1 | Detect intent, estimate scope, present plan | User (for confirmation) |
+| **Designer** | Gate 2 | Create Beads tasks, write ADRs, update ADR index | Build (to implement) |
+| **Build** | — | TDD implementation, max 500 LOC per task | QA (for review) |
+| **QA** | Gate 3 | Quality gates, loop-back on failures | Build or Designer |
 
-Work flows in one direction: Planner → Designer → Developer → QA → Done.
-QA can loop back to Developer (code issues) or Designer (missing task/ADR).
+Work flows in one direction: Plan → Designer → Build → QA → Done.
+QA can loop back to Build (code issues) or Designer (missing task/ADR).
 
 ---
 
@@ -152,13 +152,13 @@ After implementation, QA runs all quality gates.
 |---------|--------|----------|
 | No task exists | Create retroactively via `bd create` | Designer |
 | Task has no description | Add via `bd edit <id> --notes` | Designer |
-| Tests missing | Write tests before proceeding | Developer |
-| Tests fail | Fix tests | Developer |
-| Lint fails | Fix lint issues | Developer |
+| Tests missing | Write tests before proceeding | Build |
+| Tests fail | Fix tests | Build |
+| Lint fails | Fix lint issues | Build |
 | ADR missing for architectural change | Write ADR | Designer |
 | Diff >500 LOC | Split into smaller tasks | Designer |
-| Security issue found | Fix | Developer |
-| Docs out of date | Update | Developer |
+| Security issue found | Fix | Build |
+| Docs out of date | Update | Build |
 | All checks pass | Present summary | — |
 
 ### Completion Summary
@@ -250,29 +250,29 @@ Would you like me to: [show git history] [help configure backend]?
 
 ```
 User request
-  → Planner: detect intent, estimate scope
+  → Plan: detect intent, estimate scope
   → User confirms plan
   → Designer: create tasks, ADR if needed
   → User confirms tasks
-  → Developer: implement task (TDD, ≤500 LOC)
+  → Build: implement task (TDD, ≤500 LOC)
   → QA: run gates
-    → Pass: commit + close task → present next task to Developer
-    → Fail: loop back to Developer or Designer
-  → Next task (repeat Developer → QA)
+    → Pass: commit + close task → present next task to Build
+    → Fail: loop back to Build or Designer
+  → Next task (repeat Build → QA)
   → All tasks done
 ```
 
 <!-- AIDEV-NOTE: After QA commits a task, it advances to the next task in
-     the Designer's plan and hands off to the Developer. The user does not
+     the Designer's plan and hands off to the Build agent. The user does not
      need to drive task-by-task advancement — QA handles the transition. -->
 
 ### Fix Workflow
 
 ```
 User reports bug
-  → Planner: confirm understanding
+  → Plan: confirm understanding
   → Designer: create single task
-  → Developer: write failing test, then fix
+  → Build: write failing test, then fix
   → QA: run gates → commit
 ```
 
@@ -280,11 +280,11 @@ User reports bug
 
 ```
 User requests small change (<10 LOC)
-  → Planner: "Trivial change. Proceed? [y/n]"
-  → Developer: implement + create Beads task inline (bd create)
+  → Plan: "Trivial change. Proceed? [y/n]"
+  → Build: implement + create Beads task inline (bd create)
   → QA: run gates → commit
 ```
 
-<!-- AIDEV-NOTE: Even trivial changes need a Beads task. The Developer creates
+<!-- AIDEV-NOTE: Even trivial changes need a Beads task. The Build agent creates
      it inline to avoid bouncing through the Designer for one-liners. QA's
      task gate still applies — no exceptions. -->

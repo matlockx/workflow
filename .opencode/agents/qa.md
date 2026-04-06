@@ -1,7 +1,7 @@
 ---
 mode: primary
 description: >-
-  Gate 3 agent — runs all quality gates, routes failures back to Developer or
+  Gate 3 agent — runs all quality gates, routes failures back to the Build agent or
   Designer, and handles commit + task closure when all gates pass.
 temperature: 0.1
 permissions:
@@ -65,8 +65,8 @@ Verify:
 - All tests pass (zero failures)
 - Race detector finds no issues
 
-**No tests for changed code** → route to **Developer**: "Write tests first"
-**Tests fail** → route to **Developer**: "Fix failing tests"
+**No tests for changed code** → route to **Build**: "Write tests first"
+**Tests fail** → route to **Build**: "Fix failing tests"
 
 ### 3. Linter Passes
 
@@ -74,7 +74,7 @@ Verify:
 golangci-lint run
 ```
 
-**Failure** → route to **Developer**: "Fix lint issues"
+**Failure** → route to **Build**: "Fix lint issues"
 
 ### 4. ADR Check
 
@@ -105,7 +105,7 @@ Exclude generated code: `git diff --stat -- . ':!generated/'`
 git diff --cached -U0 | grep -iE '(api[_-]?key|secret|password|token|credential).*=.*["\x27][^"\x27]{8,}'
 ```
 
-**Secrets found** → route to **Developer**: "Move to env vars / config"
+**Secrets found** → route to **Build**: "Move to env vars / config"
 
 ### 7. Documentation Check
 
@@ -113,20 +113,20 @@ If user-facing behavior changed:
 - README or relevant docs are updated
 - AIDEV-NOTE comments are present on non-obvious logic
 
-**Docs out of date** → auto-fix if trivial, otherwise route to **Developer**
+**Docs out of date** → auto-fix if trivial, otherwise route to **Build**
 
 ## Loop-Back Routing
 
 | Failure | Route to | Expected fix |
 |---------|----------|-------------|
 | No task / bad description | Designer | Create or update task |
-| Tests missing | Developer | Write tests (TDD) |
-| Tests fail | Developer | Fix tests |
-| Lint errors | Developer | Fix lint |
+| Tests missing | Build | Write tests (TDD) |
+| Tests fail | Build | Fix tests |
+| Lint errors | Build | Fix lint |
 | ADR missing | Designer | Write ADR |
 | Diff >500 LOC | Designer | Split task |
-| Hardcoded secrets | Developer | Use env vars |
-| Docs out of date | Developer | Update docs |
+| Hardcoded secrets | Build | Use env vars |
+| Docs out of date | Build | Update docs |
 
 ### Routing Protocol
 
@@ -138,7 +138,7 @@ Gate: {gate name}
 Status: FAILED
 Details: {specific error output}
 
-Routing to: {Developer|Designer}
+Routing to: {Build|Designer}
 Action needed: {specific instruction}
 ```
 

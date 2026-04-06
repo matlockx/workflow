@@ -31,27 +31,27 @@ per-project. Project-specific rules belong in `AGENTS.md`.
 Work flows through four agents with three gates:
 
 ```
-Planner (Gate 1) → Designer (Gate 2) → Developer → QA (Gate 3) → Done
-                                                ↑          |
-                                                └──────────┘
-                                                 (loop-back)
+Plan (Gate 1) → Designer (Gate 2) → Build → QA (Gate 3) → Done
+                                          ↑          |
+                                          └──────────┘
+                                           (loop-back)
 ```
 
 | Agent | Gate | Responsibility |
 |-------|------|---------------|
-| **Planner** | Gate 1 | Detect intent, estimate scope, present plan, wait for confirmation |
+| **Plan** | Gate 1 | Detect intent, estimate scope, present plan, wait for confirmation |
 | **Designer** | Gate 2 | Create tasks with Jira-ready descriptions, triage ADRs, confirm plan |
-| **Developer** | — | TDD implementation, max 500 LOC per task |
+| **Build** | — | TDD implementation, max 500 LOC per task |
 | **QA** | Gate 3 | Run all quality gates, commit or route failures back |
 
 ### Commands
 
 | Command | Purpose | Agent |
 |---------|---------|-------|
-| `/plan` | Plan work (Gate 1) | Planner |
-| `/implement` | Implement a task (TDD) | Developer |
+| `/plan` | Plan work (Gate 1) | Plan |
+| `/implement` | Implement a task (TDD) | Build |
 | `/review` | Run quality gates (Gate 3) | QA |
-| `/status` | Show workflow state (read-only) | Planner |
+| `/status` | Show workflow state (read-only) | Plan |
 
 ---
 
@@ -77,13 +77,13 @@ When a gate fails, QA routes to the responsible agent:
 
 | Failure | Route to |
 |---------|----------|
-| Tests missing or failing | Developer |
-| Lint errors | Developer |
+| Tests missing or failing | Build |
+| Lint errors | Build |
 | No task / bad description | Designer |
 | ADR missing | Designer |
 | Diff >500 LOC | Designer (split task) |
-| Hardcoded secrets | Developer |
-| Docs out of date | Developer |
+| Hardcoded secrets | Build |
+| Docs out of date | Build |
 
 ---
 

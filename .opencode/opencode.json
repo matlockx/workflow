@@ -1,8 +1,8 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "instructions": [
-    ".opencode/INSTRUCTIONS.md",
-    "docs/adr/INDEX.md"
+    "INSTRUCTIONS.md",
+    "../docs/adr/INDEX.md"
   ],
   "permission": {
     "doom_loop": "deny"

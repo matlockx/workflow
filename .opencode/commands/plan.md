@@ -1,6 +1,6 @@
 ---
 description: Detect intent, estimate scope, and create a plan for a feature, fix, or refactor
-agent: planner
+agent: plan
 ---
 
 # /plan — Plan work
@@ -36,7 +36,7 @@ with intent, scope, and workflow recommendation.
 
 4. **Wait for confirmation**
 
-   - `y` / `yes` → hand off to Designer (or Developer for trivial)
+   - `y` / `yes` → hand off to Designer (or Build for trivial)
    - `n` / `no` → stop
    - `?` → explain in more detail
    - Ambiguous → ask for explicit yes/no
@@ -45,9 +45,9 @@ with intent, scope, and workflow recommendation.
 
    On confirmation, summarize the plan and hand off to the next agent:
    - Non-trivial: hand off to **Designer** for task creation
-   - Trivial: hand off to **Developer** for direct implementation
+   - Trivial: hand off to **Build** for direct implementation
 
 ## AIDEV-NOTE: plan command boundaries
 
 This command orchestrates Gate 1 only. It does not create tasks, write code,
-or run quality gates. The Planner agent does the actual analysis work.
+or run quality gates. The Plan agent does the actual analysis work.
