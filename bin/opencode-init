@@ -86,6 +86,15 @@ lang_single_test_cmd() {
     *)       echo "<fill in your single-test command>" ;;
   esac
 }
+lang_display_name() {
+  case "$1" in
+    go)      echo "Go" ;;
+    rust)    echo "Rust" ;;
+    node)    echo "TypeScript / Node.js" ;;
+    python)  echo "Python" ;;
+    *)       echo "<fill in your primary language>" ;;
+  esac
+}
 
 # Colors (if terminal supports them)
 if [[ -t 1 ]]; then
@@ -242,7 +251,7 @@ add_startup_library() {
 }
 
 # AIDEV-NOTE: Generates AGENTS.md from the template by substituting
-# {{PROJECT_NAME}}, {{BUILD_CMD}}, {{TEST_CMD}}, {{LINT_CMD}}, {{SINGLE_TEST_CMD}}.
+# {{PROJECT_NAME}}, {{BUILD_CMD}}, {{TEST_CMD}}, {{LINT_CMD}}, {{SINGLE_TEST_CMD}}, {{LANGUAGE}}.
 # lang_key is one of: go, rust, node, python, default.
 generate_agents_md() {
   local project_name="$1"
@@ -260,6 +269,7 @@ generate_agents_md() {
   local test_cmd;  test_cmd="$(lang_test_cmd  "$lang_key")"
   local lint_cmd;  lint_cmd="$(lang_lint_cmd  "$lang_key")"
   local single_test_cmd; single_test_cmd="$(lang_single_test_cmd "$lang_key")"
+  local language; language="$(lang_display_name "$lang_key")"
 
   sed \
     -e "s|{{PROJECT_NAME}}|$project_name|g" \
@@ -267,6 +277,7 @@ generate_agents_md() {
     -e "s|{{TEST_CMD}}|$test_cmd|g" \
     -e "s|{{LINT_CMD}}|$lint_cmd|g" \
     -e "s|{{SINGLE_TEST_CMD}}|$single_test_cmd|g" \
+    -e "s|{{LANGUAGE}}|$language|g" \
     "$template_src" > "$agents_md_dst"
 
   log_success "Generated AGENTS.md (lang: $lang_key)"
