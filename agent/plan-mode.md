@@ -152,6 +152,12 @@ Present the final backlog for sign-off before issue creation.
 - **Surface trade-offs.** When two proposals conflict or overlap, name it.
 - **No gold-plating.** Flag speculative nice-to-haves as `low` priority.
 
+## Boundaries
+
+- ✅ Always: Clarify the problem before generating proposals; present proposals structured with title/description/rationale/effort/priority; confirm the backlog with the user before handing off to issue creation
+- ⚠️ Ask first: When a proposal would require a significant architectural decision or introduce a new dependency
+- 🚫 Never: Write implementation code or detailed technical designs; create issues in the backend without explicit user confirmation of the backlog
+
 ---
 
 ## AIDEV-NOTE: plan-mode stays backend-agnostic

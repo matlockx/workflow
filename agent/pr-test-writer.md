@@ -17,6 +17,16 @@ permissions:
 You author Jest tests for **only** the code changed in this PR. Do **not** modify production files.
 Detect JS/TS stack, plan minimal-but-sufficient cases, write tests, run `yarn test --coverage`, and iterate (mocks/fixtures) until tests pass and thresholds are met.
 
+> **Stack scope**: This agent is designed for JavaScript/TypeScript projects using **Jest** and **Yarn**.
+> If the project uses a different test runner or package manager, check the project root `AGENTS.md`
+> for the correct test commands and adapt accordingly. Stop with a clear note if the stack is incompatible.
+
+## Boundaries
+
+- ✅ Always: Test only changed code (PR diff scope); iterate until tests pass and coverage thresholds are met; stage only test/fixture files — never production code
+- ⚠️ Ask first: When the PR diff is very large and full coverage would require significant new test infrastructure not already present in the project
+- 🚫 Never: Modify production source files; commit changes (only stage and provide a suggested commit message); skip the coverage check
+
 # Steps
 
 ## 0) Determine BASE

@@ -22,6 +22,8 @@ When unsure about implementation details, ALWAYS ask the developer.
 | G-3 | For changes >300 LOC or >3 files, **ask for confirmation**.                                                                              | ❌ Refactor large modules without human guidance.                                                                                    |
 | G-4 | Stay within the current task context. Inform the dev if it'd be better to start afresh.                                                  | ❌ Continue work from a prior prompt after "new task" — start a fresh session.                                                       |
 | G-5 | **Update README/docs** whenever you change behavior, add features, or modify CLI flags.                                                  | ❌ Leave documentation out of sync with code changes.                                                                                |
+| G-6 | **Every code change MUST include tests.** Write tests first (TDD), or add tests alongside implementation. No test = no commit.           | ❌ Commit code changes without corresponding test coverage.                                                                         |
+| G-7 | **Every task MUST have a self-contained description** before work begins or is committed. Include: what the work entails, acceptance criteria, and any links/references needed to execute it without session context. | ❌ Create or close a task with only a title. A title-only task is not actionable. |
 
 ---
 
@@ -31,6 +33,59 @@ When unsure about implementation details, ALWAYS ask the developer.
 - **Test:** `{{TEST_CMD}}`
 - **Lint:** `{{LINT_CMD}}`
 - **Run a single test:** `{{SINGLE_TEST_CMD}}`
+
+---
+
+## Project Knowledge [CUSTOMIZE]
+
+<!--
+  Tell the AI about this project's structure, language, and conventions.
+  The more specific you are here, the better the AI will match your codebase.
+-->
+
+### Language & Runtime
+
+- **Primary language:** {{LANGUAGE}}
+- **Runtime / framework:** <!-- e.g. Node 20 + Express, Go 1.22, Python 3.12 + FastAPI -->
+- **Package manager / build tool:** <!-- e.g. npm, yarn, go mod, cargo, uv -->
+
+### Project Structure
+
+<!-- Describe the key directories and what lives in each.
+     Keep this in sync with actual layout — outdated maps mislead the AI.
+
+Example:
+```
+{{PROJECT_NAME}}/
+├── src/           ← application source
+│   ├── api/       ← HTTP handlers / routes
+│   ├── domain/    ← business logic (no framework deps)
+│   └── infra/     ← database, external clients
+├── test/          ← test files (mirrors src/ layout)
+├── docs/          ← architecture decisions (ADRs in docs/adr/)
+└── scripts/       ← dev tooling
+```
+-->
+
+### Key Patterns & Conventions
+
+<!-- Document the coding patterns the AI should follow for this project.
+     Examples:
+     - Error handling: wrap with context using fmt.Errorf("op: %w", err)
+     - Logging: structured log via slog, always include trace ID
+     - Database: sqlc-generated queries in internal/db/, migrations in db/migrations/
+     - Testing: table-driven tests, testcontainers for integration tests
+     - API style: RESTful, JSON, camelCase fields, problem+json errors
+-->
+
+### Domain Terminology
+
+<!-- Define project-specific terms the AI should know.
+     Example:
+     - Tenant: a paying organisation using the platform
+     - Ledger: append-only record of financial events for one tenant
+     - Settlement: process of netting ledger entries into a transfer batch
+-->
 
 ---
 

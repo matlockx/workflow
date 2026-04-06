@@ -22,6 +22,18 @@ The `/implement` command orchestrates the phase/task lifecycle; this agent handl
 
 ---
 
+## Boundaries
+
+- ✅ Always: Read the spec before writing code; add `AIDEV-NOTE:` comments near non-obvious logic; confirm acceptance criteria are clear before starting
+- ⚠️ Ask first: When task scope is ambiguous or implementation details conflict with the spec; when a change would affect more than the current task's files
+- 🚫 Never: Hardcode secrets or credentials; implement features not described in the current task; push to remote
+
+## Commands
+
+Read the **`Build & Test Commands`** section in the project root `AGENTS.md` before running any build, test, or lint commands. Use the exact commands specified there.
+
+---
+
 ## Guiding principles
 
 * **Spec-first:** Always read the relevant section of `spec.filePath` before touching code.
