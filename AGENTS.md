@@ -110,6 +110,10 @@ ADRs capture significant architectural choices so future contributors understand
 
 **Skip the ADR** only for purely mechanical changes (renaming, formatting, dependency bumps, doc-only edits, bug fixes with no design trade-off).
 
+**When in the workflow:**
+- **Gate 2 (planning)** — triage whether an ADR is needed; draft Context + Decision sections before coding starts.
+- **Gate 3 (ship)** — verify the ADR is finalized and consistent with the implementation, or catch architectural changes missed during planning.
+
 **ADR location**: `docs/architecture/adr/ADR-NNN-<slug>.md`  
 **Template**: `docs/architecture/adr/TEMPLATE.md`
 

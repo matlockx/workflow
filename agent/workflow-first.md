@@ -25,12 +25,33 @@ wants you to work on this task at all.
 
 ### Gate 2: Implementation Confirmation
 
-After planning is complete (questions answered, plan reviewed), present:
+After planning is complete (questions answered, plan reviewed), perform **ADR triage**
+before presenting the confirmation prompt.
+
+#### ADR Triage (design-time)
+
+Before confirming implementation, evaluate whether the planned change is architectural:
+
+- **New architectural pattern** or cross-cutting design decision → ADR needed
+- **Significant deletion or replacement** of a system component → ADR needed
+- **Behavioral change** that future contributors would otherwise have to reverse-engineer → ADR needed
+- **Mechanical change** (renaming, formatting, dependency bumps, doc-only edits, bug fixes with no design trade-off) → no ADR
+
+If an ADR is needed, draft at minimum the **Context** and **Decision** sections during
+planning. The ADR becomes part of the implementation plan — the user should see it in the
+confirmation prompt and approve both the code plan and the architectural rationale together.
+
+When in doubt → flag it. A short ADR is better than a missing one.
+
+#### Confirmation Prompt
+
+Present the implementation plan:
 
 ```
 Ready to implement:
 - [ ] {file1} (~{loc} LOC)
 - [ ] {file2} (~{loc} LOC)
+- [ ] ADR-NNN-{slug}.md (new — Context + Decision drafted)   ← only if ADR triage flagged one
 
 Begin? [y/n]
 ```
@@ -78,8 +99,9 @@ intervention; only stop when unsure or all checks pass.
    - **AGENTS.md** (root + directory-specific): Do any workflow rules, glossary entries, or directory descriptions need updating? If yes → update.
    - If unsure whether a doc update is needed → err on the side of updating.
 
-6. **ADR check** *(hard gate)* — Decide if an Architecture Decision Record is needed:
-   - **Write an ADR** when the change involves any of: a new architectural pattern, a significant deletion or replacement of a system component, a cross-cutting behavioral change, or a decision that future contributors would otherwise have to reverse-engineer.
+6. **ADR check** *(hard gate)* — Verify or catch ADRs that were flagged (or missed) during planning:
+   - **If an ADR was drafted at Gate 2** → verify it is finalized, consistent with the actual implementation, and included in the commit.
+   - **If no ADR was flagged at Gate 2** → safety-net check: did the implementation turn out more architectural than expected? If yes → write the ADR now.
    - **Skip the ADR** only for purely mechanical changes (renaming, formatting, dependency bumps, doc-only edits, bug fixes with no design trade-off).
    - When in doubt → write a short ADR. Short is better than missing.
    - ADRs live in `docs/architecture/adr/ADR-NNN-<slug>.md`. Use the template at `docs/architecture/adr/TEMPLATE.md`.
@@ -266,10 +288,13 @@ The backend IS the state — no local cursor files, no spec stage.
 Gates:
 1. Gate 1: Intent acknowledgment (confirm user wants to work on this)
 2. Gate 2: Implementation confirmation (confirm the plan before writing files)
+   Includes ADR triage: flag architectural changes, draft Context/Decision sections before coding.
 3. Gate 3: Ship (build + tests + commit + task closure — auto-loop on failures)
-   Steps: task-check → build → tests → code-review → docs/scripts → ADR → PR-size → commit → close
+   Steps: task-check → build → tests → code-review → docs/scripts → ADR-verify → PR-size → commit → close
 
 Gate 3 doc/script check and ADR check are **hard gates** — they block commit if skipped.
+ADR triage at Gate 2 is a **design-time** decision; the Gate 3 ADR step **verifies** that decision
+(or catches architectural changes that weren't flagged during planning).
 The test check is also a **hard gate** — missing tests are treated the same as failing tests: auto-loop to write them first, no exceptions.
 The intent detection is deliberately conservative — when unsure, ask rather than guess.
 This preserves user trust and prevents mis-routing.
