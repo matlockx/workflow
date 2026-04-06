@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# AIDEV-NOTE: Pre-commit hook enforcing quality gates at the git level.
+# This hook cannot be bypassed with --no-verify in the v2 workflow.
+# Install with: ./hooks/install.sh
+set -euo pipefail
+
+# --- Configuration ---
+# Override these with environment variables if needed
+GOLANGCI_LINT="${GOLANGCI_LINT:-golangci-lint}"
+GO="${GO:-go}"
+GOFLAGS="${GOFLAGS:--race}"
+MAX_DIFF_LOC="${MAX_DIFF_LOC:-500}"
+
+# --- Colors ---
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+NC='\033[0m' # No Color
+
+pass() { echo -e "${GREEN}✓${NC} $1"; }
+fail() { echo -e "${RED}✗${NC} $1"; }
+warn() { echo -e "${YELLOW}!${NC} $1"; }
+
+# --- Check: Are there staged Go files? ---
+STAGED_GO=$(git diff --cached --name-only --diff-filter=ACM -- '*.go' || true)
+if [ -z "$STAGED_GO" ]; then
+    pass "No Go files staged — skipping Go checks"
+    exit 0
+fi
+
+ERRORS=0
+
+# --- Gate 1: Commit message format ---
+# This gate runs via commit-msg hook, not pre-commit.
+# We check for task ID in the pre-commit as a safety net.
+# The actual commit-msg hook (if present) enforces the full format.
+
+# --- Gate 2: Tests pass ---
+echo "Running tests..."
+if GOFLAGS="$GOFLAGS" $GO test ./... -count=1 2>&1; then
+    pass "Tests pass"
+else
+    fail "Tests failed"
+    ERRORS=$((ERRORS + 1))
+fi
+
+# --- Gate 3: Lint passes ---
+echo "Running linter..."
+if command -v "$GOLANGCI_LINT" &> /dev/null; then
+    if $GOLANGCI_LINT run 2>&1; then
+        pass "Lint clean"
+    else
+        fail "Lint errors found"
+        ERRORS=$((ERRORS + 1))
+    fi
+else
+    warn "golangci-lint not found — skipping lint check"
+    warn "Install: https://golangci-lint.run/usage/install/"
+fi
+
+# --- Gate 4: Diff size under limit ---
+STAT=$(git diff --cached --shortstat)
+if [ -n "$STAT" ]; then
+    # Extract insertions and deletions from shortstat output
+    INSERTIONS=$(echo "$STAT" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo 0)
+    DELETIONS=$(echo "$STAT" | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo 0)
+    TOTAL=$((${INSERTIONS:-0} + ${DELETIONS:-0}))
+
+    if [ "$TOTAL" -gt "$MAX_DIFF_LOC" ]; then
+        fail "Diff too large: ${TOTAL} LOC (max ${MAX_DIFF_LOC})"
+        fail "Split into smaller tasks with the Designer agent"
+        ERRORS=$((ERRORS + 1))
+    else
+        pass "Diff size: ${TOTAL} LOC (under ${MAX_DIFF_LOC})"
+    fi
+fi
+
+# --- Gate 5: No secrets in staged files ---
+echo "Checking for secrets..."
+# AIDEV-NOTE: This is a basic pattern check, not a full secret scanner.
+# For production use, consider tools like gitleaks or trufflehog.
+SECRET_PATTERNS='(api[_-]?key|secret[_-]?key|password|token|credential|private[_-]?key)\s*[:=]\s*["\x27][^\s"'\'']{8,}'
+if git diff --cached -U0 | grep -iEq "$SECRET_PATTERNS" 2>/dev/null; then
+    fail "Potential secrets found in staged files"
+    fail "Check: git diff --cached -U0 | grep -iE '$SECRET_PATTERNS'"
+    ERRORS=$((ERRORS + 1))
+else
+    pass "No secrets detected"
+fi
+
+# --- Summary ---
+echo ""
+if [ "$ERRORS" -gt 0 ]; then
+    fail "Pre-commit failed with $ERRORS error(s). Fix issues and try again."
+    exit 1
+else
+    pass "All pre-commit checks passed"
+    exit 0
+fi

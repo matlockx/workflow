@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# AIDEV-NOTE: Commit-msg hook enforcing Conventional Commits with Beads task ID.
+# Format: <type>(<scope>): <subject> [BD-<id>]
+set -euo pipefail
+
+COMMIT_MSG_FILE="$1"
+COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
+
+# --- Colors ---
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m'
+
+fail() { echo -e "${RED}✗${NC} $1"; }
+pass() { echo -e "${GREEN}✓${NC} $1"; }
+
+# Skip merge commits
+if echo "$COMMIT_MSG" | head -1 | grep -qE '^Merge '; then
+    exit 0
+fi
+
+# --- Check 1: Conventional Commit format ---
+# Pattern: type(optional-scope): subject
+CONVENTIONAL_RE='^(feat|fix|refactor|test|chore|docs|style|perf|ci|build)(\([a-z0-9_-]+\))?: .+'
+FIRST_LINE=$(echo "$COMMIT_MSG" | head -1)
+
+if ! echo "$FIRST_LINE" | grep -qE "$CONVENTIONAL_RE"; then
+    fail "Commit message does not follow Conventional Commits format"
+    echo ""
+    echo "  Expected: <type>(<scope>): <subject> [BD-<task-id>]"
+    echo "  Got:      $FIRST_LINE"
+    echo ""
+    echo "  Valid types: feat, fix, refactor, test, chore, docs, style, perf, ci, build"
+    exit 1
+fi
+pass "Conventional Commit format"
+
+# --- Check 2: Beads task ID ---
+TASK_ID_RE='\[BD-[a-zA-Z0-9]+\]'
+if ! echo "$FIRST_LINE" | grep -qE "$TASK_ID_RE"; then
+    fail "Missing Beads task ID in commit message"
+    echo ""
+    echo "  Expected: ... [BD-<task-id>] at end of subject line"
+    echo "  Got:      $FIRST_LINE"
+    echo ""
+    echo "  Create a task first: bd create \"task title\" --json"
+    exit 1
+fi
+pass "Beads task ID present"
+
+exit 0
