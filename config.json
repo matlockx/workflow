@@ -1,0 +1,8 @@
+{
+  "backend": {
+    "type": "beads",
+    "config": {
+      "workspaceDir": "."
+    }
+  }
+}

@@ -1,12 +1,8 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "instructions": [
-    "agent/workflow-first.md",
-    "agent/workflow-queries.md",
-    "skills/workflow-backend/SKILL.md",
-    "skills/tdd-workflow/SKILL.md",
-    "skills/security-review/SKILL.md",
-    "skills/coding-standards/SKILL.md"
+    ".opencode/INSTRUCTIONS.md",
+    "docs/adr/INDEX.md"
   ],
   "permission": {
     "doom_loop": "deny"
